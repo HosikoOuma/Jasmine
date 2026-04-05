@@ -1,7 +1,9 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -17,17 +19,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun PlayerScreen(
@@ -43,7 +48,7 @@ fun PlayerScreen(
     
     val haptic = LocalHapticFeedback.current
 
-    // Slider logic from FR.txt to prevent jumping during progress updates
+    // Slider logic
     var sliderValue by remember { mutableFloatStateOf(0f) }
     var lastSeekTime by remember { mutableLongStateOf(0L) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -56,10 +61,32 @@ fun PlayerScreen(
         }
     }
 
+    // Logic for swipe-to-collapse
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val animatedOffset by animateFloatAsState(
+        targetValue = dragOffset,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "offset"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .offset { IntOffset(0, animatedOffset.roundToInt().coerceAtLeast(0)) }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (dragOffset > 400) {
+                            onClose()
+                        }
+                        dragOffset = 0f
+                    },
+                    onVerticalDrag = { _, dragAmount ->
+                        dragOffset = (dragOffset + dragAmount).coerceAtLeast(0f)
+                    }
+                )
+            }
     ) {
         Column(
             modifier = Modifier
@@ -71,7 +98,7 @@ fun PlayerScreen(
             // Top spacing instead of Top Bar
             Spacer(modifier = Modifier.height(80.dp))
 
-            // Album Art - Made smaller
+            // Album Art - Fixed at 0.95f width as requested
             Surface(
                 modifier = Modifier
                     .fillMaxWidth(0.95f)
@@ -151,7 +178,7 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Playback Controls - Equal spacing, Play/Pause is last
+            // Playback Controls - Play/Pause is LAST as requested
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -198,7 +225,7 @@ fun PlayerScreen(
                 }
             }
 
-            // Pushes bottom buttons to the bottom, increasing distance
+            // Pushes bottom buttons to the bottom
             Spacer(modifier = Modifier.weight(1f))
 
             Spacer(modifier = Modifier.height(64.dp))
