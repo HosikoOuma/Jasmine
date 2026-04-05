@@ -38,6 +38,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _duration = MutableStateFlow(0L)
     val duration = _duration.asStateFlow()
 
+    private val _shuffleModeEnabled = MutableStateFlow(false)
+    val shuffleModeEnabled = _shuffleModeEnabled.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
+    val repeatMode = _repeatMode.asStateFlow()
+
     private var progressJob: Job? = null
 
     init {
@@ -50,6 +56,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun setupController() {
         val controller = controller ?: return
+        
+        _isPlaying.value = controller.isPlaying
+        _duration.value = controller.duration.coerceAtLeast(0L)
+        _progress.value = controller.currentPosition.coerceAtLeast(0L)
+        _shuffleModeEnabled.value = controller.shuffleModeEnabled
+        _repeatMode.value = controller.repeatMode
+        
+        if (controller.isPlaying) startProgressUpdate()
+
         controller.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 mediaItem?.let {
@@ -57,8 +72,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         id = it.mediaId.toLongOrNull() ?: 0L,
                         title = it.mediaMetadata.title?.toString() ?: "Unknown",
                         artist = it.mediaMetadata.artist?.toString() ?: "Unknown",
-                        duration = 0, // Duration will be updated in onPlaybackStateChanged
-                        contentUri = Uri.EMPTY, // Uri is not easily accessible from MediaItem here
+                        duration = 0,
+                        contentUri = Uri.EMPTY,
                         albumArtUri = it.mediaMetadata.artworkUri
                     )
                     _currentTrack.value = track
@@ -78,6 +93,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (playbackState == Player.STATE_READY) {
                     _duration.value = controller.duration
                 }
+            }
+
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                _shuffleModeEnabled.value = shuffleModeEnabled
+            }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                _repeatMode.value = repeatMode
             }
         })
     }
@@ -109,6 +132,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             controller.pause()
         } else {
             controller.play()
+        }
+    }
+
+    fun seekTo(position: Long) {
+        controller?.seekTo(position)
+        _progress.value = position
+    }
+
+    fun skipToNext() {
+        controller?.seekToNext()
+    }
+
+    fun skipToPrevious() {
+        controller?.seekToPrevious()
+    }
+
+    fun toggleShuffle() {
+        controller?.let {
+            it.shuffleModeEnabled = !it.shuffleModeEnabled
+        }
+    }
+
+    fun toggleRepeatMode() {
+        controller?.let {
+            it.repeatMode = when (it.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
+                Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
+                else -> Player.REPEAT_MODE_OFF
+            }
         }
     }
 

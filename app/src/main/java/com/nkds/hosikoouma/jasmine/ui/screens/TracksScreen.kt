@@ -25,8 +25,9 @@ import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
 @Composable
 fun TracksScreen(
-    trackViewModel: TrackViewModel = viewModel(),
-    playerViewModel: PlayerViewModel = viewModel()
+    trackViewModel: TrackViewModel,
+    playerViewModel: PlayerViewModel,
+    onNavigateToPlayer: () -> Unit
 ) {
     val tracks by trackViewModel.tracks.collectAsState()
 
@@ -42,6 +43,7 @@ fun TracksScreen(
             itemsIndexed(tracks) { index, track ->
                 TrackItem(track = track, onClick = {
                     playerViewModel.playTracks(tracks, index)
+                    onNavigateToPlayer()
                 })
             }
         }
