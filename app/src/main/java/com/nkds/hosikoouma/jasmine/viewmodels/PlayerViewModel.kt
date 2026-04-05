@@ -2,6 +2,7 @@ package com.nkds.hosikoouma.jasmine.viewmodels
 
 import android.app.Application
 import android.content.ComponentName
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -51,8 +52,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         controller.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                // Update current track based on media item metadata
-                // This assumes we stored track info in media item metadata
+                mediaItem?.let {
+                    val track = Track(
+                        id = it.mediaId.toLongOrNull() ?: 0L,
+                        title = it.mediaMetadata.title?.toString() ?: "Unknown",
+                        artist = it.mediaMetadata.artist?.toString() ?: "Unknown",
+                        duration = 0, // Duration will be updated in onPlaybackStateChanged
+                        contentUri = Uri.EMPTY, // Uri is not easily accessible from MediaItem here
+                        albumArtUri = it.mediaMetadata.artworkUri
+                    )
+                    _currentTrack.value = track
+                }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -72,22 +82,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         })
     }
 
-    fun playTrack(track: Track) {
+    fun playTracks(tracks: List<Track>, startIndex: Int) {
         val controller = controller ?: return
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(track.id.toString())
-            .setUri(track.contentUri)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(track.title)
-                    .setArtist(track.artist)
-                    .setArtworkUri(track.albumArtUri)
-                    .build()
-            )
-            .build()
+        val mediaItems = tracks.map { track ->
+            MediaItem.Builder()
+                .setMediaId(track.id.toString())
+                .setUri(track.contentUri)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(track.title)
+                        .setArtist(track.artist)
+                        .setArtworkUri(track.albumArtUri)
+                        .build()
+                )
+                .build()
+        }
         
-        _currentTrack.value = track
-        controller.setMediaItem(mediaItem)
+        controller.setMediaItems(mediaItems, startIndex, 0L)
         controller.prepare()
         controller.play()
     }

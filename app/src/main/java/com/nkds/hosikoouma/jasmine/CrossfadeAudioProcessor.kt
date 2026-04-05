@@ -2,7 +2,6 @@ package com.nkds.hosikoouma.jasmine
 
 import androidx.annotation.OptIn
 import androidx.media3.common.C
-import androidx.media3.common.Format
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.util.UnstableApi
@@ -17,7 +16,7 @@ class CrossfadeAudioProcessor : AudioProcessor {
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
     private var inputEnded = false
 
-    // Текущий коэффициент громкости (0.0 to 1.0)
+    @Volatile
     private var volumeScale = 1.0f
 
     fun setVolumeScale(scale: Float) {
@@ -25,7 +24,7 @@ class CrossfadeAudioProcessor : AudioProcessor {
     }
 
     override fun configure(inputFormat: AudioFormat): AudioFormat {
-        if (inputFormat.encoding != C.ENCODING_PCM_16BIT) {
+        if (inputFormat.encoding != C.ENCODING_PCM_16BIT && inputFormat.encoding != C.ENCODING_PCM_FLOAT) {
             throw AudioProcessor.UnhandledAudioFormatException(inputFormat)
         }
         pendingOutputFormat = inputFormat
@@ -35,7 +34,7 @@ class CrossfadeAudioProcessor : AudioProcessor {
     override fun isActive(): Boolean = pendingOutputFormat != AudioFormat.NOT_SET
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        var remaining = inputBuffer.remaining()
+        val remaining = inputBuffer.remaining()
         if (remaining == 0) return
 
         if (buffer.capacity() < remaining) {
@@ -44,11 +43,20 @@ class CrossfadeAudioProcessor : AudioProcessor {
             buffer.clear()
         }
 
-        // Применяем громкость к PCM данным
-        while (inputBuffer.hasRemaining()) {
-            val sample = inputBuffer.short
-            val scaledSample = (sample * volumeScale).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            buffer.putShort(scaledSample)
+        val currentVolume = volumeScale
+
+        if (outputFormat.encoding == C.ENCODING_PCM_16BIT) {
+            while (inputBuffer.hasRemaining()) {
+                val sample = inputBuffer.short
+                val scaledSample = (sample * currentVolume).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                buffer.putShort(scaledSample)
+            }
+        } else if (outputFormat.encoding == C.ENCODING_PCM_FLOAT) {
+            while (inputBuffer.remaining() >= 4) {
+                val sample = inputBuffer.float
+                buffer.putFloat(sample * currentVolume)
+            }
         }
 
         buffer.flip()
