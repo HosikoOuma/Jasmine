@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -72,8 +73,13 @@ fun PlayerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer {
+                // Прозрачность затухает медленнее
+                alpha = (1f - (animatedOffset / 2500f)).coerceIn(0f, 1f)
+                translationY = animatedOffset.coerceAtLeast(0f)
+            }
+            .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) // Закругляем верхние углы
             .background(Color.Black)
-            .offset { IntOffset(0, animatedOffset.roundToInt().coerceAtLeast(0)) }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
@@ -145,7 +151,7 @@ fun PlayerScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             // Slider and Time
             Column(modifier = Modifier.fillMaxWidth()) {
