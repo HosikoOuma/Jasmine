@@ -1,5 +1,6 @@
 package com.nkds.hosikoouma.jasmine
 
+import android.app.PendingIntent
 import android.content.Intent
 import android.media.AudioAttributes as AndroidAudioAttributes
 import android.media.AudioFocusRequest
@@ -46,7 +47,22 @@ class PlaybackService : MediaSessionService() {
         playerB = createPlayer(processorB)
 
         currentPlayer = playerA
-        mediaSession = MediaSession.Builder(this, playerA).build()
+        
+        // Добавляем экстра-флаг, чтобы MainActivity знала, что нужно открыть плеер
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("OPEN_PLAYER", true)
+            // Важно: если активити уже запущена, этот флаг придет в onNewIntent
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent, 
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        mediaSession = MediaSession.Builder(this, playerA)
+            .setSessionActivity(pendingIntent)
+            .build()
 
         requestManualAudioFocus()
 
@@ -70,8 +86,6 @@ class PlaybackService : MediaSessionService() {
 
         player.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                // Синхронизируем паузу только если она пришла от ТЕКУЩЕГО (активного) плеера
-                // Это предотвращает остановку нового трека, когда старый встает на паузу в конце кроссфейда
                 if (isCrossfading && player == currentPlayer) {
                     val otherPlayer = if (player == playerA) playerB else playerA
                     if (otherPlayer.playWhenReady != playWhenReady) {
@@ -130,8 +144,6 @@ class PlaybackService : MediaSessionService() {
             oldPlayer.removeMediaItems(nextIndex, oldPlayer.mediaItemCount)
         }
 
-        // Мы СРАЗУ меняем currentPlayer на новый. 
-        // Теперь все команды "пауза" от пользователя будут идти к nextPlayer.
         currentPlayer = nextPlayer
         mediaSession?.setPlayer(nextPlayer)
 
@@ -147,9 +159,6 @@ class PlaybackService : MediaSessionService() {
                 delay(interval)
             }
             
-            // Теперь, когда мы вызываем pause() у старого плеера, 
-            // проверка (player == currentPlayer) в слушателе будет ложной, 
-            // и основной (новый) плеер не остановится.
             oldPlayer.pause()
             oldPlayer.stop()
             oldProcessor.setVolumeScale(1.0f)

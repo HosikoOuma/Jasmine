@@ -57,9 +57,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun setupController() {
         val controller = controller ?: return
         
+        // Обновляем текущий трек сразу при подключении
+        controller.currentMediaItem?.let { updateCurrentTrack(it) }
+        
         _isPlaying.value = controller.isPlaying
-        _duration.value = controller.duration.coerceAtLeast(0L)
-        _progress.value = controller.currentPosition.coerceAtLeast(0L)
+        _duration.value = if (controller.duration > 0) controller.duration else 0L
+        _progress.value = if (controller.currentPosition > 0) controller.currentPosition else 0L
         _shuffleModeEnabled.value = controller.shuffleModeEnabled
         _repeatMode.value = controller.repeatMode
         
@@ -67,17 +70,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         controller.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                mediaItem?.let {
-                    val track = Track(
-                        id = it.mediaId.toLongOrNull() ?: 0L,
-                        title = it.mediaMetadata.title?.toString() ?: "Unknown",
-                        artist = it.mediaMetadata.artist?.toString() ?: "Unknown",
-                        duration = 0,
-                        contentUri = Uri.EMPTY,
-                        albumArtUri = it.mediaMetadata.artworkUri
-                    )
-                    _currentTrack.value = track
-                }
+                mediaItem?.let { updateCurrentTrack(it) }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -103,6 +96,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 _repeatMode.value = repeatMode
             }
         })
+    }
+
+    private fun updateCurrentTrack(mediaItem: MediaItem) {
+        _currentTrack.value = Track(
+            id = mediaItem.mediaId.toLongOrNull() ?: 0L,
+            title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
+            artist = mediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
+            duration = 0,
+            contentUri = Uri.EMPTY,
+            albumArtUri = mediaItem.mediaMetadata.artworkUri
+        )
     }
 
     fun playTracks(tracks: List<Track>, startIndex: Int) {
