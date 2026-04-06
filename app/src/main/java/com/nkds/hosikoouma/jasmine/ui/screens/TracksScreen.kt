@@ -71,7 +71,7 @@ fun TracksScreen(
                     state = listState,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 70.dp, bottom = 160.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp) // Увеличил зазор для яркости
                 ) {
                     itemsIndexed(tracks) { index, track ->
                         TrackCard(
@@ -102,9 +102,9 @@ fun TracksScreen(
                 .padding(top = 16.dp, end = 16.dp)
                 .align(Alignment.TopEnd),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
+            color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
             tonalElevation = 8.dp,
-            shadowElevation = 4.dp
+            shadowElevation = 6.dp
         ) {
             Row(
                 modifier = Modifier.padding(4.dp),
@@ -257,19 +257,28 @@ fun TrackCard(
     isPlaying: Boolean,
     onClick: () -> Unit
 ) {
+    // Анимированный цвет фона для активной карточки
+    val cardColor by animateColorAsState(
+        targetValue = if (isCurrent) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+        },
+        animationSpec = tween(500),
+        label = "cardColor"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp), // Более выраженные углы
         colors = CardDefaults.cardColors(
-            containerColor = if (isCurrent) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            }
+            containerColor = cardColor
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isCurrent) 4.dp else 0.dp
+        )
     ) {
         Row(
             modifier = Modifier
@@ -285,8 +294,8 @@ fun TrackCard(
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(56.dp) // Увеличил обложку
+                    .clip(RoundedCornerShape(14.dp))
             )
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -297,8 +306,8 @@ fun TrackCard(
                 Text(
                     text = track.title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Bold,
+                    color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -306,9 +315,9 @@ fun TrackCard(
                     text = track.artist,
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isCurrent) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -318,7 +327,8 @@ fun TrackCard(
             if (isCurrent) {
                 PlayingEqualizer(
                     isPlaying = isPlaying,
-                    modifier = Modifier.padding(start = 8.dp, end = 4.dp)
+                    modifier = Modifier.padding(start = 8.dp, end = 8.dp),
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }

@@ -1,5 +1,6 @@
 package com.nkds.hosikoouma.jasmine.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -32,67 +33,86 @@ fun MiniPlayer(
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
+    val progress by viewModel.progress.collectAsState()
+    val duration by viewModel.duration.collectAsState()
 
     if (currentTrack == null) return
+
+    // Рассчитываем процент прогресса
+    val progressFactor by animateFloatAsState(
+        targetValue = if (duration > 0) progress.toFloat() / duration.toFloat() else 0f,
+        label = "progress"
+    )
 
     Surface(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .height(64.dp)
             .fillMaxWidth(),
-        color = Color(0xFF2B2930).copy(alpha = 0.95f),
+        color = Color(0xFF2B2930),
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 8.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(currentTrack?.albumArtUri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+        Box(modifier = Modifier.fillMaxSize()) {
+            // ФОНОВЫЙ ПРОГРЕСС-БАР
+            Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .fillMaxHeight()
+                    .fillMaxWidth(progressFactor)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Легкая заливка акцентным цветом
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
+            // КОНТЕНТ МИНИПЛЕЕРА
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = currentTrack?.title ?: "",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = currentTrack?.artist ?: "",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            IconButton(
-                onClick = { viewModel.togglePlayPause() }
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(currentTrack?.albumArtUri)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(8.dp))
                 )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = currentTrack?.title ?: "",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = currentTrack?.artist ?: "",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                IconButton(
+                    onClick = { viewModel.togglePlayPause() }
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
             }
         }
     }
