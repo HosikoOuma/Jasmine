@@ -87,22 +87,18 @@ class PlaybackService : MediaSessionService() {
             .setOnAudioFocusChangeListener { focusChange ->
                 when (focusChange) {
                     AudioManager.AUDIOFOCUS_LOSS -> {
-                        // Полная потеря фокуса
                         currentPlayer?.pause()
                     }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                        // Временная потеря (например, звонок)
                         if (currentPlayer?.isPlaying == true) {
                             playOnFocusGain = true
                             currentPlayer?.pause()
                         }
                     }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                        // Приглушение звука (уведомление)
                         currentPlayer?.volume = 0.2f
                     }
                     AudioManager.AUDIOFOCUS_GAIN -> {
-                        // Фокус вернулся
                         currentPlayer?.volume = 1.0f
                         if (playOnFocusGain) {
                             currentPlayer?.play()
@@ -125,16 +121,13 @@ class PlaybackService : MediaSessionService() {
             }
         }
         val player = ExoPlayer.Builder(this, renderersFactory)
-            .setAudioAttributes(AudioAttributes.DEFAULT, false) // Ручное управление
+            .setAudioAttributes(AudioAttributes.DEFAULT, false)
             .build()
 
         player.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (playWhenReady && !isCrossfading) {
-                    val granted = requestManualAudioFocus()
-                    if (!granted) {
-                        player.playWhenReady = false
-                    }
+                    requestManualAudioFocus()
                 }
                 
                 if (isCrossfading && player == currentPlayer) {
@@ -159,7 +152,14 @@ class PlaybackService : MediaSessionService() {
         if (!isEnabled) return
 
         val remaining = current.duration - current.currentPosition
-        if (remaining in 200..fadeDuration && current.nextMediaItemIndex != C.INDEX_UNSET) {
+        
+        // ВАЖНО: При REPEAT_MODE_ONE nextMediaItemIndex часто равен текущему или INDEX_UNSET в зависимости от реализации плейлиста.
+        // Мы запускаем кроссфейд, если осталось мало времени и включен любой повтор ИЛИ есть следующий трек.
+        val isRepeatOne = current.repeatMode == Player.REPEAT_MODE_ONE
+        val isRepeatAll = current.repeatMode == Player.REPEAT_MODE_ALL
+        val hasNext = current.nextMediaItemIndex != C.INDEX_UNSET || isRepeatOne || isRepeatAll
+
+        if (remaining in 200..fadeDuration && hasNext) {
             startOverlappingCrossfade(fadeDuration)
         }
     }
@@ -172,18 +172,41 @@ class PlaybackService : MediaSessionService() {
         val nextPlayer = if (oldPlayer == playerA) playerB else playerA
         val nextProcessor = if (nextPlayer == playerA) processorA else processorB
         
-        val nextIndex = oldPlayer.nextMediaItemIndex
+        val currentRepeatMode = oldPlayer.repeatMode
+        
+        // Определяем индекс для следующего воспроизведения
+        val nextIndex = if (currentRepeatMode == Player.REPEAT_MODE_ONE) {
+            oldPlayer.currentMediaItemIndex
+        } else if (oldPlayer.nextMediaItemIndex != C.INDEX_UNSET) {
+            oldPlayer.nextMediaItemIndex
+        } else if (currentRepeatMode == Player.REPEAT_MODE_ALL) {
+            0 // Переход с конца в начало
+        } else {
+            -1
+        }
+
+        if (nextIndex == -1) {
+            isCrossfading = false
+            return
+        }
+
         val allItems = getAllItems(oldPlayer)
 
+        // Подготавливаем новый плеер
         nextProcessor.setVolumeScale(0f)
         nextPlayer.setMediaItems(allItems, nextIndex, 0L)
+        nextPlayer.repeatMode = currentRepeatMode
         nextPlayer.prepare()
-        
-        // При кроссфейде мы не запрашиваем фокус заново, так как приложение его уже держит
         nextPlayer.play()
 
-        if (oldPlayer.mediaItemCount > nextIndex) {
-            oldPlayer.removeMediaItems(nextIndex, oldPlayer.mediaItemCount)
+        // У старого плеера выключаем повтор, чтобы он не перезапустился сам
+        oldPlayer.repeatMode = Player.REPEAT_MODE_OFF
+        
+        // Если это не повтор одного трека, убираем следующие айтемы, чтобы они не мешали
+        if (currentRepeatMode != Player.REPEAT_MODE_ONE) {
+            if (oldPlayer.mediaItemCount > nextIndex) {
+                oldPlayer.removeMediaItems(nextIndex, oldPlayer.mediaItemCount)
+            }
         }
 
         currentPlayer = nextPlayer
@@ -192,7 +215,7 @@ class PlaybackService : MediaSessionService() {
         fadeJob?.cancel()
         fadeJob = serviceScope.launch {
             val steps = 40
-            val interval = fadeDuration / steps
+            val interval = (fadeDuration / steps).coerceAtLeast(10)
             
             for (i in 1..steps) {
                 val progress = i.toFloat() / steps

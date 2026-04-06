@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
@@ -211,14 +212,25 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // ОБНОВЛЕННАЯ ЛОГИКА ПОВТОРА
                 IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() }) {
+                    val repeatIcon = when (repeatMode) {
+                        Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne
+                        else -> Icons.Default.Repeat
+                    }
+                    val repeatColor = when (repeatMode) {
+                        Player.REPEAT_MODE_OFF -> Color.White
+                        else -> MaterialTheme.colorScheme.primary
+                    }
+                    
                     Icon(
-                        Icons.Default.Repeat,
+                        imageVector = repeatIcon,
                         contentDescription = "Repeat",
-                        tint = if (repeatMode != 0) MaterialTheme.colorScheme.primary else Color.White,
+                        tint = repeatColor,
                         modifier = Modifier.size(28.dp)
                     )
                 }
+
                 IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() }) {
                     Icon(
                         Icons.Default.Shuffle,

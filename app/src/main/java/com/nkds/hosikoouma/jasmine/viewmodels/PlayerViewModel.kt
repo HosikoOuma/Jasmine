@@ -46,7 +46,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode = _repeatMode.asStateFlow()
 
-    // Наблюдаем за тем, является ли текущий трек избранным
     val isCurrentFavorite: StateFlow<Boolean> = combine(
         _currentTrack,
         favoritesRepository.favoriteTrackIds
@@ -176,9 +175,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleRepeatMode() {
         controller?.let {
+            // Новый порядок: OFF -> ALL -> ONE -> OFF
             it.repeatMode = when (it.repeatMode) {
-                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
-                Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                 else -> Player.REPEAT_MODE_OFF
             }
         }

@@ -1,21 +1,29 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -28,6 +36,7 @@ import coil.request.ImageRequest
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun TracksScreen(
@@ -36,6 +45,7 @@ fun TracksScreen(
     onNavigateToPlayer: () -> Unit
 ) {
     var isFavoritesMode by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     
     val tracks by if (isFavoritesMode) {
         trackViewModel.favoriteTracks.collectAsState()
@@ -44,6 +54,7 @@ fun TracksScreen(
     }
     
     val searchQuery by trackViewModel.searchQuery.collectAsState()
+    val currentTrack by playerViewModel.currentTrack.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (tracks.isEmpty()) {
@@ -55,25 +66,40 @@ fun TracksScreen(
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 70.dp, bottom = 160.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                itemsIndexed(tracks) { index, track ->
-                    TrackCard(track = track, onClick = {
-                        playerViewModel.playTracks(tracks, index)
-                        onNavigateToPlayer()
-                    })
+            Row(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 70.dp, bottom = 160.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(tracks) { index, track ->
+                        TrackCard(
+                            track = track,
+                            isCurrent = currentTrack?.id == track.id,
+                            onClick = {
+                                playerViewModel.playTracks(tracks, index)
+                                onNavigateToPlayer()
+                            }
+                        )
+                    }
                 }
+
+                FastScrollbar(
+                    listState = listState,
+                    itemCount = tracks.size,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(top = 80.dp, bottom = 180.dp, end = 4.dp)
+                        .width(20.dp)
+                )
             }
         }
 
-        // ПЛАВАЮЩИЙ ПУЗЫРЁК (SWITCHER) - теперь у правого края
         Surface(
             modifier = Modifier
-                .padding(top = 16.dp, end = 16.dp) // Отступы сверху и справа
-                .align(Alignment.TopEnd), // Выравнивание по верхнему правому краю
+                .padding(top = 16.dp, end = 16.dp)
+                .align(Alignment.TopEnd),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
             tonalElevation = 8.dp,
@@ -95,6 +121,57 @@ fun TracksScreen(
                     onClick = { isFavoritesMode = true }
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun FastScrollbar(
+    listState: LazyListState,
+    itemCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
+    
+    val scrollbarAlpha by animateFloatAsState(
+        targetValue = if (listState.isScrollInProgress) 1f else 0.3f,
+        label = "alpha"
+    )
+
+    BoxWithConstraints(modifier = modifier) {
+        val maxHeight = constraints.maxHeight.toFloat()
+        
+        val firstVisibleIndex = listState.firstVisibleItemIndex
+        val layoutInfo = listState.layoutInfo
+        val visibleItemsCount = layoutInfo.visibleItemsInfo.size
+        
+        if (itemCount > visibleItemsCount && visibleItemsCount > 0) {
+            val thumbHeight = (visibleItemsCount.toFloat() / itemCount) * maxHeight
+            val scrollPercent = firstVisibleIndex.toFloat() / (itemCount - visibleItemsCount).coerceAtLeast(1)
+            val thumbOffset = scrollPercent * (maxHeight - thumbHeight)
+
+            Box(
+                modifier = Modifier
+                    .offset(y = (thumbOffset / LocalContext.current.resources.displayMetrics.density).dp)
+                    .width(4.dp)
+                    .height((thumbHeight / LocalContext.current.resources.displayMetrics.density).dp)
+                    .align(Alignment.TopCenter)
+                    .alpha(scrollbarAlpha)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .draggable(
+                        orientation = Orientation.Vertical,
+                        state = rememberDraggableState { delta ->
+                            val scrollFactor = itemCount.toFloat() / maxHeight
+                            scope.launch {
+                                listState.scrollToItem(
+                                    (listState.firstVisibleItemIndex + (delta * scrollFactor).toInt())
+                                        .coerceIn(0, (itemCount - 1).coerceAtLeast(0))
+                                )
+                            }
+                        }
+                    )
+            )
         }
     }
 }
@@ -134,6 +211,7 @@ fun ModeToggleButton(
 @Composable
 fun TrackCard(
     track: Track,
+    isCurrent: Boolean,
     onClick: () -> Unit
 ) {
     Card(
@@ -142,7 +220,11 @@ fun TrackCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = if (isCurrent) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -152,17 +234,28 @@ fun TrackCard(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(track.albumArtUri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            )
+            Box(contentAlignment = Alignment.Center) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(track.albumArtUri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .alpha(if (isCurrent) 0.6f else 1f)
+                )
+                if (isCurrent) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
@@ -172,14 +265,19 @@ fun TrackCard(
                 Text(
                     text = track.title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = track.artist,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    color = if (isCurrent) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
