@@ -34,11 +34,16 @@ class PlaybackService : MediaSessionService() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var isCrossfading = false
     private var fadeJob: Job? = null
+    
+    private var playOnFocusGain = false
+    private lateinit var focusRequest: AudioFocusRequest
 
     override fun onCreate() {
         super.onCreate()
         settingsRepository = SettingsRepository(this)
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        
+        setupAudioFocus()
         
         processorA = CrossfadeAudioProcessor()
         playerA = createPlayer(processorA)
@@ -48,10 +53,8 @@ class PlaybackService : MediaSessionService() {
 
         currentPlayer = playerA
         
-        // Добавляем экстра-флаг, чтобы MainActivity знала, что нужно открыть плеер
         val intent = Intent(this, MainActivity::class.java).apply {
             putExtra("OPEN_PLAYER", true)
-            // Важно: если активити уже запущена, этот флаг придет в onNewIntent
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
 
@@ -64,14 +67,55 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(pendingIntent)
             .build()
 
-        requestManualAudioFocus()
-
         serviceScope.launch {
             while (isActive) {
                 delay(300)
                 checkCrossfadeCondition()
             }
         }
+    }
+
+    private fun setupAudioFocus() {
+        val playbackAttributes = AndroidAudioAttributes.Builder()
+            .setUsage(AndroidAudioAttributes.USAGE_MEDIA)
+            .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+
+        focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(playbackAttributes)
+            .setAcceptsDelayedFocusGain(true)
+            .setOnAudioFocusChangeListener { focusChange ->
+                when (focusChange) {
+                    AudioManager.AUDIOFOCUS_LOSS -> {
+                        // Полная потеря фокуса
+                        currentPlayer?.pause()
+                    }
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                        // Временная потеря (например, звонок)
+                        if (currentPlayer?.isPlaying == true) {
+                            playOnFocusGain = true
+                            currentPlayer?.pause()
+                        }
+                    }
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                        // Приглушение звука (уведомление)
+                        currentPlayer?.volume = 0.2f
+                    }
+                    AudioManager.AUDIOFOCUS_GAIN -> {
+                        // Фокус вернулся
+                        currentPlayer?.volume = 1.0f
+                        if (playOnFocusGain) {
+                            currentPlayer?.play()
+                            playOnFocusGain = false
+                        }
+                    }
+                }
+            }
+            .build()
+    }
+
+    private fun requestManualAudioFocus(): Boolean {
+        return audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     private fun createPlayer(processor: CrossfadeAudioProcessor): ExoPlayer {
@@ -81,11 +125,18 @@ class PlaybackService : MediaSessionService() {
             }
         }
         val player = ExoPlayer.Builder(this, renderersFactory)
-            .setAudioAttributes(AudioAttributes.DEFAULT, false)
+            .setAudioAttributes(AudioAttributes.DEFAULT, false) // Ручное управление
             .build()
 
         player.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (playWhenReady && !isCrossfading) {
+                    val granted = requestManualAudioFocus()
+                    if (!granted) {
+                        player.playWhenReady = false
+                    }
+                }
+                
                 if (isCrossfading && player == currentPlayer) {
                     val otherPlayer = if (player == playerA) playerB else playerA
                     if (otherPlayer.playWhenReady != playWhenReady) {
@@ -96,17 +147,6 @@ class PlaybackService : MediaSessionService() {
         })
         
         return player
-    }
-
-    private fun requestManualAudioFocus() {
-        val playbackAttributes = AndroidAudioAttributes.Builder()
-            .setUsage(AndroidAudioAttributes.USAGE_MEDIA)
-            .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC)
-            .build()
-        val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(playbackAttributes)
-            .build()
-        audioManager.requestAudioFocus(focusRequest)
     }
 
     private suspend fun checkCrossfadeCondition() {
@@ -138,6 +178,8 @@ class PlaybackService : MediaSessionService() {
         nextProcessor.setVolumeScale(0f)
         nextPlayer.setMediaItems(allItems, nextIndex, 0L)
         nextPlayer.prepare()
+        
+        // При кроссфейде мы не запрашиваем фокус заново, так как приложение его уже держит
         nextPlayer.play()
 
         if (oldPlayer.mediaItemCount > nextIndex) {
@@ -175,6 +217,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         serviceScope.cancel()
+        audioManager.abandonAudioFocusRequest(focusRequest)
         playerA.release()
         playerB.release()
         mediaSession?.release()

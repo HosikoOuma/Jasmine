@@ -26,14 +26,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import kotlinx.coroutines.launch
 import java.util.Locale
-import kotlin.math.roundToInt
 
 @Composable
 fun PlayerScreen(
@@ -48,6 +47,21 @@ fun PlayerScreen(
     val repeatMode by viewModel.repeatMode.collectAsState()
     
     val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    // Анимированное смещение.
+    val animatedOffset = remember { Animatable(1000f) }
+
+    // Анимация появления при входе (сделаем её чуть жестче для скорости)
+    LaunchedEffect(Unit) {
+        animatedOffset.animateTo(
+            targetValue = 0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        )
+    }
 
     // Slider logic
     var sliderValue by remember { mutableFloatStateOf(0f) }
@@ -62,34 +76,45 @@ fun PlayerScreen(
         }
     }
 
-    // Logic for swipe-to-collapse
-    var dragOffset by remember { mutableFloatStateOf(0f) }
-    val animatedOffset by animateFloatAsState(
-        targetValue = dragOffset,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "offset"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                // Прозрачность затухает медленнее
-                alpha = (1f - (animatedOffset / 2500f)).coerceIn(0f, 1f)
-                translationY = animatedOffset.coerceAtLeast(0f)
+                translationY = animatedOffset.value.coerceAtLeast(0f)
+                alpha = (1f - (animatedOffset.value / 2500f)).coerceIn(0f, 1f)
             }
-            .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) // Закругляем верхние углы
+            .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
             .background(Color.Black)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
-                        if (dragOffset > 400) {
+                        if (animatedOffset.value > 300) {
+                            // Вызываем закрытие не дожидаясь конца анимации, 
+                            // но запускаем "долет" вниз для визуальной инерции
                             onClose()
+                            scope.launch {
+                                animatedOffset.animateTo(
+                                    targetValue = 1500f,
+                                    animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                )
+                            }
+                        } else {
+                            scope.launch {
+                                animatedOffset.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMedium
+                                    )
+                                )
+                            }
                         }
-                        dragOffset = 0f
                     },
-                    onVerticalDrag = { _, dragAmount ->
-                        dragOffset = (dragOffset + dragAmount).coerceAtLeast(0f)
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        scope.launch {
+                            animatedOffset.snapTo(animatedOffset.value + dragAmount)
+                        }
                     }
                 )
             }
@@ -101,10 +126,8 @@ fun PlayerScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top spacing instead of Top Bar
             Spacer(modifier = Modifier.height(80.dp))
 
-            // Album Art - Fixed at 0.95f width as requested
             Surface(
                 modifier = Modifier
                     .fillMaxWidth(0.95f)
@@ -126,7 +149,6 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Title and Artist - Centered with Marquee
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -153,7 +175,6 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Slider and Time
             Column(modifier = Modifier.fillMaxWidth()) {
                 Slider(
                     value = sliderValue,
@@ -184,7 +205,6 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Playback Controls - Play/Pause is LAST as requested
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -231,11 +251,9 @@ fun PlayerScreen(
                 }
             }
 
-            // Pushes bottom buttons to the bottom
             Spacer(modifier = Modifier.weight(1f))
 
             Spacer(modifier = Modifier.height(64.dp))
-            // Bottom Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround,
@@ -255,7 +273,6 @@ fun PlayerScreen(
                 }
             }
             
-            // Fixed bottom spacing
             Spacer(modifier = Modifier.height(64.dp))
         }
     }
