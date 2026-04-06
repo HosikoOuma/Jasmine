@@ -16,7 +16,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.nkds.hosikoouma.jasmine.datamodels.Track
@@ -29,11 +28,17 @@ fun TracksScreen(
     playerViewModel: PlayerViewModel,
     onNavigateToPlayer: () -> Unit
 ) {
-    val tracks by trackViewModel.tracks.collectAsState()
+    // Используем отфильтрованный и отсортированный список
+    val tracks by trackViewModel.filteredTracks.collectAsState()
+    val searchQuery by trackViewModel.searchQuery.collectAsState()
 
     if (tracks.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            if (searchQuery.isEmpty()) {
+                CircularProgressIndicator()
+            } else {
+                Text("Ничего не найдено")
+            }
         }
     } else {
         LazyColumn(
@@ -42,6 +47,7 @@ fun TracksScreen(
         ) {
             itemsIndexed(tracks) { index, track ->
                 TrackItem(track = track, onClick = {
+                    // Передаем именно текущий (отфильтрованный) список в плеер
                     playerViewModel.playTracks(tracks, index)
                     onNavigateToPlayer()
                 })
