@@ -1,7 +1,7 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,6 +54,7 @@ fun TracksScreen(
     
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     val currentTrack by playerViewModel.currentTrack.collectAsState()
+    val isPlaying by playerViewModel.isPlaying.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (tracks.isEmpty()) {
@@ -77,6 +77,7 @@ fun TracksScreen(
                         TrackCard(
                             track = track,
                             isCurrent = currentTrack?.id == track.id,
+                            isPlaying = isPlaying,
                             onClick = {
                                 playerViewModel.playTracks(tracks, index)
                                 onNavigateToPlayer()
@@ -209,9 +210,51 @@ fun ModeToggleButton(
 }
 
 @Composable
+fun PlayingEqualizer(
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "equalizer")
+    
+    @Composable
+    fun animateBar(initial: Float, target: Float, duration: Int): State<Float> {
+        return infiniteTransition.animateFloat(
+            initialValue = initial,
+            targetValue = target,
+            animationSpec = infiniteRepeatable(
+                animation = tween(duration, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "bar"
+        )
+    }
+
+    val bar1 = if (isPlaying) animateBar(0.2f, 0.8f, 400) else remember { mutableStateOf(0.3f) }
+    val bar2 = if (isPlaying) animateBar(0.3f, 1.0f, 500) else remember { mutableStateOf(0.5f) }
+    val bar3 = if (isPlaying) animateBar(0.2f, 0.7f, 350) else remember { mutableStateOf(0.4f) }
+
+    Row(
+        modifier = modifier.height(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        listOf(bar1, bar2, bar3).forEach { heightState ->
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight(heightState.value)
+                    .background(color, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+            )
+        }
+    }
+}
+
+@Composable
 fun TrackCard(
     track: Track,
     isCurrent: Boolean,
+    isPlaying: Boolean,
     onClick: () -> Unit
 ) {
     Card(
@@ -234,28 +277,17 @@ fun TrackCard(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(track.albumArtUri)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .alpha(if (isCurrent) 0.6f else 1f)
-                )
-                if (isCurrent) {
-                    Icon(
-                        imageVector = Icons.Default.VolumeUp,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(track.albumArtUri)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            )
 
             Spacer(modifier = Modifier.width(16.dp))
 
@@ -280,6 +312,13 @@ fun TrackCard(
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (isCurrent) {
+                PlayingEqualizer(
+                    isPlaying = isPlaying,
+                    modifier = Modifier.padding(start = 8.dp, end = 4.dp)
                 )
             }
         }
