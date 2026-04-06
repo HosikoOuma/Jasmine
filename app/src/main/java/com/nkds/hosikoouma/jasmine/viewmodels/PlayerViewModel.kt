@@ -13,11 +13,11 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.nkds.hosikoouma.jasmine.PlaybackService
+import com.nkds.hosikoouma.jasmine.data.FavoritesRepository
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -25,6 +25,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val controller: MediaController?
         get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
+
+    private val favoritesRepository = FavoritesRepository(application)
 
     private val _currentTrack = MutableStateFlow<Track?>(null)
     val currentTrack = _currentTrack.asStateFlow()
@@ -44,6 +46,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode = _repeatMode.asStateFlow()
 
+    // Наблюдаем за тем, является ли текущий трек избранным
+    val isCurrentFavorite: StateFlow<Boolean> = combine(
+        _currentTrack,
+        favoritesRepository.favoriteTrackIds
+    ) { track, favoriteIds ->
+        track?.let { favoriteIds.contains(it.id.toString()) } ?: false
+    }.stateIn(viewModelScope, SharingStarted.Lazily, false)
+
     private var progressJob: Job? = null
 
     init {
@@ -57,7 +67,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun setupController() {
         val controller = controller ?: return
         
-        // Обновляем текущий трек сразу при подключении
         controller.currentMediaItem?.let { updateCurrentTrack(it) }
         
         _isPlaying.value = controller.isPlaying
@@ -107,6 +116,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             contentUri = Uri.EMPTY,
             albumArtUri = mediaItem.mediaMetadata.artworkUri
         )
+    }
+
+    fun toggleFavoriteCurrent() {
+        val track = _currentTrack.value ?: return
+        viewModelScope.launch {
+            favoritesRepository.toggleFavorite(track.id.toString())
+        }
     }
 
     fun playTracks(tracks: List<Track>, startIndex: Int) {

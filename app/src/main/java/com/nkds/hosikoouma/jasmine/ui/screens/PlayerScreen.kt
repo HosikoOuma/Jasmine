@@ -45,6 +45,7 @@ fun PlayerScreen(
     val duration by viewModel.duration.collectAsState()
     val shuffleEnabled by viewModel.shuffleModeEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
+    val isFavorite by viewModel.isCurrentFavorite.collectAsState()
     
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -89,7 +90,7 @@ fun PlayerScreen(
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
-                            // Вызываем закрытие не дожидаясь конца анимации, 
+                            // Вызываем закрытие не дожидаясь конца анимации,
                             // но запускаем "долет" вниз для визуальной инерции
                             onClose()
                             scope.launch {
@@ -262,8 +263,13 @@ fun PlayerScreen(
                 IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Queue", tint = Color.Gray, modifier = Modifier.size(26.dp))
                 }
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }) {
-                    Icon(Icons.Default.FavoriteBorder, contentDescription = "Favorite", tint = Color.Gray, modifier = Modifier.size(24.dp))
+                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() }) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else Color.Gray,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }) {
                     Icon(Icons.Default.Lyrics, contentDescription = "Lyrics", tint = Color.Gray, modifier = Modifier.size(24.dp))
@@ -272,7 +278,7 @@ fun PlayerScreen(
                     Icon(Icons.Default.MoreHoriz, contentDescription = "More", tint = Color.Gray, modifier = Modifier.size(26.dp))
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(64.dp))
         }
     }
