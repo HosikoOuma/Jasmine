@@ -19,6 +19,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope, SharingStarted.WhileSubscribed(5000), 3000L
     )
 
+    val minTrackDuration = repository.minTrackDuration.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), 0
+    )
+
     fun setCrossfadeEnabled(enabled: Boolean) {
         viewModelScope.launch {
             repository.setCrossfadeEnabled(enabled)
@@ -28,6 +32,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setCrossfadeDuration(duration: Long) {
         viewModelScope.launch {
             repository.setCrossfadeDuration(duration)
+        }
+    }
+
+    fun setMinTrackDuration(seconds: Int) {
+        viewModelScope.launch {
+            repository.setMinTrackDuration(seconds)
         }
     }
 }

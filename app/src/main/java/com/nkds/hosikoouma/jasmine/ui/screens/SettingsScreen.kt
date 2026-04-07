@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 @Composable
@@ -20,6 +21,7 @@ fun SettingsScreen(
 ) {
     val isCrossfadeEnabled by viewModel.isCrossfadeEnabled.collectAsState()
     val crossfadeDuration by viewModel.crossfadeDuration.collectAsState()
+    val minTrackDuration by viewModel.minTrackDuration.collectAsState()
 
     Column(
         modifier = Modifier
@@ -63,7 +65,31 @@ fun SettingsScreen(
             }
         }
         
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+        // НОВАЯ СЕКЦИЯ: ЛИБРАРИ
+        Text(
+            text = "Library",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+
+        ListItem(
+            headlineContent = { Text("Filter short tracks") },
+            supportingContent = { Text("Hide tracks shorter than ${minTrackDuration}s") }
+        )
+
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Slider(
+                value = minTrackDuration.toFloat(),
+                onValueChange = { viewModel.setMinTrackDuration(it.roundToInt()) },
+                valueRange = 0f..30f,
+                steps = 29
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
         
         Text(
             text = "About",

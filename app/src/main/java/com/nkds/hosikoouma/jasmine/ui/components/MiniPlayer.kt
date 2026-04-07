@@ -38,7 +38,6 @@ fun MiniPlayer(
 
     if (currentTrack == null) return
 
-    // Рассчитываем процент прогресса
     val progressFactor by animateFloatAsState(
         targetValue = if (duration > 0) progress.toFloat() / duration.toFloat() else 0f,
         label = "progress"
@@ -49,20 +48,19 @@ fun MiniPlayer(
             .padding(horizontal = 16.dp)
             .height(64.dp)
             .fillMaxWidth(),
-        color = Color(0xFF2B2930),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 8.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // ФОНОВЫЙ ПРОГРЕСС-БАР
+            // ФОНОВЫЙ ПРОГРЕСС-БАР (Динамический цвет)
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(progressFactor)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Легкая заливка акцентным цветом
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
             )
 
-            // КОНТЕНТ МИНИПЛЕЕРА
             Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -88,7 +86,7 @@ fun MiniPlayer(
                 ) {
                     Text(
                         text = currentTrack?.title ?: "",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -96,7 +94,7 @@ fun MiniPlayer(
                     )
                     Text(
                         text = currentTrack?.artist ?: "",
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -109,7 +107,7 @@ fun MiniPlayer(
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(32.dp)
                     )
                 }

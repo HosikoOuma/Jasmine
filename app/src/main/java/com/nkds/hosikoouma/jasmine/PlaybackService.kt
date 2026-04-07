@@ -65,6 +65,22 @@ class PlaybackService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, playerA)
             .setSessionActivity(pendingIntent)
+            .setCallback(object : MediaSession.Callback {
+                override fun onPlayerCommandRequest(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                    playerCommand: Int
+                ): Int {
+                    // Если пользователь нажал "Следующий", "Предыдущий" или "Пауза" вручную
+                    if (playerCommand == Player.COMMAND_SEEK_TO_NEXT || 
+                        playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS ||
+                        playerCommand == Player.COMMAND_SET_MEDIA_ITEM ||
+                        playerCommand == Player.COMMAND_PLAY_PAUSE) {
+                        cancelActiveCrossfade()
+                    }
+                    return super.onPlayerCommandRequest(session, controller, playerCommand)
+                }
+            })
             .build()
 
         serviceScope.launch {
@@ -73,6 +89,25 @@ class PlaybackService : MediaSessionService() {
                 checkCrossfadeCondition()
             }
         }
+    }
+
+    // МГНОВЕННАЯ ОСТАНОВКА КРОССФЕЙДА
+    private fun cancelActiveCrossfade() {
+        if (!isCrossfading) return
+        
+        fadeJob?.cancel()
+        fadeJob = null
+        
+        val oldPlayer = if (currentPlayer == playerA) playerB else playerA
+        val oldProcessor = if (oldPlayer == playerA) processorA else processorB
+        val currentProcessor = if (currentPlayer == playerA) processorA else processorB
+        
+        oldPlayer.pause()
+        oldPlayer.stop()
+        oldProcessor.setVolumeScale(1.0f)
+        currentProcessor.setVolumeScale(1.0f) // Возвращаем громкость текущему
+        
+        isCrossfading = false
     }
 
     private fun setupAudioFocus() {
@@ -87,6 +122,7 @@ class PlaybackService : MediaSessionService() {
             .setOnAudioFocusChangeListener { focusChange ->
                 when (focusChange) {
                     AudioManager.AUDIOFOCUS_LOSS -> {
+                        cancelActiveCrossfade()
                         currentPlayer?.pause()
                     }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
@@ -137,6 +173,17 @@ class PlaybackService : MediaSessionService() {
                     }
                 }
             }
+            
+            // Если произошел переход не по причине кроссфейда (например, через список)
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (!isCrossfading) {
+                    val otherPlayer = if (player == playerA) playerB else playerA
+                    if (otherPlayer.isPlaying) {
+                        otherPlayer.pause()
+                        otherPlayer.stop()
+                    }
+                }
+            }
         })
         
         return player
@@ -153,8 +200,6 @@ class PlaybackService : MediaSessionService() {
 
         val remaining = current.duration - current.currentPosition
         
-        // ВАЖНО: При REPEAT_MODE_ONE nextMediaItemIndex часто равен текущему или INDEX_UNSET в зависимости от реализации плейлиста.
-        // Мы запускаем кроссфейд, если осталось мало времени и включен любой повтор ИЛИ есть следующий трек.
         val isRepeatOne = current.repeatMode == Player.REPEAT_MODE_ONE
         val isRepeatAll = current.repeatMode == Player.REPEAT_MODE_ALL
         val hasNext = current.nextMediaItemIndex != C.INDEX_UNSET || isRepeatOne || isRepeatAll
@@ -173,14 +218,14 @@ class PlaybackService : MediaSessionService() {
         val nextProcessor = if (nextPlayer == playerA) processorA else processorB
         
         val currentRepeatMode = oldPlayer.repeatMode
+        val currentShuffleMode = oldPlayer.shuffleModeEnabled
         
-        // Определяем индекс для следующего воспроизведения
         val nextIndex = if (currentRepeatMode == Player.REPEAT_MODE_ONE) {
             oldPlayer.currentMediaItemIndex
         } else if (oldPlayer.nextMediaItemIndex != C.INDEX_UNSET) {
             oldPlayer.nextMediaItemIndex
         } else if (currentRepeatMode == Player.REPEAT_MODE_ALL) {
-            0 // Переход с конца в начало
+            0
         } else {
             -1
         }
@@ -192,17 +237,15 @@ class PlaybackService : MediaSessionService() {
 
         val allItems = getAllItems(oldPlayer)
 
-        // Подготавливаем новый плеер
         nextProcessor.setVolumeScale(0f)
         nextPlayer.setMediaItems(allItems, nextIndex, 0L)
+        nextPlayer.shuffleModeEnabled = currentShuffleMode
         nextPlayer.repeatMode = currentRepeatMode
         nextPlayer.prepare()
         nextPlayer.play()
 
-        // У старого плеера выключаем повтор, чтобы он не перезапустился сам
         oldPlayer.repeatMode = Player.REPEAT_MODE_OFF
         
-        // Если это не повтор одного трека, убираем следующие айтемы, чтобы они не мешали
         if (currentRepeatMode != Player.REPEAT_MODE_ONE) {
             if (oldPlayer.mediaItemCount > nextIndex) {
                 oldPlayer.removeMediaItems(nextIndex, oldPlayer.mediaItemCount)
@@ -218,6 +261,7 @@ class PlaybackService : MediaSessionService() {
             val interval = (fadeDuration / steps).coerceAtLeast(10)
             
             for (i in 1..steps) {
+                if (!isActive) break
                 val progress = i.toFloat() / steps
                 nextProcessor.setVolumeScale(progress)
                 oldProcessor.setVolumeScale(1f - progress)
