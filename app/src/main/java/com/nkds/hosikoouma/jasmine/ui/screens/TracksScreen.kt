@@ -45,6 +45,18 @@ fun TracksScreen(
     val currentTrack by playerViewModel.currentTrack.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
 
+    // Скролл в начало при смене режима (Избранное / Все)
+    LaunchedEffect(isFavoritesMode) {
+        listState.scrollToItem(0)
+    }
+
+    // Скролл в начало при изменении поискового запроса
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
     LaunchedEffect(Unit) {
         playerViewModel.toastEvent.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()

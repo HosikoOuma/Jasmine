@@ -5,7 +5,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -51,22 +51,25 @@ fun QueueScreen(
         }
     }
 
+    // Смещение по горизонтали для жеста "смахивания" влево
     val animatedOffset = remember { Animatable(0f) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                translationY = animatedOffset.value.coerceAtLeast(0f)
+                // Ограничиваем смахивание только влево (в отрицательную сторону)
+                translationX = animatedOffset.value.coerceAtMost(0f)
             }
             .background(MaterialTheme.colorScheme.surface)
             .pointerInput(Unit) {
-                detectVerticalDragGestures(
+                detectHorizontalDragGestures(
                     onDragEnd = {
-                        if (animatedOffset.value > 300) {
+                        // Если смахнули влево больше чем на 300 пикселей — закрываем
+                        if (animatedOffset.value < -300) {
                             scope.launch {
                                 animatedOffset.animateTo(
-                                    targetValue = 1500f,
+                                    targetValue = -2000f,
                                     animationSpec = spring(stiffness = Spring.StiffnessMedium)
                                 )
                                 onClose()
@@ -77,7 +80,7 @@ fun QueueScreen(
                             }
                         }
                     },
-                    onVerticalDrag = { change, dragAmount ->
+                    onHorizontalDrag = { change, dragAmount ->
                         change.consume()
                         scope.launch {
                             animatedOffset.snapTo(animatedOffset.value + dragAmount)
@@ -107,7 +110,7 @@ fun QueueScreen(
                 )
                 TextButton(onClick = {
                     scope.launch {
-                        animatedOffset.animateTo(1500f, spring(stiffness = Spring.StiffnessMedium))
+                        animatedOffset.animateTo(-2000f, spring(stiffness = Spring.StiffnessMedium))
                         onClose()
                     }
                 }) {
@@ -125,7 +128,6 @@ fun QueueScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-
                     TrackCard(
                         track = track,
                         isCurrent = true,
@@ -135,7 +137,6 @@ fun QueueScreen(
                 }
             }
 
-            // Thick rounded divider
             Box(
                 modifier = Modifier
                     .padding(horizontal = 24.dp, vertical = 20.dp)
@@ -153,7 +154,6 @@ fun QueueScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            // Reorderable List
             val lazyListState = rememberLazyListState()
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
                 val actualFrom = from.index + currentIndex + 1
@@ -174,9 +174,7 @@ fun QueueScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .graphicsLayer { 
-                                    shadowElevation = elevation.toPx()
-                                }
+                                .graphicsLayer { shadowElevation = elevation.toPx() }
                         ) {
                             SwipeableTrackCard(
                                 track = track,
@@ -190,9 +188,7 @@ fun QueueScreen(
                                         imageVector = Icons.Default.DragHandle,
                                         contentDescription = "Reorder",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .draggableHandle()
+                                        modifier = Modifier.size(28.dp).draggableHandle()
                                     )
                                 }
                             )

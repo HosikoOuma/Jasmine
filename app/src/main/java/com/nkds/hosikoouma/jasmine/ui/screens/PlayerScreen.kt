@@ -1,5 +1,6 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -54,10 +55,40 @@ fun PlayerScreen(
 
     var showQueue by remember { mutableStateOf(false) }
 
-    // Анимированное смещение.
+    // Состояния для Predictive Back
+    var backProgress by remember { mutableFloatStateOf(0f) }
+    var isBacking by remember { mutableStateOf(false) }
+
+    // Predictive Back для очереди (сворачивание влево)
+    PredictiveBackHandler(enabled = showQueue) { progressFlow ->
+        try {
+            isBacking = true
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            showQueue = false
+        } finally {
+            isBacking = false
+            backProgress = 0f
+        }
+    }
+
+    // Predictive Back для самого плеера (движение вниз)
+    PredictiveBackHandler(enabled = !showQueue) { progressFlow ->
+        try {
+            isBacking = true
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            onClose()
+        } finally {
+            isBacking = false
+            backProgress = 0f
+        }
+    }
+
     val animatedOffset = remember { Animatable(1000f) }
 
-    // Анимация появления при входе
     LaunchedEffect(Unit) {
         animatedOffset.animateTo(
             targetValue = 0f,
@@ -85,8 +116,14 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                translationY = animatedOffset.value.coerceAtLeast(0f)
-                alpha = (1f - (animatedOffset.value / 2500f)).coerceIn(0f, 1f)
+                // Всегда полная прозрачность при PredictiveBack или свайпе вниз
+                alpha = 1f
+                
+                if (!showQueue && isBacking) {
+                    translationY = backProgress * size.height
+                } else {
+                    translationY = animatedOffset.value.coerceAtLeast(0f)
+                }
             }
             .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
             .background(MaterialTheme.colorScheme.surface)
@@ -94,22 +131,17 @@ fun PlayerScreen(
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
-                            onClose()
                             scope.launch {
+                                // Плавное, но быстрое завершение без задержки
                                 animatedOffset.animateTo(
-                                    targetValue = 1500f,
-                                    animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                    targetValue = 2500f, 
+                                    animationSpec = tween(durationMillis = 200, easing = LinearOutSlowInEasing)
                                 )
+                                onClose()
                             }
                         } else {
                             scope.launch {
-                                animatedOffset.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioNoBouncy,
-                                        stiffness = Spring.StiffnessMedium
-                                    )
-                                )
+                                animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
                             }
                         }
                     },
@@ -129,36 +161,17 @@ fun PlayerScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Маленькая панель индикации "From Queue"
-            Box(
-                modifier = Modifier
-                    .height(48.dp)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (currentTrack?.isManual == true) {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                         shape = CircleShape,
                         modifier = Modifier.padding(top = 8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.QueueMusic,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(14.dp)
-                            )
+                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = "From Queue",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text("From Queue", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -167,18 +180,12 @@ fun PlayerScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.95f)
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(24.dp)),
+                modifier = Modifier.fillMaxWidth(0.95f).aspectRatio(1f).clip(RoundedCornerShape(24.dp)),
                 color = Color.DarkGray,
                 tonalElevation = 8.dp
             ) {
                 AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(currentTrack?.albumArtUri)
-                        .crossfade(true)
-                        .build(),
+                    model = ImageRequest.Builder(LocalContext.current).data(currentTrack?.albumArtUri).crossfade(true).build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -187,28 +194,10 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = currentTrack?.title ?: "Unknown Title",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    modifier = Modifier.basicMarquee()
-                )
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(currentTrack?.title ?: "Unknown Title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = currentTrack?.artist ?: "Unknown Artist",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    modifier = Modifier.basicMarquee()
-                )
+                Text(currentTrack?.artist ?: "Unknown Artist", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -216,14 +205,8 @@ fun PlayerScreen(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Slider(
                     value = sliderValue,
-                    onValueChange = { 
-                        sliderValue = it
-                        lastSeekTime = System.currentTimeMillis()
-                    },
-                    onValueChangeFinished = {
-                        viewModel.seekTo(sliderValue.toLong())
-                        lastSeekTime = System.currentTimeMillis()
-                    },
+                    onValueChange = { sliderValue = it; lastSeekTime = System.currentTimeMillis() },
+                    onValueChangeFinished = { viewModel.seekTo(sliderValue.toLong()); lastSeekTime = System.currentTimeMillis() },
                     interactionSource = sliderInteractionSource,
                     valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
                     colors = SliderDefaults.colors(
@@ -232,10 +215,7 @@ fun PlayerScreen(
                         inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     Text(formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
@@ -243,124 +223,55 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AnimatedControlIcon(
-                    icon = when (repeatMode) {
-                        Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne
-                        else -> Icons.Default.Repeat
-                    },
-                    tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() }
-                )
-
-                AnimatedControlIcon(
-                    icon = Icons.Default.Shuffle,
-                    tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() }
-                )
-                
-                AnimatedControlIcon(
-                    icon = Icons.Default.SkipPrevious,
-                    size = 44.dp,
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() }
-                )
-                
-                AnimatedControlIcon(
-                    icon = Icons.Default.SkipNext,
-                    size = 44.dp,
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() }
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() })
+                AnimatedControlIcon(icon = Icons.Default.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() })
+                AnimatedControlIcon(icon = Icons.Default.SkipPrevious, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() })
+                AnimatedControlIcon(icon = Icons.Default.SkipNext, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() })
 
                 val playPauseInteractionSource = remember { MutableInteractionSource() }
                 val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
-                val playPauseScale by animateFloatAsState(
-                    targetValue = if (isPlayPausePressed) 0.9f else 1f,
-                    animationSpec = spring(stiffness = Spring.StiffnessLow),
-                    label = "playPauseScale"
-                )
-                
-                val cornerPercent by animateIntAsState(
-                    targetValue = if (isPlaying) 50 else 25,
-                    animationSpec = tween(500, easing = LinearOutSlowInEasing),
-                    label = "cornerAnimation"
-                )
+                val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.9f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
+                val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
 
                 Surface(
                     onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.togglePlayPause() },
                     interactionSource = playPauseInteractionSource,
-                    modifier = Modifier
-                        .size(72.dp)
-                        .graphicsLayer {
-                            scaleX = playPauseScale
-                            scaleY = playPauseScale
-                        },
+                    modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = playPauseScale },
                     shape = RoundedCornerShape(cornerPercent),
                     color = MaterialTheme.colorScheme.primary
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(36.dp)
-                        )
+                        Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
                     }
                 }
             }
 
             Spacer(modifier = Modifier.weight(1f))
-
             Spacer(modifier = Modifier.height(64.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AnimatedControlIcon(
-                    icon = Icons.AutoMirrored.Filled.PlaylistPlay,
-                    size = 26.dp,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    onClick = { 
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showQueue = true 
-                    }
-                )
-                AnimatedControlIcon(
-                    icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    size = 24.dp,
-                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() }
-                )
-                AnimatedControlIcon(
-                    icon = Icons.Default.Lyrics,
-                    size = 24.dp,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
-                )
-                AnimatedControlIcon(
-                    icon = Icons.Default.MoreHoriz,
-                    size = 26.dp,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
-                )
+
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
+                AnimatedControlIcon(Icons.AutoMirrored.Filled.PlaylistPlay, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
+                AnimatedControlIcon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, size = 24.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
+                AnimatedControlIcon(Icons.Default.Lyrics, size = 24.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
+                AnimatedControlIcon(Icons.Default.MoreHoriz, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
             }
         }
 
-        androidx.compose.animation.AnimatedVisibility(
+        // ОЧЕРЕДЬ
+        AnimatedVisibility(
             visible = showQueue,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
         ) {
-            QueueScreen(
-                viewModel = viewModel,
-                onClose = { showQueue = false }
-            )
+            Box(modifier = Modifier.graphicsLayer {
+                alpha = 1f
+                if (showQueue && isBacking) {
+                    translationX = -backProgress * size.width
+                }
+            }) {
+                QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
+            }
         }
     }
 }
@@ -375,26 +286,10 @@ fun AnimatedControlIcon(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.85f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        label = "iconScale"
-    )
+    val scale by animateFloatAsState(targetValue = if (isPressed) 0.85f else 1f, animationSpec = spring(stiffness = Spring.StiffnessMedium), label = "iconScale")
 
-    IconButton(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        modifier = modifier.graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(size)
-        )
+    IconButton(onClick = onClick, interactionSource = interactionSource, modifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale }) {
+        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(size))
     }
 }
 
