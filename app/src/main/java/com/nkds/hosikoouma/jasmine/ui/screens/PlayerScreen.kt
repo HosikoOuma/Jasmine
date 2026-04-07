@@ -1,5 +1,6 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -51,10 +52,12 @@ fun PlayerScreen(
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
+    var showQueue by remember { mutableStateOf(false) }
+
     // Анимированное смещение.
     val animatedOffset = remember { Animatable(1000f) }
 
-    // Анимация появления при входе (сделаем её чуть жестче для скорости)
+    // Анимация появления при входе
     LaunchedEffect(Unit) {
         animatedOffset.animateTo(
             targetValue = 0f,
@@ -68,12 +71,12 @@ fun PlayerScreen(
     // Slider logic
     var sliderValue by remember { mutableFloatStateOf(0f) }
     var lastSeekTime by remember { mutableLongStateOf(0L) }
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val sliderInteractionSource = remember { MutableInteractionSource() }
+    val isSliderPressed by sliderInteractionSource.collectIsPressedAsState()
 
     LaunchedEffect(progress) {
         val now = System.currentTimeMillis()
-        if (!isPressed && (now - lastSeekTime > 1000L)) {
+        if (!isSliderPressed && (now - lastSeekTime > 1000L)) {
             sliderValue = progress.toFloat()
         }
     }
@@ -86,13 +89,11 @@ fun PlayerScreen(
                 alpha = (1f - (animatedOffset.value / 2500f)).coerceIn(0f, 1f)
             }
             .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.surface)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
-                            // Вызываем закрытие не дожидаясь конца анимации,
-                            // но запускаем "долет" вниз для визуальной инерции
                             onClose()
                             scope.launch {
                                 animatedOffset.animateTo(
@@ -159,7 +160,7 @@ fun PlayerScreen(
                     text = currentTrack?.title ?: "Unknown Title",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     modifier = Modifier.basicMarquee()
@@ -168,7 +169,7 @@ fun PlayerScreen(
                 Text(
                     text = currentTrack?.artist ?: "Unknown Artist",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     modifier = Modifier.basicMarquee()
@@ -188,20 +189,20 @@ fun PlayerScreen(
                         viewModel.seekTo(sliderValue.toLong())
                         lastSeekTime = System.currentTimeMillis()
                     },
-                    interactionSource = interactionSource,
+                    interactionSource = sliderInteractionSource,
                     valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.Gray.copy(alpha = 0.3f)
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(formatTime(sliderValue.toLong()), color = Color.Gray, fontSize = 12.sp)
-                    Text(formatTime(duration), color = Color.Gray, fontSize = 12.sp)
+                    Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
 
@@ -212,52 +213,65 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // ОБНОВЛЕННАЯ ЛОГИКА ПОВТОРА
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() }) {
-                    val repeatIcon = when (repeatMode) {
+                AnimatedControlIcon(
+                    icon = when (repeatMode) {
                         Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne
                         else -> Icons.Default.Repeat
-                    }
-                    val repeatColor = when (repeatMode) {
-                        Player.REPEAT_MODE_OFF -> Color.White
-                        else -> MaterialTheme.colorScheme.primary
-                    }
-                    
-                    Icon(
-                        imageVector = repeatIcon,
-                        contentDescription = "Repeat",
-                        tint = repeatColor,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                    },
+                    tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() }
+                )
 
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() }) {
-                    Icon(
-                        Icons.Default.Shuffle,
-                        contentDescription = "Shuffle",
-                        tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() }) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(44.dp))
-                }
+                AnimatedControlIcon(
+                    icon = Icons.Default.Shuffle,
+                    tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() }
+                )
                 
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() }) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(44.dp))
-                }
+                AnimatedControlIcon(
+                    icon = Icons.Default.SkipPrevious,
+                    size = 44.dp,
+                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() }
+                )
+                
+                AnimatedControlIcon(
+                    icon = Icons.Default.SkipNext,
+                    size = 44.dp,
+                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() }
+                )
+
+                // Плэй/Пауза с изменением формы
+                val playPauseInteractionSource = remember { MutableInteractionSource() }
+                val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
+                val playPauseScale by animateFloatAsState(
+                    targetValue = if (isPlayPausePressed) 0.9f else 1f,
+                    animationSpec = spring(stiffness = Spring.StiffnessLow),
+                    label = "playPauseScale"
+                )
+                
+                val cornerPercent by animateIntAsState(
+                    targetValue = if (isPlaying) 50 else 25, // 50% = круг, 25% = квадрат с закруглением
+                    animationSpec = tween(500, easing = LinearOutSlowInEasing),
+                    label = "cornerAnimation"
+                )
 
                 Surface(
                     onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.togglePlayPause() },
-                    modifier = Modifier.size(72.dp),
-                    shape = CircleShape,
-                    color = Color.White
+                    interactionSource = playPauseInteractionSource,
+                    modifier = Modifier
+                        .size(72.dp)
+                        .graphicsLayer {
+                            scaleX = playPauseScale
+                            scaleY = playPauseScale
+                        },
+                    shape = RoundedCornerShape(cornerPercent),
+                    color = MaterialTheme.colorScheme.primary
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = "Play/Pause",
-                            tint = Color.Black,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -272,27 +286,82 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }) {
-                    Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Queue", tint = Color.Gray, modifier = Modifier.size(26.dp))
-                }
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() }) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else Color.Gray,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }) {
-                    Icon(Icons.Default.Lyrics, contentDescription = "Lyrics", tint = Color.Gray, modifier = Modifier.size(24.dp))
-                }
-                IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }) {
-                    Icon(Icons.Default.MoreHoriz, contentDescription = "More", tint = Color.Gray, modifier = Modifier.size(26.dp))
-                }
+                AnimatedControlIcon(
+                    icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                    size = 26.dp,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { 
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showQueue = true 
+                    }
+                )
+                AnimatedControlIcon(
+                    icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    size = 24.dp,
+                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() }
+                )
+                AnimatedControlIcon(
+                    icon = Icons.Default.Lyrics,
+                    size = 24.dp,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+                )
+                AnimatedControlIcon(
+                    icon = Icons.Default.MoreHoriz,
+                    size = 26.dp,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+                )
             }
 
             Spacer(modifier = Modifier.height(64.dp))
         }
+
+        // Animated Queue Screen Overlay
+        AnimatedVisibility(
+            visible = showQueue,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            QueueScreen(
+                viewModel = viewModel,
+                onClose = { showQueue = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun AnimatedControlIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 28.dp,
+    tint: Color = MaterialTheme.colorScheme.onSurface
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.85f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "iconScale"
+    )
+
+    IconButton(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        modifier = modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(size)
+        )
     }
 }
 

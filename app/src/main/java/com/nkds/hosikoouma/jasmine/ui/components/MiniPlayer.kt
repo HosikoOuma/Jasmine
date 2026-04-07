@@ -1,21 +1,24 @@
 package com.nkds.hosikoouma.jasmine.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -29,6 +32,7 @@ import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 @Composable
 fun MiniPlayer(
     viewModel: PlayerViewModel,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
@@ -43,17 +47,48 @@ fun MiniPlayer(
         label = "progress"
     )
 
+    // АНИМАЦИЯ "ЖИВОГО" ПЛЕЕРА (плавное покачивание вверх-вниз)
+    val infiniteTransition = rememberInfiniteTransition(label = "living_player")
+    val floatingOffset by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "floating"
+    )
+
+    // ЭФФЕКТ НАЖАТИЯ (уменьшение масштаба)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "scale"
+    )
+
     Surface(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .height(64.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .graphicsLayer {
+                translationY = floatingOffset
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null, // Убираем стандартный ripple, так как у нас есть масштаб
+                onClick = onClick
+            ),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 8.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // ФОНОВЫЙ ПРОГРЕСС-БАР (Динамический цвет)
+            // ФОНОВЫЙ ПРОГРЕСС-БАР
             Box(
                 modifier = Modifier
                     .fillMaxHeight()

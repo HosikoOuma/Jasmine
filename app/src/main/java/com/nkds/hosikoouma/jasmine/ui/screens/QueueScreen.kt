@@ -1,0 +1,200 @@
+package com.nkds.hosikoouma.jasmine.ui.screens
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import kotlinx.coroutines.launch
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
+
+@Composable
+fun QueueScreen(
+    viewModel: PlayerViewModel,
+    onClose: () -> Unit
+) {
+    val playlist by viewModel.playlist.collectAsState()
+    val currentTrack by viewModel.currentTrack.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState()
+    val scope = rememberCoroutineScope()
+    
+    val currentIndex = remember(playlist, currentTrack) {
+        playlist.indexOfFirst { it.id == currentTrack?.id }
+    }
+    
+    val upNextPlaylist = remember(playlist, currentIndex) {
+        if (currentIndex != -1 && currentIndex < playlist.size - 1) {
+            playlist.subList(currentIndex + 1, playlist.size)
+        } else {
+            emptyList()
+        }
+    }
+
+    val animatedOffset = remember { Animatable(0f) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                translationY = animatedOffset.value.coerceAtLeast(0f)
+            }
+            .background(MaterialTheme.colorScheme.surface)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (animatedOffset.value > 300) {
+                            scope.launch {
+                                animatedOffset.animateTo(
+                                    targetValue = 1500f,
+                                    animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                )
+                                onClose()
+                            }
+                        } else {
+                            scope.launch {
+                                animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
+                            }
+                        }
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        scope.launch {
+                            animatedOffset.snapTo(animatedOffset.value + dragAmount)
+                        }
+                    }
+                )
+            }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Playing Queue",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(onClick = {
+                    scope.launch {
+                        animatedOffset.animateTo(1500f, spring(stiffness = Spring.StiffnessMedium))
+                        onClose()
+                    }
+                }) {
+                    Text("Done", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+
+            // Current Track Section
+            currentTrack?.let { track ->
+                Text(
+                    text = "Now Playing",
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    TrackCard(
+                        track = track,
+                        isCurrent = true,
+                        isPlaying = isPlaying,
+                        onClick = {}
+                    )
+                }
+            }
+
+            // Thick rounded divider
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp, vertical = 20.dp)
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            )
+
+            Text(
+                text = "Up Next",
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.secondary,
+                fontWeight = FontWeight.Bold
+            )
+
+            // Reorderable List
+            val lazyListState = rememberLazyListState()
+            val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+                val actualFrom = from.index + currentIndex + 1
+                val actualTo = to.index + currentIndex + 1
+                viewModel.moveTrack(actualFrom, actualTo)
+            }
+
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                itemsIndexed(upNextPlaylist, key = { _, track -> track.id }) { index, track ->
+                    ReorderableItem(reorderableState, key = track.id) { isDragging ->
+                        val elevation = if (isDragging) 8.dp else 0.dp
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer { 
+                                    shadowElevation = elevation.toPx()
+                                }
+                        ) {
+                            TrackCard(
+                                track = track,
+                                isCurrent = false,
+                                isPlaying = false,
+                                onClick = { viewModel.skipToQueueItem(index + currentIndex + 1) },
+                                trailingContent = {
+                                    Icon(
+                                        imageVector = Icons.Default.DragHandle,
+                                        contentDescription = "Reorder",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .draggableHandle()
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

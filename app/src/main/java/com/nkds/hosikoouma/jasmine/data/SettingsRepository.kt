@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -17,7 +18,9 @@ class SettingsRepository(private val context: Context) {
     companion object {
         val CROSSFADE_ENABLED = booleanPreferencesKey("crossfade_enabled")
         val CROSSFADE_DURATION = longPreferencesKey("crossfade_duration")
-        val MIN_TRACK_DURATION = intPreferencesKey("min_track_duration") // Новая настройка (в секундах)
+        val MIN_TRACK_DURATION = intPreferencesKey("min_track_duration")
+        val DEFAULT_SORT_TYPE = stringPreferencesKey("default_sort_type")
+        val DEFAULT_SORT_REVERSED = booleanPreferencesKey("default_sort_reversed")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -29,7 +32,15 @@ class SettingsRepository(private val context: Context) {
     }
 
     val minTrackDuration: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[MIN_TRACK_DURATION] ?: 0 // По умолчанию 0 (показывать всё)
+        preferences[MIN_TRACK_DURATION] ?: 0
+    }
+
+    val defaultSortType: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[DEFAULT_SORT_TYPE] ?: "BY_DATE"
+    }
+
+    val isDefaultSortReversed: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[DEFAULT_SORT_REVERSED] ?: false
     }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) {
@@ -47,6 +58,18 @@ class SettingsRepository(private val context: Context) {
     suspend fun setMinTrackDuration(seconds: Int) {
         context.dataStore.edit { preferences ->
             preferences[MIN_TRACK_DURATION] = seconds
+        }
+    }
+
+    suspend fun setDefaultSortType(sortType: String) {
+        context.dataStore.edit { preferences ->
+            preferences[DEFAULT_SORT_TYPE] = sortType
+        }
+    }
+
+    suspend fun setDefaultSortReversed(reversed: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[DEFAULT_SORT_REVERSED] = reversed
         }
     }
 }

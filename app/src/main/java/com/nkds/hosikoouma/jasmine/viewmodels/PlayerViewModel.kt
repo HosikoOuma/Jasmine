@@ -46,6 +46,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode = _repeatMode.asStateFlow()
 
+    private val _playlist = MutableStateFlow<List<Track>>(emptyList())
+    val playlist = _playlist.asStateFlow()
+
+    private var originalPlaylist: List<Track> = emptyList()
+
     val isCurrentFavorite: StateFlow<Boolean> = combine(
         _currentTrack,
         favoritesRepository.favoriteTrackIds
@@ -67,6 +72,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         
         controller.currentMediaItem?.let { updateCurrentTrack(it) }
+        updatePlaylist()
         
         _isPlaying.value = controller.isPlaying
         _duration.value = if (controller.duration > 0) controller.duration else 0L
@@ -79,6 +85,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         controller.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 mediaItem?.let { updateCurrentTrack(it) }
+            }
+
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                updatePlaylist()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -98,6 +108,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 _shuffleModeEnabled.value = shuffleModeEnabled
+                updatePlaylist()
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
@@ -107,12 +118,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun updateCurrentTrack(mediaItem: MediaItem) {
-        _currentTrack.value = Track(
+        _currentTrack.value = mediaToTrack(mediaItem)
+    }
+
+    private fun updatePlaylist() {
+        val controller = controller ?: return
+        val items = mutableListOf<Track>()
+        for (i in 0 until controller.mediaItemCount) {
+            val mediaItem = controller.getMediaItemAt(i)
+            items.add(mediaToTrack(mediaItem))
+        }
+        _playlist.value = items
+    }
+
+    private fun mediaToTrack(mediaItem: MediaItem): Track {
+        return Track(
             id = mediaItem.mediaId.toLongOrNull() ?: 0L,
             title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
             artist = mediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
             duration = 0,
-            contentUri = Uri.EMPTY,
+            contentUri = mediaItem.localConfiguration?.uri ?: Uri.EMPTY,
             albumArtUri = mediaItem.mediaMetadata.artworkUri
         )
     }
@@ -126,23 +151,36 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun playTracks(tracks: List<Track>, startIndex: Int) {
         val controller = controller ?: return
-        val mediaItems = tracks.map { track ->
-            MediaItem.Builder()
-                .setMediaId(track.id.toString())
-                .setUri(track.contentUri)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(track.title)
-                        .setArtist(track.artist)
-                        .setArtworkUri(track.albumArtUri)
-                        .build()
-                )
-                .build()
-        }
+        originalPlaylist = tracks 
+        
+        val mediaItems = tracks.map { track -> createMediaItem(track) }
         
         controller.setMediaItems(mediaItems, startIndex, 0L)
         controller.prepare()
         controller.play()
+    }
+
+    private fun createMediaItem(track: Track): MediaItem {
+        return MediaItem.Builder()
+            .setMediaId(track.id.toString())
+            .setUri(track.contentUri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artist)
+                    .setArtworkUri(track.albumArtUri)
+                    .build()
+            )
+            .build()
+    }
+
+    fun moveTrack(fromIndex: Int, toIndex: Int) {
+        val controller = controller ?: return
+        controller.moveMediaItem(fromIndex, toIndex)
+    }
+
+    fun skipToQueueItem(index: Int) {
+        controller?.seekTo(index, 0L)
     }
 
     fun togglePlayPause() {
@@ -168,14 +206,43 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun toggleShuffle() {
-        controller?.let {
-            it.shuffleModeEnabled = !it.shuffleModeEnabled
+        val controller = controller ?: return
+        val currentlyEnabled = _shuffleModeEnabled.value
+        
+        if (!currentlyEnabled) {
+            // Activate shuffle by reordering the timeline items
+            val currentItems = _playlist.value.toMutableList()
+            if (currentItems.isEmpty()) return
+            
+            val currentTrack = _currentTrack.value
+            val currentIndex = currentItems.indexOfFirst { it.id == currentTrack?.id }
+            
+            val currentPosition = controller.currentPosition
+            
+            // Remove current track, shuffle others, put current back at 0
+            val removedTrack = if (currentIndex != -1) currentItems.removeAt(currentIndex) else null
+            currentItems.shuffle()
+            if (removedTrack != null) currentItems.add(0, removedTrack)
+            
+            val mediaItems = currentItems.map { createMediaItem(it) }
+            controller.setMediaItems(mediaItems, 0, currentPosition)
+            _shuffleModeEnabled.value = true
+        } else {
+            // Restore original order
+            if (originalPlaylist.isNotEmpty()) {
+                val currentTrack = _currentTrack.value
+                val indexInOriginal = originalPlaylist.indexOfFirst { it.id == currentTrack?.id }.coerceAtLeast(0)
+                val currentPosition = controller.currentPosition
+                
+                val mediaItems = originalPlaylist.map { createMediaItem(it) }
+                controller.setMediaItems(mediaItems, indexInOriginal, currentPosition)
+            }
+            _shuffleModeEnabled.value = false
         }
     }
 
     fun toggleRepeatMode() {
         controller?.let {
-            // Новый порядок: OFF -> ALL -> ONE -> OFF
             it.repeatMode = when (it.repeatMode) {
                 Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
                 Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE

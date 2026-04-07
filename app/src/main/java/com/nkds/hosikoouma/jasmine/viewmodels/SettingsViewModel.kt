@@ -23,6 +23,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope, SharingStarted.WhileSubscribed(5000), 0
     )
 
+    val defaultSortType = repository.defaultSortType.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), "BY_DATE"
+    )
+
+    val isDefaultSortReversed = repository.isDefaultSortReversed.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), false
+    )
+
     fun setCrossfadeEnabled(enabled: Boolean) {
         viewModelScope.launch {
             repository.setCrossfadeEnabled(enabled)
@@ -38,6 +46,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setMinTrackDuration(seconds: Int) {
         viewModelScope.launch {
             repository.setMinTrackDuration(seconds)
+        }
+    }
+
+    fun setDefaultSortType(sortType: String) {
+        viewModelScope.launch {
+            repository.setDefaultSortType(sortType)
+        }
+    }
+
+    fun setDefaultSortReversed(reversed: Boolean) {
+        viewModelScope.launch {
+            repository.setDefaultSortReversed(reversed)
         }
     }
 }

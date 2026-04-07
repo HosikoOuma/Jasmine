@@ -71,7 +71,7 @@ fun TracksScreen(
                     state = listState,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 70.dp, bottom = 160.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp) // Увеличил зазор для яркости
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     itemsIndexed(tracks) { index, track ->
                         TrackCard(
@@ -255,7 +255,8 @@ fun TrackCard(
     track: Track,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     // Анимированный цвет фона для активной карточки
     val cardColor by animateColorAsState(
@@ -331,6 +332,8 @@ fun TrackCard(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+            
+            trailingContent()
         }
     }
 }
