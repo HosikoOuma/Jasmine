@@ -1,19 +1,15 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
-import androidx.compose.animation.animateColorAsState
+import android.widget.Toast
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
@@ -22,20 +18,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
-import kotlinx.coroutines.launch
 
 @Composable
 fun TracksScreen(
@@ -45,6 +33,7 @@ fun TracksScreen(
 ) {
     var isFavoritesMode by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val context = LocalContext.current
     
     val tracks by if (isFavoritesMode) {
         trackViewModel.favoriteTracks.collectAsState()
@@ -55,6 +44,12 @@ fun TracksScreen(
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     val currentTrack by playerViewModel.currentTrack.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+
+    LaunchedEffect(Unit) {
+        playerViewModel.toastEvent.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (tracks.isEmpty()) {
@@ -73,11 +68,13 @@ fun TracksScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 70.dp, bottom = 160.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    itemsIndexed(tracks) { index, track ->
-                        TrackCard(
+                    itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                        SwipeableTrackCard(
                             track = track,
                             isCurrent = currentTrack?.id == track.id,
                             isPlaying = isPlaying,
+                            isManualMarkingEnabled = false,
+                            onSwipeToAdd = { playerViewModel.addToQueue(track, showToast = true) },
                             onClick = {
                                 playerViewModel.playTracks(tracks, index)
                                 onNavigateToPlayer()
@@ -128,50 +125,26 @@ fun TracksScreen(
 
 @Composable
 fun FastScrollbar(
-    listState: LazyListState,
+    listState: androidx.compose.foundation.lazy.LazyListState,
     itemCount: Int,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
-    
-    val scrollbarAlpha by animateFloatAsState(
-        targetValue = if (listState.isScrollInProgress) 1f else 0.3f,
-        label = "alpha"
-    )
-
     BoxWithConstraints(modifier = modifier) {
         val maxHeight = constraints.maxHeight.toFloat()
-        
         val firstVisibleIndex = listState.firstVisibleItemIndex
         val layoutInfo = listState.layoutInfo
         val visibleItemsCount = layoutInfo.visibleItemsInfo.size
-        
         if (itemCount > visibleItemsCount && visibleItemsCount > 0) {
             val thumbHeight = (visibleItemsCount.toFloat() / itemCount) * maxHeight
             val scrollPercent = firstVisibleIndex.toFloat() / (itemCount - visibleItemsCount).coerceAtLeast(1)
             val thumbOffset = scrollPercent * (maxHeight - thumbHeight)
-
             Box(
                 modifier = Modifier
                     .offset(y = (thumbOffset / LocalContext.current.resources.displayMetrics.density).dp)
                     .width(4.dp)
                     .height((thumbHeight / LocalContext.current.resources.displayMetrics.density).dp)
                     .align(Alignment.TopCenter)
-                    .alpha(scrollbarAlpha)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .draggable(
-                        orientation = Orientation.Vertical,
-                        state = rememberDraggableState { delta ->
-                            val scrollFactor = itemCount.toFloat() / maxHeight
-                            scope.launch {
-                                listState.scrollToItem(
-                                    (listState.firstVisibleItemIndex + (delta * scrollFactor).toInt())
-                                        .coerceIn(0, (itemCount - 1).coerceAtLeast(0))
-                                )
-                            }
-                        }
-                    )
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), CircleShape)
             )
         }
     }
@@ -195,8 +168,7 @@ fun ModeToggleButton(
     Box(
         modifier = Modifier
             .size(40.dp)
-            .clip(CircleShape)
-            .background(backgroundColor)
+            .background(backgroundColor, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -206,134 +178,5 @@ fun ModeToggleButton(
             tint = iconColor,
             modifier = Modifier.size(20.dp)
         )
-    }
-}
-
-@Composable
-fun PlayingEqualizer(
-    isPlaying: Boolean,
-    modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.primary
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "equalizer")
-    
-    @Composable
-    fun animateBar(initial: Float, target: Float, duration: Int): State<Float> {
-        return infiniteTransition.animateFloat(
-            initialValue = initial,
-            targetValue = target,
-            animationSpec = infiniteRepeatable(
-                animation = tween(duration, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "bar"
-        )
-    }
-
-    val bar1 = if (isPlaying) animateBar(0.2f, 0.8f, 400) else remember { mutableStateOf(0.3f) }
-    val bar2 = if (isPlaying) animateBar(0.3f, 1.0f, 500) else remember { mutableStateOf(0.5f) }
-    val bar3 = if (isPlaying) animateBar(0.2f, 0.7f, 350) else remember { mutableStateOf(0.4f) }
-
-    Row(
-        modifier = modifier.height(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        listOf(bar1, bar2, bar3).forEach { heightState ->
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight(heightState.value)
-                    .background(color, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-            )
-        }
-    }
-}
-
-@Composable
-fun TrackCard(
-    track: Track,
-    isCurrent: Boolean,
-    isPlaying: Boolean,
-    onClick: () -> Unit,
-    trailingContent: @Composable RowScope.() -> Unit = {}
-) {
-    // Анимированный цвет фона для активной карточки
-    val cardColor by animateColorAsState(
-        targetValue = if (isCurrent) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-        },
-        animationSpec = tween(500),
-        label = "cardColor"
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp), // Более выраженные углы
-        colors = CardDefaults.cardColors(
-            containerColor = cardColor
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isCurrent) 4.dp else 0.dp
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(track.albumArtUri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(56.dp) // Увеличил обложку
-                    .clip(RoundedCornerShape(14.dp))
-            )
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = track.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Bold,
-                    color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = track.artist,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isCurrent) {
-                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            if (isCurrent) {
-                PlayingEqualizer(
-                    isPlaying = isPlaying,
-                    modifier = Modifier.padding(start = 8.dp, end = 8.dp),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
-            trailingContent()
-        }
     }
 }

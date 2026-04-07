@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
@@ -28,8 +29,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val favoritesRepository = FavoritesRepository(application)
 
-    private val _currentTrack = MutableStateFlow<Track?>(null)
-    val currentTrack = _currentTrack.asStateFlow()
+    private val _currentTrackBase = MutableStateFlow<Track?>(null)
+    private val _playlistBase = MutableStateFlow<List<Track>>(emptyList())
+    private val _manualQueueUids = MutableStateFlow<Set<String>>(emptySet())
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying = _isPlaying.asStateFlow()
@@ -46,13 +48,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode = _repeatMode.asStateFlow()
 
-    private val _playlist = MutableStateFlow<List<Track>>(emptyList())
-    val playlist = _playlist.asStateFlow()
+    private val _toastEvent = MutableSharedFlow<String>()
+    val toastEvent = _toastEvent.asSharedFlow()
 
     private var originalPlaylist: List<Track> = emptyList()
 
+    // Reactive current track with manual marking
+    val currentTrack: StateFlow<Track?> = combine(_currentTrackBase, _manualQueueUids) { track, manualUids ->
+        track?.copy(isManual = manualUids.contains(track.uid))
+    }.stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    // Reactive playlist with manual marking
+    val playlist: StateFlow<List<Track>> = combine(_playlistBase, _manualQueueUids) { list, manualUids ->
+        list.map { it.copy(isManual = manualUids.contains(it.uid)) }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     val isCurrentFavorite: StateFlow<Boolean> = combine(
-        _currentTrack,
+        currentTrack,
         favoritesRepository.favoriteTrackIds
     ) { track, favoriteIds ->
         track?.let { favoriteIds.contains(it.id.toString()) } ?: false
@@ -71,7 +83,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun setupController() {
         val controller = controller ?: return
         
-        controller.currentMediaItem?.let { updateCurrentTrack(it) }
+        updateCurrentTrack(controller.currentMediaItem)
         updatePlaylist()
         
         _isPlaying.value = controller.isPlaying
@@ -84,20 +96,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         controller.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                mediaItem?.let { updateCurrentTrack(it) }
+                updateCurrentTrack(mediaItem)
+                updatePlaylist()
             }
 
-            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 updatePlaylist()
+                updateCurrentTrack(controller.currentMediaItem)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _isPlaying.value = isPlaying
-                if (isPlaying) {
-                    startProgressUpdate()
-                } else {
-                    stopProgressUpdate()
-                }
+                if (isPlaying) startProgressUpdate() else stopProgressUpdate()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -117,18 +127,45 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         })
     }
 
-    private fun updateCurrentTrack(mediaItem: MediaItem) {
-        _currentTrack.value = mediaToTrack(mediaItem)
+    private fun updateCurrentTrack(mediaItem: MediaItem?) {
+        val controller = controller ?: return
+        if (mediaItem == null) {
+            _currentTrackBase.value = null
+            return
+        }
+        
+        val timeline = controller.currentTimeline
+        val window = Timeline.Window()
+        val currentIndex = controller.currentMediaItemIndex
+        
+        val uid = if (!timeline.isEmpty && currentIndex != -1 && currentIndex < timeline.windowCount) {
+            timeline.getWindow(currentIndex, window).uid.toString()
+        } else {
+            "fallback_${mediaItem.mediaId}_$currentIndex"
+        }
+        
+        _currentTrackBase.value = mediaToTrack(mediaItem).copy(uid = uid)
     }
 
     private fun updatePlaylist() {
         val controller = controller ?: return
+        val timeline = controller.currentTimeline
         val items = mutableListOf<Track>()
-        for (i in 0 until controller.mediaItemCount) {
-            val mediaItem = controller.getMediaItemAt(i)
-            items.add(mediaToTrack(mediaItem))
+        val window = Timeline.Window()
+        
+        if (timeline.isEmpty) {
+            for (i in 0 until controller.mediaItemCount) {
+                val mediaItem = controller.getMediaItemAt(i)
+                items.add(mediaToTrack(mediaItem).copy(uid = "fallback_${mediaItem.mediaId}_$i"))
+            }
+        } else {
+            for (i in 0 until timeline.windowCount) {
+                timeline.getWindow(i, window)
+                val mediaItem = window.mediaItem ?: continue
+                items.add(mediaToTrack(mediaItem).copy(uid = window.uid.toString()))
+            }
         }
-        _playlist.value = items
+        _playlistBase.value = items
     }
 
     private fun mediaToTrack(mediaItem: MediaItem): Track {
@@ -143,7 +180,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun toggleFavoriteCurrent() {
-        val track = _currentTrack.value ?: return
+        val track = currentTrack.value ?: return
         viewModelScope.launch {
             favoritesRepository.toggleFavorite(track.id.toString())
         }
@@ -152,6 +189,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun playTracks(tracks: List<Track>, startIndex: Int) {
         val controller = controller ?: return
         originalPlaylist = tracks 
+        _manualQueueUids.value = emptySet()
         
         val mediaItems = tracks.map { track -> createMediaItem(track) }
         
@@ -174,9 +212,56 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             .build()
     }
 
-    fun moveTrack(fromIndex: Int, toIndex: Int) {
+    fun addToQueue(track: Track, showToast: Boolean = false) {
         val controller = controller ?: return
-        controller.moveMediaItem(fromIndex, toIndex)
+        val currentIdx = controller.currentMediaItemIndex
+        if (currentIdx == -1) return
+
+        var insertPos = currentIdx + 1
+        val currentList = _playlistBase.value
+        val manualUids = _manualQueueUids.value
+        
+        while (insertPos < currentList.size && manualUids.contains(currentList[insertPos].uid)) {
+            insertPos++
+        }
+
+        controller.addMediaItem(insertPos, createMediaItem(track))
+        
+        // Sync original playlist
+        val newList = originalPlaylist.toMutableList()
+        val curTrack = _currentTrackBase.value
+        val currentInOriginal = originalPlaylist.indexOfFirst { it.id == curTrack?.id }
+        if (currentInOriginal != -1) {
+            var manualEndInOriginal = currentInOriginal + 1
+            while (manualEndInOriginal < originalPlaylist.size && originalPlaylist[manualEndInOriginal].isManual) {
+                manualEndInOriginal++
+            }
+            newList.add(manualEndInOriginal, track.copy(isManual = true))
+        } else {
+            newList.add(track.copy(isManual = true))
+        }
+        originalPlaylist = newList
+
+        viewModelScope.launch {
+            delay(400)
+            controller.currentTimeline.let { timeline ->
+                if (insertPos < timeline.windowCount) {
+                    val window = Timeline.Window()
+                    val uid = timeline.getWindow(insertPos, window).uid.toString()
+                    _manualQueueUids.value = _manualQueueUids.value + uid
+                }
+            }
+        }
+
+        if (showToast) {
+            viewModelScope.launch {
+                _toastEvent.emit("Added to queue: ${track.title}")
+            }
+        }
+    }
+
+    fun moveTrack(fromIndex: Int, toIndex: Int) {
+        controller?.moveMediaItem(fromIndex, toIndex)
     }
 
     fun skipToQueueItem(index: Int) {
@@ -185,11 +270,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun togglePlayPause() {
         val controller = controller ?: return
-        if (controller.isPlaying) {
-            controller.pause()
-        } else {
-            controller.play()
-        }
+        if (controller.isPlaying) controller.pause() else controller.play()
     }
 
     fun seekTo(position: Long) {
@@ -197,29 +278,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _progress.value = position
     }
 
-    fun skipToNext() {
-        controller?.seekToNext()
-    }
-
-    fun skipToPrevious() {
-        controller?.seekToPrevious()
-    }
+    fun skipToNext() { controller?.seekToNext() }
+    fun skipToPrevious() { controller?.seekToPrevious() }
 
     fun toggleShuffle() {
         val controller = controller ?: return
         val currentlyEnabled = _shuffleModeEnabled.value
         
         if (!currentlyEnabled) {
-            // Activate shuffle by reordering the timeline items
-            val currentItems = _playlist.value.toMutableList()
+            val currentItems = _playlistBase.value.toMutableList()
             if (currentItems.isEmpty()) return
             
-            val currentTrack = _currentTrack.value
-            val currentIndex = currentItems.indexOfFirst { it.id == currentTrack?.id }
+            val curTrack = _currentTrackBase.value
+            val currentIndex = currentItems.indexOfFirst { it.uid == curTrack?.uid }
             
             val currentPosition = controller.currentPosition
-            
-            // Remove current track, shuffle others, put current back at 0
             val removedTrack = if (currentIndex != -1) currentItems.removeAt(currentIndex) else null
             currentItems.shuffle()
             if (removedTrack != null) currentItems.add(0, removedTrack)
@@ -228,10 +301,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             controller.setMediaItems(mediaItems, 0, currentPosition)
             _shuffleModeEnabled.value = true
         } else {
-            // Restore original order
             if (originalPlaylist.isNotEmpty()) {
-                val currentTrack = _currentTrack.value
-                val indexInOriginal = originalPlaylist.indexOfFirst { it.id == currentTrack?.id }.coerceAtLeast(0)
+                val curTrack = _currentTrackBase.value
+                val indexInOriginal = originalPlaylist.indexOfFirst { it.id == curTrack?.id }.coerceAtLeast(0)
                 val currentPosition = controller.currentPosition
                 
                 val mediaItems = originalPlaylist.map { createMediaItem(it) }
@@ -255,23 +327,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         progressJob?.cancel()
         progressJob = viewModelScope.launch {
             while (true) {
-                controller?.let {
-                    _progress.value = it.currentPosition
-                }
+                controller?.let { _progress.value = it.currentPosition }
                 delay(1000)
             }
         }
     }
 
-    private fun stopProgressUpdate() {
-        progressJob?.cancel()
-    }
+    private fun stopProgressUpdate() { progressJob?.cancel() }
 
     override fun onCleared() {
         super.onCleared()
-        controllerFuture?.let {
-            MediaController.releaseFuture(it)
-        }
+        controllerFuture?.let { MediaController.releaseFuture(it) }
         stopProgressUpdate()
     }
 }

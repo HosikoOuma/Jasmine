@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
+import com.nkds.hosikoouma.jasmine.ui.components.TrackCard
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
@@ -38,7 +40,7 @@ fun QueueScreen(
     val scope = rememberCoroutineScope()
     
     val currentIndex = remember(playlist, currentTrack) {
-        playlist.indexOfFirst { it.id == currentTrack?.id }
+        playlist.indexOfFirst { it.uid == currentTrack?.uid }
     }
     
     val upNextPlaylist = remember(playlist, currentIndex) {
@@ -123,6 +125,7 @@ fun QueueScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+
                     TrackCard(
                         track = track,
                         isCurrent = true,
@@ -164,8 +167,8 @@ fun QueueScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                itemsIndexed(upNextPlaylist, key = { _, track -> track.id }) { index, track ->
-                    ReorderableItem(reorderableState, key = track.id) { isDragging ->
+                itemsIndexed(upNextPlaylist, key = { _, track -> track.uid }) { index, track ->
+                    ReorderableItem(reorderableState, key = track.uid) { isDragging ->
                         val elevation = if (isDragging) 8.dp else 0.dp
                         
                         Box(
@@ -175,10 +178,12 @@ fun QueueScreen(
                                     shadowElevation = elevation.toPx()
                                 }
                         ) {
-                            TrackCard(
+                            SwipeableTrackCard(
                                 track = track,
                                 isCurrent = false,
                                 isPlaying = false,
+                                isManualMarkingEnabled = true,
+                                onSwipeToAdd = { viewModel.addToQueue(track, showToast = true) },
                                 onClick = { viewModel.skipToQueueItem(index + currentIndex + 1) },
                                 trailingContent = {
                                     Icon(

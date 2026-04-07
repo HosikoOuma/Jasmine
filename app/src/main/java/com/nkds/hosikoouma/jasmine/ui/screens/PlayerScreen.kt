@@ -129,7 +129,42 @@ fun PlayerScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(80.dp))
+            // Маленькая панель индикации "From Queue"
+            Box(
+                modifier = Modifier
+                    .height(48.dp)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (currentTrack?.isManual == true) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        shape = CircleShape,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QueueMusic,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "From Queue",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             Surface(
                 modifier = Modifier
@@ -240,7 +275,6 @@ fun PlayerScreen(
                     onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() }
                 )
 
-                // Плэй/Пауза с изменением формы
                 val playPauseInteractionSource = remember { MutableInteractionSource() }
                 val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
                 val playPauseScale by animateFloatAsState(
@@ -250,7 +284,7 @@ fun PlayerScreen(
                 )
                 
                 val cornerPercent by animateIntAsState(
-                    targetValue = if (isPlaying) 50 else 25, // 50% = круг, 25% = квадрат с закруглением
+                    targetValue = if (isPlaying) 50 else 25,
                     animationSpec = tween(500, easing = LinearOutSlowInEasing),
                     label = "cornerAnimation"
                 )
@@ -282,7 +316,9 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(64.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -314,12 +350,9 @@ fun PlayerScreen(
                     onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
                 )
             }
-
-            Spacer(modifier = Modifier.height(64.dp))
         }
 
-        // Animated Queue Screen Overlay
-        AnimatedVisibility(
+        androidx.compose.animation.AnimatedVisibility(
             visible = showQueue,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
