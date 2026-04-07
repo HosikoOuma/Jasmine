@@ -14,6 +14,8 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
@@ -65,22 +67,7 @@ class PlaybackService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, playerA)
             .setSessionActivity(pendingIntent)
-            .setCallback(object : MediaSession.Callback {
-                override fun onPlayerCommandRequest(
-                    session: MediaSession,
-                    controller: MediaSession.ControllerInfo,
-                    playerCommand: Int
-                ): Int {
-                    // Если пользователь нажал "Следующий", "Предыдущий" или "Пауза" вручную
-                    if (playerCommand == Player.COMMAND_SEEK_TO_NEXT || 
-                        playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS ||
-                        playerCommand == Player.COMMAND_SET_MEDIA_ITEM ||
-                        playerCommand == Player.COMMAND_PLAY_PAUSE) {
-                        cancelActiveCrossfade()
-                    }
-                    return super.onPlayerCommandRequest(session, controller, playerCommand)
-                }
-            })
+            .setCallback(CustomMediaSessionCallback())
             .build()
 
         serviceScope.launch {
@@ -91,10 +78,64 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    // МГНОВЕННАЯ ОСТАНОВКА КРОССФЕЙДА
+    private inner class CustomMediaSessionCallback : MediaSession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): MediaSession.ConnectionResult {
+            // ВАЖНО: Разрешаем ВСЕ доступные команды плеера (включая SEEK, CHANGE_VOLUME и т.д.)
+            // и добавляем базовые сессионные команды.
+            val availablePlayerCommands = session.player.availableCommands.buildUpon()
+                .add(Player.COMMAND_PLAY_PAUSE)
+                .add(Player.COMMAND_SEEK_TO_NEXT)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .add(Player.COMMAND_STOP)
+                .add(Player.COMMAND_SET_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) // Для слайдера
+                .build()
+            
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailablePlayerCommands(availablePlayerCommands)
+                .build()
+        }
+
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val player = mediaSession.player
+            if (player.mediaItemCount > 0) {
+                return Futures.immediateFuture(
+                    MediaSession.MediaItemsWithStartPosition(
+                        getAllItems(player),
+                        player.currentMediaItemIndex,
+                        player.currentPosition
+                    )
+                )
+            }
+            return Futures.immediateFailedFuture(UnsupportedOperationException())
+        }
+
+        override fun onPlayerCommandRequest(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            playerCommand: Int
+        ): Int {
+            if (playerCommand == Player.COMMAND_SEEK_TO_NEXT || 
+                playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS ||
+                playerCommand == Player.COMMAND_SET_MEDIA_ITEM ||
+                playerCommand == Player.COMMAND_STOP ||
+                playerCommand == Player.COMMAND_SEEK_TO_MEDIA_ITEM ||
+                playerCommand == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM ||
+                playerCommand == Player.COMMAND_PLAY_PAUSE) {
+                cancelActiveCrossfade()
+            }
+            return super.onPlayerCommandRequest(session, controller, playerCommand)
+        }
+    }
+
     private fun cancelActiveCrossfade() {
         if (!isCrossfading) return
-        
         fadeJob?.cancel()
         fadeJob = null
         
@@ -105,7 +146,7 @@ class PlaybackService : MediaSessionService() {
         oldPlayer.pause()
         oldPlayer.stop()
         oldProcessor.setVolumeScale(1.0f)
-        currentProcessor.setVolumeScale(1.0f) // Возвращаем громкость текущему
+        currentProcessor.setVolumeScale(1.0f)
         
         isCrossfading = false
     }
@@ -158,6 +199,7 @@ class PlaybackService : MediaSessionService() {
         }
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(AudioAttributes.DEFAULT, false)
+            .setHandleAudioBecomingNoisy(true)
             .build()
 
         player.addListener(object : Player.Listener {
@@ -174,7 +216,6 @@ class PlaybackService : MediaSessionService() {
                 }
             }
             
-            // Если произошел переход не по причине кроссфейда (например, через список)
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (!isCrossfading) {
                     val otherPlayer = if (player == playerA) playerB else playerA
@@ -199,7 +240,6 @@ class PlaybackService : MediaSessionService() {
         if (!isEnabled) return
 
         val remaining = current.duration - current.currentPosition
-        
         val isRepeatOne = current.repeatMode == Player.REPEAT_MODE_ONE
         val isRepeatAll = current.repeatMode == Player.REPEAT_MODE_ALL
         val hasNext = current.nextMediaItemIndex != C.INDEX_UNSET || isRepeatOne || isRepeatAll
@@ -236,7 +276,6 @@ class PlaybackService : MediaSessionService() {
         }
 
         val allItems = getAllItems(oldPlayer)
-
         nextProcessor.setVolumeScale(0f)
         nextPlayer.setMediaItems(allItems, nextIndex, 0L)
         nextPlayer.shuffleModeEnabled = currentShuffleMode
@@ -245,7 +284,6 @@ class PlaybackService : MediaSessionService() {
         nextPlayer.play()
 
         oldPlayer.repeatMode = Player.REPEAT_MODE_OFF
-        
         if (currentRepeatMode != Player.REPEAT_MODE_ONE) {
             if (oldPlayer.mediaItemCount > nextIndex) {
                 oldPlayer.removeMediaItems(nextIndex, oldPlayer.mediaItemCount)
@@ -259,7 +297,6 @@ class PlaybackService : MediaSessionService() {
         fadeJob = serviceScope.launch {
             val steps = 40
             val interval = (fadeDuration / steps).coerceAtLeast(10)
-            
             for (i in 1..steps) {
                 if (!isActive) break
                 val progress = i.toFloat() / steps
@@ -267,7 +304,6 @@ class PlaybackService : MediaSessionService() {
                 oldProcessor.setVolumeScale(1f - progress)
                 delay(interval)
             }
-            
             oldPlayer.pause()
             oldPlayer.stop()
             oldProcessor.setVolumeScale(1.0f)
