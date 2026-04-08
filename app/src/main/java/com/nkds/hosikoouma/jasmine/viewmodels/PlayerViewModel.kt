@@ -58,7 +58,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var originalPlaylist: List<Track> = emptyList()
 
-    // Lyrics States
     private val _localLyrics = MutableStateFlow<String?>(null)
     val localLyrics = _localLyrics.asStateFlow()
 
@@ -68,7 +67,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _isLoadingLyrics = MutableStateFlow(false)
     val isLoadingLyrics = _isLoadingLyrics.asStateFlow()
 
-    // ЧЕТКОЕ РАЗДЕЛЕНИЕ СИНХРОНИЗИРОВАННЫХ ТЕКСТОВ
     val syncedLocalLyrics: StateFlow<List<LyricsLine>?> = _localLyrics
         .map { LyricsHelper.parseLrc(it) }
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
@@ -77,12 +75,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         .map { LyricsHelper.parseLrc(it?.syncedLyrics) }
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    // Reactive current track with manual marking
     val currentTrack: StateFlow<Track?> = combine(_currentTrackBase, _manualQueueUids) { track, manualUids ->
         track?.copy(isManual = manualUids.contains(track.uid))
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    // Reactive playlist with manual marking
     val playlist: StateFlow<List<Track>> = combine(_playlistBase, _manualQueueUids) { list, manualUids ->
         list.map { it.copy(isManual = manualUids.contains(it.uid)) }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -103,11 +99,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             setupController()
         }, MoreExecutors.directExecutor())
 
-        // Auto-load lyrics when track changes
         viewModelScope.launch {
             currentTrack.collect { track ->
                 if (track != null) {
-                    // Ждем пока загрузится реальная длительность из контроллера
                     delay(500)
                     loadLyrics(track, _duration.value)
                 } else {
@@ -289,21 +283,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         controller.addMediaItem(insertPos, createMediaItem(track))
         
-        // Sync original playlist
-        val newList = originalPlaylist.toMutableList()
-        val curTrack = _currentTrackBase.value
-        val currentInOriginal = originalPlaylist.indexOfFirst { it.id == curTrack?.id }
-        if (currentInOriginal != -1) {
-            var manualEndInOriginal = currentInOriginal + 1
-            while (manualEndInOriginal < originalPlaylist.size && originalPlaylist[manualEndInOriginal].isManual) {
-                manualEndInOriginal++
-            }
-            newList.add(manualEndInOriginal, track.copy(isManual = true))
-        } else {
-            newList.add(track.copy(isManual = true))
-        }
-        originalPlaylist = newList
-
         viewModelScope.launch {
             delay(400)
             controller.currentTimeline.let { timeline ->
@@ -318,6 +297,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (showToast) {
             viewModelScope.launch {
                 _toastEvent.emit("Added to queue: ${track.title}")
+            }
+        }
+    }
+
+    fun removeFromQueue(track: Track) {
+        val controller = controller ?: return
+        val currentList = _playlistBase.value
+        val index = currentList.indexOfFirst { it.uid == track.uid }
+        
+        if (index != -1) {
+            controller.removeMediaItem(index)
+            _manualQueueUids.value = _manualQueueUids.value - track.uid
+            
+            viewModelScope.launch {
+                _toastEvent.emit("Removed from queue: ${track.title}")
             }
         }
     }
@@ -344,12 +338,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     
     fun skipToPrevious() { 
         val controller = controller ?: return
-        // Если трек проиграл больше 3 секунд, сбрасываем его в начало
         if (controller.currentPosition > 3000L) {
             controller.seekTo(0L)
             _progress.value = 0L
         } else {
-            // Иначе переключаем на предыдущий
             controller.seekToPrevious() 
         }
     }

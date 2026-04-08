@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,38 +24,32 @@ fun SwipeableTrackCard(
     track: Track,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    onSwipeToAdd: () -> Unit,
+    onSwipeAction: () -> Unit, // Универсальное действие (добавить или удалить)
     onClick: () -> Unit,
-    isManualMarkingEnabled: Boolean = false,
+    isManualMarkingEnabled: Boolean = true,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
-    val threshold = 0.35f // Оптимальный порог: 35% ширины экрана
+    val threshold = 0.35f
     
-    // Используем переменную для фиксации того, достигли ли мы физической точки
+    val isAddedToQueue = track.isManual
     var isThresholdReached by remember { mutableStateOf(false) }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = {
-            // Добавляем в очередь только если палец реально дошел до порога.
-            // Это игнорирует быстрые "флики" (смахивания), которые не достигли 35% ширины.
             if (it == SwipeToDismissBoxValue.StartToEnd && isThresholdReached) {
-                onSwipeToAdd()
-                isThresholdReached = false // Сбрасываем после срабатывания
+                onSwipeAction()
+                isThresholdReached = false
             }
-            false // Всегда возвращаем карточку в исходное положение
+            false
         },
         positionalThreshold = { totalDistance -> totalDistance * threshold }
     )
 
-    // В M3 progress идет от 0.0 до 1.0 относительно ВСЕЙ ширины компонента
-    // Но если задан positionalThreshold, то в confirmValueChange он учитывается.
-    // Для визуализации и виброотклика используем расчет относительно ширины.
     val currentProgress = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
         dismissState.progress
     } else 0f
 
-    // Считаем порог пройденным, когда протащили на 35% (threshold)
     val reached = currentProgress >= threshold
 
     LaunchedEffect(reached) {
@@ -64,10 +59,7 @@ fun SwipeableTrackCard(
                 isThresholdReached = true
             }
         } else {
-            // Сбрасываем состояние "достигнуто", если пользователь отвел палец назад (менее 15% ширины)
-            if (currentProgress < 0.15f) {
-                isThresholdReached = false
-            }
+            isThresholdReached = false
         }
     }
 
@@ -75,9 +67,12 @@ fun SwipeableTrackCard(
         state = dismissState,
         enableDismissFromEndToStart = false,
         backgroundContent = {
+            // Если трек в очереди - красим в красный (удаление), иначе в основной цвет (добавление)
+            val activeColor = if (isAddedToQueue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            
             val bgColor by animateColorAsState(
-                if (isThresholdReached) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                if (isThresholdReached) activeColor.copy(alpha = 0.4f)
+                else activeColor.copy(alpha = 0.15f),
                 label = "swipeBg"
             )
 
@@ -90,17 +85,16 @@ fun SwipeableTrackCard(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Icon(
-                    Icons.AutoMirrored.Filled.PlaylistAdd,
+                    imageVector = if (isAddedToQueue) Icons.Default.PlaylistRemove else Icons.AutoMirrored.Filled.PlaylistAdd,
                     contentDescription = null,
                     modifier = Modifier
                         .padding(start = 24.dp)
                         .graphicsLayer {
-                            // Иконка увеличивается при достижении порога
                             val scale = if (isThresholdReached) 1.4f else 1.0f
                             scaleX = scale
                             scaleY = scale
                         },
-                    tint = if (isThresholdReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                    tint = if (isThresholdReached) activeColor else activeColor.copy(alpha = 0.6f)
                 )
             }
         }

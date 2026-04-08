@@ -54,7 +54,6 @@ fun QueueScreen(
                 .fillMaxSize()
                 .systemBarsPadding()
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -73,7 +72,6 @@ fun QueueScreen(
                 }
             }
 
-            // Current Track Section
             currentTrack?.let { track ->
                 Text(
                     text = "Now Playing",
@@ -92,7 +90,6 @@ fun QueueScreen(
                 }
             }
 
-            // Thick rounded divider
             Box(
                 modifier = Modifier
                     .padding(horizontal = 24.dp, vertical = 20.dp)
@@ -110,7 +107,6 @@ fun QueueScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            // Reorderable List
             val lazyListState = rememberLazyListState()
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
                 val actualFrom = from.index + currentIndex + 1
@@ -140,7 +136,7 @@ fun QueueScreen(
                                 isCurrent = false,
                                 isPlaying = false,
                                 isManualMarkingEnabled = true,
-                                onSwipeToAdd = { viewModel.addToQueue(track, showToast = true) },
+                                onSwipeAction = { viewModel.removeFromQueue(track) }, // ТЕПЕРЬ УДАЛЯЕТ
                                 onClick = { viewModel.skipToQueueItem(index + currentIndex + 1) },
                                 trailingContent = {
                                     Icon(

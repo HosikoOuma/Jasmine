@@ -92,8 +92,14 @@ fun TracksScreen(
                                 track = track,
                                 isCurrent = currentTrack?.id == track.id,
                                 isPlaying = isPlaying,
-                                isManualMarkingEnabled = false,
-                                onSwipeToAdd = { playerViewModel.addToQueue(track, showToast = true) },
+                                isManualMarkingEnabled = true, // Включаем метку "в очереди"
+                                onSwipeAction = { 
+                                    if (track.isManual) {
+                                        playerViewModel.removeFromQueue(track)
+                                    } else {
+                                        playerViewModel.addToQueue(track, showToast = true) 
+                                    }
+                                },
                                 onClick = {
                                     playerViewModel.playTracks(tracks, index)
                                     onNavigateToPlayer()
