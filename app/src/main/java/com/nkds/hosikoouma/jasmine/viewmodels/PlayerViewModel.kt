@@ -15,6 +15,10 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.nkds.hosikoouma.jasmine.PlaybackService
 import com.nkds.hosikoouma.jasmine.data.FavoritesRepository
+import com.nkds.hosikoouma.jasmine.data.LyricsHelper
+import com.nkds.hosikoouma.jasmine.data.LyricsRepository
+import com.nkds.hosikoouma.jasmine.datamodels.Lyrics
+import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -28,6 +32,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
 
     private val favoritesRepository = FavoritesRepository(application)
+    private val lyricsRepository = LyricsRepository(application)
 
     private val _currentTrackBase = MutableStateFlow<Track?>(null)
     private val _playlistBase = MutableStateFlow<List<Track>>(emptyList())
@@ -53,12 +58,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var originalPlaylist: List<Track> = emptyList()
 
+    // Lyrics States
+    private val _localLyrics = MutableStateFlow<String?>(null)
+    val localLyrics = _localLyrics.asStateFlow()
+
+    private val _remoteLyrics = MutableStateFlow<Lyrics?>(null)
+    val remoteLyrics = _remoteLyrics.asStateFlow()
+
+    private val _isLoadingLyrics = MutableStateFlow(false)
+    val isLoadingLyrics = _isLoadingLyrics.asStateFlow()
+
+    // ЧЕТКОЕ РАЗДЕЛЕНИЕ СИНХРОНИЗИРОВАННЫХ ТЕКСТОВ
+    val syncedLocalLyrics: StateFlow<List<LyricsLine>?> = _localLyrics
+        .map { LyricsHelper.parseLrc(it) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    val syncedRemoteLyrics: StateFlow<List<LyricsLine>?> = _remoteLyrics
+        .map { LyricsHelper.parseLrc(it?.syncedLyrics) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
     // Reactive current track with manual marking
     val currentTrack: StateFlow<Track?> = combine(_currentTrackBase, _manualQueueUids) { track, manualUids ->
         track?.copy(isManual = manualUids.contains(track.uid))
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    // Reactive playlist with manual marking
     val playlist: StateFlow<List<Track>> = combine(_playlistBase, _manualQueueUids) { list, manualUids ->
         list.map { it.copy(isManual = manualUids.contains(it.uid)) }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -78,6 +101,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         controllerFuture?.addListener({
             setupController()
         }, MoreExecutors.directExecutor())
+
+        viewModelScope.launch {
+            currentTrack.collect { track ->
+                if (track != null) {
+                    delay(500)
+                    loadLyrics(track, _duration.value)
+                } else {
+                    _localLyrics.value = null
+                    _remoteLyrics.value = null
+                }
+            }
+        }
+    }
+
+    private fun loadLyrics(track: Track, actualDuration: Long) {
+        viewModelScope.launch {
+            _isLoadingLyrics.value = true
+            _localLyrics.value = lyricsRepository.getLocalLyrics(track)
+            _remoteLyrics.value = lyricsRepository.getRemoteLyrics(track, actualDuration)
+            _isLoadingLyrics.value = false
+        }
     }
 
     private fun setupController() {
