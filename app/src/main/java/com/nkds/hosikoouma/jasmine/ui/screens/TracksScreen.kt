@@ -5,6 +5,9 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -12,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
@@ -23,15 +27,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,32 +91,32 @@ fun TracksScreen(
                     }
                 }
             } else {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 70.dp, bottom = 160.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
-                            SwipeableTrackCard(
-                                track = track,
-                                isCurrent = currentTrack?.id == track.id,
-                                isPlaying = isPlaying,
-                                isManualMarkingEnabled = true, // Включаем метку "в очереди"
-                                onSwipeAction = { 
-                                    if (track.isManual) {
-                                        playerViewModel.removeFromQueue(track)
-                                    } else {
-                                        playerViewModel.addToQueue(track, showToast = true) 
-                                    }
-                                },
-                                onClick = {
-                                    playerViewModel.playTracks(tracks, index)
-                                    onNavigateToPlayer()
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .simpleVerticalScrollbar(listState),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 70.dp, bottom = 160.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                        SwipeableTrackCard(
+                            track = track,
+                            isCurrent = currentTrack?.id == track.id,
+                            isPlaying = isPlaying,
+                            isManualMarkingEnabled = true,
+                            onSwipeAction = { 
+                                if (track.isManual) {
+                                    playerViewModel.removeFromQueue(track)
+                                } else {
+                                    playerViewModel.addToQueue(track, showToast = true) 
                                 }
-                            )
-                        }
+                            },
+                            onClick = {
+                                playerViewModel.playTracks(tracks, index)
+                                onNavigateToPlayer()
+                            }
+                        )
                     }
                 }
             }
@@ -144,7 +155,7 @@ fun TracksScreen(
                 }
             }
 
-            // Mode Selector (Bubble)
+            // Mode Selector
             Surface(
                 modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
                 shape = CircleShape,
@@ -170,6 +181,70 @@ fun TracksScreen(
             }
         }
     }
+}
+
+@Composable
+fun Modifier.simpleVerticalScrollbar(
+    state: androidx.compose.foundation.lazy.LazyListState,
+    width: Dp = 6.dp
+): Modifier {
+    val targetAlpha = if (state.isScrollInProgress) 1f else 0f
+    val duration = if (state.isScrollInProgress) 150 else 500
+
+    val alpha by animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = tween(durationMillis = duration),
+        label = "scrollbarAlpha"
+    )
+
+    val color = MaterialTheme.colorScheme.primary
+    val scope = rememberCoroutineScope()
+
+    return this
+        .pointerInput(state) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                // Если нажатие в правой части экрана (зона скроллбара ~40dp)
+                if (down.position.x > size.width - 40.dp.toPx()) {
+                    verticalDrag(down.id) { change ->
+                        change.consume()
+                        val totalItems = state.layoutInfo.totalItemsCount
+                        if (totalItems > 0) {
+                            val ratio = (change.position.y / size.height).coerceIn(0f, 1f)
+                            val targetIndex = (ratio * totalItems).toInt().coerceIn(0, totalItems - 1)
+                            scope.launch {
+                                state.scrollToItem(targetIndex)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .drawWithContent {
+            drawContent()
+
+            val firstVisibleElementIndex = state.layoutInfo.visibleItemsInfo.firstOrNull()?.index
+            val needDrawScrollbar = state.isScrollInProgress || alpha > 0.0f
+
+            if (needDrawScrollbar && firstVisibleElementIndex != null) {
+                val elementCount = state.layoutInfo.totalItemsCount
+                val scrollbarFullHeight = size.height
+                
+                // Не рисуем, если всё помещается на экране
+                if (elementCount <= state.layoutInfo.visibleItemsInfo.size) return@drawWithContent
+
+                val scrollbarHeight = (scrollbarFullHeight / elementCount) * state.layoutInfo.visibleItemsInfo.size
+                val scrollbarOffsetY = (scrollbarFullHeight / elementCount) * firstVisibleElementIndex
+
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(size.width - width.toPx(), scrollbarOffsetY),
+                    size = Size(width.toPx(), scrollbarHeight),
+                    alpha = alpha,
+                    cornerRadius = CornerRadius(width.toPx() / 2, width.toPx() / 2)
+                )
+            }
+        }
 }
 
 @Composable

@@ -17,9 +17,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.ui.components.TrackCard
+import com.nkds.hosikoouma.jasmine.viewmodels.PlayerBackgroundStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -32,6 +36,14 @@ fun QueueScreen(
     val currentTrack by viewModel.currentTrack.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val backgroundStyleStr by settingsViewModel.playerBackgroundStyle.collectAsState()
+    val backgroundStyle = try {
+        PlayerBackgroundStyle.valueOf(backgroundStyleStr)
+    } catch (e: Exception) {
+        PlayerBackgroundStyle.STANDARD
+    }
+
     val currentIndex = remember(playlist, currentTrack) {
         playlist.indexOfFirst { it.uid == currentTrack?.uid }
     }
@@ -49,6 +61,8 @@ fun QueueScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
     ) {
+        PlayerBackground(style = backgroundStyle, albumArtUri = currentTrack?.albumArtUri)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -142,9 +156,6 @@ fun QueueScreen(
                                 isManualMarkingEnabled = true,
                                 enabled = true,
                                 onSwipeAction = {
-                                    // ЧЕТКАЯ ЛОГИКА:
-                                    // Если трек ручной — УДАЛЯЕМ.
-                                    // Если трек системный — ДОБАВЛЯЕМ (копию в очередь).
                                     if (track.isManual) {
                                         viewModel.removeFromQueue(track)
                                     } else {

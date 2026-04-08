@@ -3,7 +3,6 @@ package com.nkds.hosikoouma.jasmine.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -15,18 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 
 @Composable
@@ -47,7 +39,7 @@ fun MiniPlayer(
         label = "progress"
     )
 
-    // АНИМАЦИЯ "ЖИВОГО" ПЛЕЕРА (плавное покачивание вверх-вниз)
+    // АНИМАЦИЯ "ЖИВОГО" ПЛЕЕРА
     val infiniteTransition = rememberInfiniteTransition(label = "living_player")
     val floatingOffset by infiniteTransition.animateFloat(
         initialValue = -3f,
@@ -59,7 +51,7 @@ fun MiniPlayer(
         label = "floating"
     )
 
-    // ЭФФЕКТ НАЖАТИЯ (уменьшение масштаба)
+    // ЭФФЕКТ НАЖАТИЯ
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -80,7 +72,7 @@ fun MiniPlayer(
             }
             .clickable(
                 interactionSource = interactionSource,
-                indication = null, // Убираем стандартный ripple, так как у нас есть масштаб
+                indication = null,
                 onClick = onClick
             ),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -88,7 +80,6 @@ fun MiniPlayer(
         tonalElevation = 8.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // ФОНОВЫЙ ПРОГРЕСС-БАР
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -102,16 +93,10 @@ fun MiniPlayer(
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(currentTrack?.albumArtUri)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                AlbumArt(
+                    albumArtUri = currentTrack?.albumArtUri,
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(8.dp)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))

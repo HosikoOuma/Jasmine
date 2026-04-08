@@ -28,8 +28,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
 import com.nkds.hosikoouma.jasmine.ui.components.TrackCard
+import com.nkds.hosikoouma.jasmine.viewmodels.PlayerBackgroundStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +52,14 @@ fun LyricsScreen(
     val syncedRemote by viewModel.syncedRemoteLyrics.collectAsState()
     
     val isLoading by viewModel.isLoadingLyrics.collectAsState()
+
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val backgroundStyleStr by settingsViewModel.playerBackgroundStyle.collectAsState()
+    val backgroundStyle = try {
+        PlayerBackgroundStyle.valueOf(backgroundStyleStr)
+    } catch (e: Exception) {
+        PlayerBackgroundStyle.STANDARD
+    }
     
     var isLrcLibMode by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -57,6 +69,8 @@ fun LyricsScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
     ) {
+        PlayerBackground(style = backgroundStyle, albumArtUri = currentTrack?.albumArtUri)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

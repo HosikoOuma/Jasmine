@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
@@ -65,6 +66,11 @@ class PlaybackService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // Принудительная установка иконки через DefaultMediaNotificationProvider
+        val notificationProvider = DefaultMediaNotificationProvider(this)
+        notificationProvider.setSmallIcon(R.drawable.ison_vec)
+        setMediaNotificationProvider(notificationProvider)
+
         mediaSession = MediaSession.Builder(this, playerA)
             .setSessionActivity(pendingIntent)
             .setCallback(CustomMediaSessionCallback())
@@ -83,15 +89,13 @@ class PlaybackService : MediaSessionService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo
         ): MediaSession.ConnectionResult {
-            // ВАЖНО: Разрешаем ВСЕ доступные команды плеера (включая SEEK, CHANGE_VOLUME и т.д.)
-            // и добавляем базовые сессионные команды.
             val availablePlayerCommands = session.player.availableCommands.buildUpon()
                 .add(Player.COMMAND_PLAY_PAUSE)
                 .add(Player.COMMAND_SEEK_TO_NEXT)
                 .add(Player.COMMAND_SEEK_TO_PREVIOUS)
                 .add(Player.COMMAND_STOP)
                 .add(Player.COMMAND_SET_MEDIA_ITEM)
-                .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) // Для слайдера
+                .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
                 .build()
             
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)

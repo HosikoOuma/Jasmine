@@ -17,6 +17,8 @@ import java.io.File
 
 class LyricsRepository(private val context: Context) {
 
+    private val lyricsDao = LyricsDatabase.getDatabase(context).lyricsDao()
+
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
@@ -61,8 +63,22 @@ class LyricsRepository(private val context: Context) {
     }
 
     suspend fun getRemoteLyrics(track: Track, actualDuration: Long = 0): Lyrics? = withContext(Dispatchers.IO) {
+        val cacheId = "${track.artist}_${track.title}"
+        
+        // 1. Проверяем кэш
+        val cached = lyricsDao.getLyrics(cacheId)
+        if (cached != null) {
+            Log.d("LyricsRepository", "Found cached lyrics for ${track.title}")
+            return@withContext Lyrics(
+                plainLyrics = cached.plainLyrics,
+                syncedLyrics = cached.syncedLyrics,
+                name = track.title,
+                artistName = track.artist
+            )
+        }
+
         try {
-            // 1. Пытаемся сделать точный поиск (GET)
+            // 2. Ищем в сети (GET)
             val durationInSec = if (actualDuration > 0) (actualDuration / 1000).toInt() else null
             val response = lrcLibService.getLyrics(
                 trackName = track.title,
@@ -70,17 +86,31 @@ class LyricsRepository(private val context: Context) {
                 duration = durationInSec
             )
             
-            if (response.isSuccessful) return@withContext response.body()
-
-            // 2. Если не вышло, пробуем общий поиск (SEARCH)
-            val searchResponse = lrcLibService.searchLyrics("${track.artist} ${track.title}")
-            if (searchResponse.isSuccessful) {
-                val results = searchResponse.body()
-                // Берем первый результат, где есть текст
-                return@withContext results?.firstOrNull { it.syncedLyrics != null || it.plainLyrics != null }
+            var result: Lyrics? = null
+            if (response.isSuccessful) {
+                result = response.body()
+            } else {
+                // Fallback поиск (SEARCH)
+                val searchResponse = lrcLibService.searchLyrics("${track.artist} ${track.title}")
+                if (searchResponse.isSuccessful) {
+                    result = searchResponse.body()?.firstOrNull { it.syncedLyrics != null || it.plainLyrics != null }
+                }
             }
+
+            // 3. Сохраняем в кэш
+            if (result != null) {
+                lyricsDao.insertLyrics(
+                    LyricsCacheEntity(
+                        trackId = cacheId,
+                        plainLyrics = result.plainLyrics,
+                        syncedLyrics = result.syncedLyrics
+                    )
+                )
+            }
+            return@withContext result
+
         } catch (e: Exception) {
-            Log.e("LyricsRepository", "Error fetching from LRCLIB", e)
+            Log.e("LyricsRepository", "Error fetching/caching lyrics", e)
         }
         null
     }

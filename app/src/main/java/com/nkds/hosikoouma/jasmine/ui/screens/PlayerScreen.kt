@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,9 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
+import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
+import com.nkds.hosikoouma.jasmine.viewmodels.PlayerBackgroundStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
@@ -61,6 +61,13 @@ fun PlayerScreen(
     } catch (e: Exception) {
         ProgressBarStyle.STANDARD
     }
+
+    val backgroundStyleStr by settingsViewModel.playerBackgroundStyle.collectAsState()
+    val backgroundStyle = try {
+        PlayerBackgroundStyle.valueOf(backgroundStyleStr)
+    } catch (e: Exception) {
+        PlayerBackgroundStyle.STANDARD
+    }
     
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -68,10 +75,8 @@ fun PlayerScreen(
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
 
-    // Логика уменьшения обложки (только при ручной паузе)
     var isAlbumArtMinimized by remember { mutableStateOf(!isPlaying) }
     
-    // Автоматически разворачиваем, если музыка начала играть (например, при переключении)
     LaunchedEffect(isPlaying) {
         if (isPlaying) isAlbumArtMinimized = false
     }
@@ -162,6 +167,8 @@ fun PlayerScreen(
                 )
             }
     ) {
+        PlayerBackground(style = backgroundStyle, albumArtUri = currentTrack?.albumArtUri)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -169,7 +176,6 @@ fun PlayerScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Space
             Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (currentTrack?.isManual == true) {
                     Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f), shape = CircleShape, modifier = Modifier.padding(top = 8.dp)) {
@@ -184,28 +190,21 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.weight(0.2f))
 
-            // ФИКСИРОВАННЫЙ КОНТЕЙНЕР ДЛЯ ОБЛОЖКИ (предотвращает прыжки интерфейса)
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
                     .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(albumArtScale / 0.9f) // Относительный масштаб внутри контейнера
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(24.dp)), 
-                    color = Color.DarkGray, 
-                    tonalElevation = 8.dp
-                ) {
-                    AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(currentTrack?.albumArtUri).crossfade(true).build(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                }
+                AlbumArt(
+                    albumArtUri = currentTrack?.albumArtUri,
+                    modifier = Modifier.fillMaxWidth(albumArtScale / 0.9f).aspectRatio(1f),
+                    shape = RoundedCornerShape(24.dp)
+                )
             }
 
             Spacer(modifier = Modifier.weight(0.3f))
 
-            // Text info
             Column(modifier = Modifier.fillMaxWidth().height(72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(currentTrack?.title ?: "Unknown Title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
                 Spacer(modifier = Modifier.height(4.dp))
@@ -214,7 +213,6 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Progress Bar
             Column(modifier = Modifier.fillMaxWidth().height(84.dp)) {
                 if (progressStyle == ProgressBarStyle.STANDARD) {
                     Slider(
@@ -229,7 +227,7 @@ fun PlayerScreen(
                         },
                         interactionSource = remember { MutableInteractionSource() },
                         valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                        colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant)
+                        colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     )
                 } else {
                     JasmineProgressBar(
@@ -255,7 +253,6 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Playback Controls
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() })
                 AnimatedControlIcon(icon = Icons.Default.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() } )
@@ -272,7 +269,7 @@ fun PlayerScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val willPause = isPlaying
                         viewModel.togglePlayPause()
-                        isAlbumArtMinimized = willPause // Уменьшаем только если ставим на паузу вручную
+                        isAlbumArtMinimized = willPause
                     },
                     interactionSource = playPauseInteractionSource,
                     modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = playPauseScale },
@@ -287,7 +284,6 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.weight(0.5f))
 
-            // Bottom Actions
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), 
                 horizontalArrangement = Arrangement.SpaceAround, 
@@ -300,7 +296,6 @@ fun PlayerScreen(
             }
         }
 
-        // Overlays
         AnimatedVisibility(visible = showQueue, enter = slideInHorizontally(initialOffsetX = { -it }), exit = slideOutHorizontally(targetOffsetX = { -it })) {
             Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
                 QueueScreen(viewModel = viewModel, onClose = { showQueue = false })

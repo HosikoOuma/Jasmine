@@ -16,10 +16,22 @@ enum class ProgressBarStyle {
     NEON
 }
 
+enum class PlayerBackgroundStyle {
+    STANDARD,
+    BLURRED_COVER,
+    AURA
+}
+
 enum class AppFontFamily {
     DEFAULT,
     GOOGLE_SANS,
     JETBRAINS_MONO
+}
+
+enum class DarkMode {
+    FOLLOW_SYSTEM,
+    LIGHT,
+    DARK
 }
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -49,8 +61,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD"
     )
 
+    val playerBackgroundStyle = repository.playerBackgroundStyle.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD"
+    )
+
     val appFontFamily = repository.appFontFamily.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), "DEFAULT"
+    )
+
+    val darkMode = repository.darkMode.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), "FOLLOW_SYSTEM"
     )
 
     fun setCrossfadeEnabled(enabled: Boolean) {
@@ -77,7 +97,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { repository.setProgressBarStyle(style.name) }
     }
 
+    fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) {
+        viewModelScope.launch { repository.setPlayerBackgroundStyle(style.name) }
+    }
+
     fun setAppFontFamily(fontFamily: AppFontFamily) {
         viewModelScope.launch { repository.setAppFontFamily(fontFamily.name) }
+    }
+
+    fun setDarkMode(mode: DarkMode) {
+        viewModelScope.launch { repository.setDarkMode(mode.name) }
     }
 }
