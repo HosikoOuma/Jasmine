@@ -54,18 +54,16 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
 
     var showQueue by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
 
-    // Состояния для Predictive Back
     var backProgress by remember { mutableFloatStateOf(0f) }
     var isBacking by remember { mutableStateOf(false) }
 
-    // Predictive Back для очереди (сворачивание влево)
+    // Predictive Back для очереди (влево)
     PredictiveBackHandler(enabled = showQueue) { progressFlow ->
         try {
             isBacking = true
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress
-            }
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
             showQueue = false
         } finally {
             isBacking = false
@@ -73,13 +71,23 @@ fun PlayerScreen(
         }
     }
 
-    // Predictive Back для самого плеера (движение вниз)
-    PredictiveBackHandler(enabled = !showQueue) { progressFlow ->
+    // Predictive Back для текста (вправо)
+    PredictiveBackHandler(enabled = showLyrics) { progressFlow ->
         try {
             isBacking = true
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress
-            }
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
+            showLyrics = false
+        } finally {
+            isBacking = false
+            backProgress = 0f
+        }
+    }
+
+    // Predictive Back для плеера (вниз)
+    PredictiveBackHandler(enabled = !showQueue && !showLyrics) { progressFlow ->
+        try {
+            isBacking = true
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
             onClose()
         } finally {
             isBacking = false
@@ -92,14 +100,10 @@ fun PlayerScreen(
     LaunchedEffect(Unit) {
         animatedOffset.animateTo(
             targetValue = 0f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMedium
-            )
+            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
         )
     }
 
-    // Slider logic
     var sliderValue by remember { mutableFloatStateOf(0f) }
     var lastSeekTime by remember { mutableLongStateOf(0L) }
     val sliderInteractionSource = remember { MutableInteractionSource() }
@@ -116,10 +120,8 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                // Всегда полная прозрачность при PredictiveBack или свайпе вниз
                 alpha = 1f
-                
-                if (!showQueue && isBacking) {
+                if (!showQueue && !showLyrics && isBacking) {
                     translationY = backProgress * size.height
                 } else {
                     translationY = animatedOffset.value.coerceAtLeast(0f)
@@ -132,23 +134,18 @@ fun PlayerScreen(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
                             scope.launch {
-                                // Плавное, но быстрое завершение без задержки
-                                animatedOffset.animateTo(
-                                    targetValue = 2500f, 
-                                    animationSpec = tween(durationMillis = 200, easing = LinearOutSlowInEasing)
-                                )
+                                animatedOffset.animateTo(2500f, tween(200, easing = LinearOutSlowInEasing))
                                 onClose()
                             }
                         } else {
-                            scope.launch {
-                                animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
-                            }
+                            scope.launch { animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        scope.launch {
-                            animatedOffset.snapTo(animatedOffset.value + dragAmount)
+                        // Сворачиваем плеер ТОЛЬКО если не открыта очередь или текст
+                        if (!showQueue && !showLyrics) {
+                            change.consume()
+                            scope.launch { animatedOffset.snapTo(animatedOffset.value + dragAmount) }
                         }
                     }
                 )
@@ -163,11 +160,7 @@ fun PlayerScreen(
         ) {
             Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (currentTrack?.isManual == true) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                        shape = CircleShape,
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) {
+                    Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f), shape = CircleShape, modifier = Modifier.padding(top = 8.dp)) {
                         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
@@ -179,17 +172,8 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(0.95f).aspectRatio(1f).clip(RoundedCornerShape(24.dp)),
-                color = Color.DarkGray,
-                tonalElevation = 8.dp
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current).data(currentTrack?.albumArtUri).crossfade(true).build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+            Surface(modifier = Modifier.fillMaxWidth(0.95f).aspectRatio(1f).clip(RoundedCornerShape(24.dp)), color = Color.DarkGray, tonalElevation = 8.dp) {
+                AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(currentTrack?.albumArtUri).crossfade(true).build(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
 
             Spacer(modifier = Modifier.height(48.dp))
@@ -209,11 +193,7 @@ fun PlayerScreen(
                     onValueChangeFinished = { viewModel.seekTo(sliderValue.toLong()); lastSeekTime = System.currentTimeMillis() },
                     interactionSource = sliderInteractionSource,
                     valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant)
                 )
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
@@ -234,13 +214,7 @@ fun PlayerScreen(
                 val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.9f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
                 val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
 
-                Surface(
-                    onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.togglePlayPause() },
-                    interactionSource = playPauseInteractionSource,
-                    modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = playPauseScale },
-                    shape = RoundedCornerShape(cornerPercent),
-                    color = MaterialTheme.colorScheme.primary
-                ) {
+                Surface(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.togglePlayPause() }, interactionSource = playPauseInteractionSource, modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = playPauseScale }, shape = RoundedCornerShape(cornerPercent), color = MaterialTheme.colorScheme.primary) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
                     }
@@ -253,7 +227,7 @@ fun PlayerScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
                 AnimatedControlIcon(Icons.AutoMirrored.Filled.PlaylistPlay, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
                 AnimatedControlIcon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, size = 24.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
-                AnimatedControlIcon(Icons.Default.Lyrics, size = 24.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
+                AnimatedControlIcon(Icons.Default.Lyrics, size = 24.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showLyrics = true })
                 AnimatedControlIcon(Icons.Default.MoreHoriz, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
             }
         }
@@ -264,13 +238,35 @@ fun PlayerScreen(
             enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
             exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
         ) {
-            Box(modifier = Modifier.graphicsLayer {
+            Box(modifier = Modifier.pointerInput(Unit) {
+                // ПЕРЕХВАТ ЖЕСТОВ: не даем свайпу вниз пробрасываться к плееру
+                detectVerticalDragGestures { _, _ -> } 
+            }.graphicsLayer {
                 alpha = 1f
                 if (showQueue && isBacking) {
                     translationX = -backProgress * size.width
                 }
             }) {
                 QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
+            }
+        }
+
+        // ТЕКСТ
+        AnimatedVisibility(
+            visible = showLyrics,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+        ) {
+            Box(modifier = Modifier.pointerInput(Unit) {
+                // ПЕРЕХВАТ ЖЕСТОВ: текст тоже не должен сворачивать плеер свайпом
+                detectVerticalDragGestures { _, _ -> }
+            }.graphicsLayer {
+                alpha = 1f
+                if (showLyrics && isBacking) {
+                    translationX = backProgress * size.width
+                }
+            }) {
+                LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
             }
         }
     }

@@ -1,11 +1,7 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -19,13 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.ui.components.TrackCard
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
-import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -37,7 +31,6 @@ fun QueueScreen(
     val playlist by viewModel.playlist.collectAsState()
     val currentTrack by viewModel.currentTrack.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
-    val scope = rememberCoroutineScope()
     
     val currentIndex = remember(playlist, currentTrack) {
         playlist.indexOfFirst { it.uid == currentTrack?.uid }
@@ -51,43 +44,10 @@ fun QueueScreen(
         }
     }
 
-    // Смещение по горизонтали для жеста "смахивания" влево
-    val animatedOffset = remember { Animatable(0f) }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer {
-                // Ограничиваем смахивание только влево (в отрицательную сторону)
-                translationX = animatedOffset.value.coerceAtMost(0f)
-            }
             .background(MaterialTheme.colorScheme.surface)
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        // Если смахнули влево больше чем на 300 пикселей — закрываем
-                        if (animatedOffset.value < -300) {
-                            scope.launch {
-                                animatedOffset.animateTo(
-                                    targetValue = -2000f,
-                                    animationSpec = spring(stiffness = Spring.StiffnessMedium)
-                                )
-                                onClose()
-                            }
-                        } else {
-                            scope.launch {
-                                animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
-                            }
-                        }
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        scope.launch {
-                            animatedOffset.snapTo(animatedOffset.value + dragAmount)
-                        }
-                    }
-                )
-            }
     ) {
         Column(
             modifier = Modifier
@@ -108,12 +68,7 @@ fun QueueScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
-                TextButton(onClick = {
-                    scope.launch {
-                        animatedOffset.animateTo(-2000f, spring(stiffness = Spring.StiffnessMedium))
-                        onClose()
-                    }
-                }) {
+                TextButton(onClick = onClose) {
                     Text("Done", color = MaterialTheme.colorScheme.primary)
                 }
             }
@@ -137,6 +92,7 @@ fun QueueScreen(
                 }
             }
 
+            // Thick rounded divider
             Box(
                 modifier = Modifier
                     .padding(horizontal = 24.dp, vertical = 20.dp)
@@ -154,6 +110,7 @@ fun QueueScreen(
                 fontWeight = FontWeight.Bold
             )
 
+            // Reorderable List
             val lazyListState = rememberLazyListState()
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
                 val actualFrom = from.index + currentIndex + 1
@@ -174,7 +131,9 @@ fun QueueScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .graphicsLayer { shadowElevation = elevation.toPx() }
+                                .graphicsLayer { 
+                                    shadowElevation = elevation.toPx()
+                                }
                         ) {
                             SwipeableTrackCard(
                                 track = track,
@@ -188,7 +147,9 @@ fun QueueScreen(
                                         imageVector = Icons.Default.DragHandle,
                                         contentDescription = "Reorder",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(28.dp).draggableHandle()
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .draggableHandle()
                                     )
                                 }
                             )
