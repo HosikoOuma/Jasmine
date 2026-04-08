@@ -2,6 +2,7 @@ package com.nkds.hosikoouma.jasmine.ui.screens
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -120,7 +122,6 @@ fun LyricsScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else {
                     if (isLrcLibMode) {
-                        // РЕЖИМ LRCLIB
                         val lyricsObj = remoteLyrics
                         if (syncedRemote != null) {
                             SyncedLyricsView(syncedRemote!!, progress, haptic) { viewModel.seekTo(it) }
@@ -130,13 +131,12 @@ fun LyricsScreen(
                             Text("No lyrics found on LRCLIB.", color = Color.Gray, modifier = Modifier.align(Alignment.Center))
                         }
                     } else {
-                        // ЛОКАЛЬНЫЙ РЕЖИМ
                         if (syncedLocal != null) {
                             SyncedLyricsView(syncedLocal!!, progress, haptic) { viewModel.seekTo(it) }
                         } else if (localLyrics != null) {
                             PlainLyricsView(localLyrics!!)
                         } else {
-                            Text("No local lyrics found in tags or .lrc file.", color = Color.Gray, modifier = Modifier.align(Alignment.Center))
+                            Text("No local lyrics found.", color = Color.Gray, modifier = Modifier.align(Alignment.Center))
                         }
                     }
                 }
@@ -155,42 +155,68 @@ fun SyncedLyricsView(
     val listState = rememberLazyListState()
     val currentLineIndex = lines.indexOfLast { it.timestamp <= currentProgress }
 
+    // Авто-скролл и виброотклик при смене строки
     LaunchedEffect(currentLineIndex) {
         if (currentLineIndex >= 0) {
-            listState.animateScrollToItem(currentLineIndex, scrollOffset = -300)
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            listState.animateScrollToItem(
+                index = currentLineIndex,
+                scrollOffset = -400 // Центрируем строку
+            )
         }
     }
 
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally // Центрирование колонок
     ) {
         itemsIndexed(lines) { index, line ->
             val isCurrent = index == currentLineIndex
-            val color by animateColorAsState(if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-            val scale by animateFloatAsState(if (isCurrent) 1.05f else 1f)
+            
+            // Анимация цвета: текущая - белая/основная, остальные - серые и прозрачные
+            val color by animateColorAsState(
+                targetValue = if (isCurrent) MaterialTheme.colorScheme.onSurface 
+                              else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                animationSpec = tween(durationMillis = 400),
+                label = "colorAnim"
+            )
+            
+            // Анимация масштаба: текущая чуть больше
+            val scale by animateFloatAsState(
+                targetValue = if (isCurrent) 1.0f else 0.92f,
+                animationSpec = tween(durationMillis = 400),
+                label = "scaleAnim"
+            )
+
+            // Анимация прозрачности: для глубокого эффекта затухания
+            val alpha by animateFloatAsState(
+                targetValue = if (isCurrent) 1f else 0.4f,
+                animationSpec = tween(durationMillis = 400),
+                label = "alphaAnim"
+            )
             
             Text(
                 text = line.text,
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 22.sp,
-                    lineHeight = 32.sp
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    fontSize = 28.sp,
+                    lineHeight = 38.sp
                 ),
                 color = color,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Center, // Центрирование текста внутри строки
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+                    .padding(vertical = 16.dp)
                     .scale(scale)
+                    .alpha(alpha)
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onSeek(line.timestamp)
                     }
             )
         }
-        item { Spacer(modifier = Modifier.height(200.dp)) }
+        item { Spacer(modifier = Modifier.height(400.dp)) }
     }
 }
 

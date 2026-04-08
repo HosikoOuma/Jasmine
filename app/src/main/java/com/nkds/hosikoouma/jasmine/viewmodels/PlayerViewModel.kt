@@ -82,6 +82,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         track?.copy(isManual = manualUids.contains(track.uid))
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
+    // Reactive playlist with manual marking
     val playlist: StateFlow<List<Track>> = combine(_playlistBase, _manualQueueUids) { list, manualUids ->
         list.map { it.copy(isManual = manualUids.contains(it.uid)) }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -102,9 +103,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             setupController()
         }, MoreExecutors.directExecutor())
 
+        // Auto-load lyrics when track changes
         viewModelScope.launch {
             currentTrack.collect { track ->
                 if (track != null) {
+                    // Ждем пока загрузится реальная длительность из контроллера
                     delay(500)
                     loadLyrics(track, _duration.value)
                 } else {
@@ -234,12 +237,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         originalPlaylist = tracks 
         _manualQueueUids.value = emptySet()
+        _shuffleModeEnabled.value = false
         
         val mediaItems = tracks.map { track -> createMediaItem(track) }
         
         controller.setMediaItems(mediaItems, startIndex, 0L)
         controller.prepare()
         controller.play()
+    }
+
+    fun shuffleAndPlay(tracks: List<Track>) {
+        val controller = controller ?: return
+        originalPlaylist = tracks
+        val shuffled = tracks.shuffled()
+        _manualQueueUids.value = emptySet()
+        
+        val mediaItems = shuffled.map { track -> createMediaItem(track) }
+        
+        controller.setMediaItems(mediaItems, 0, 0L)
+        controller.prepare()
+        controller.play()
+        _shuffleModeEnabled.value = true
     }
 
     private fun createMediaItem(track: Track): MediaItem {

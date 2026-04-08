@@ -13,7 +13,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -25,6 +27,7 @@ import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TracksScreen(
     trackViewModel: TrackViewModel,
@@ -44,13 +47,12 @@ fun TracksScreen(
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     val currentTrack by playerViewModel.currentTrack.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val isRefreshing by trackViewModel.isRefreshing.collectAsState()
 
-    // Скролл в начало при смене режима (Избранное / Все)
     LaunchedEffect(isFavoritesMode) {
         listState.scrollToItem(0)
     }
 
-    // Скролл в начало при изменении поискового запроса
     LaunchedEffect(searchQuery) {
         if (searchQuery.isNotEmpty()) {
             listState.scrollToItem(0)
@@ -63,73 +65,114 @@ fun TracksScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (tracks.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (searchQuery.isEmpty()) {
-                    if (isFavoritesMode) Text("No favorites yet") else CircularProgressIndicator()
-                } else {
-                    Text("Nothing found")
-                }
-            }
-        } else {
-            Row(modifier = Modifier.fillMaxSize()) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 70.dp, bottom = 160.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
-                        SwipeableTrackCard(
-                            track = track,
-                            isCurrent = currentTrack?.id == track.id,
-                            isPlaying = isPlaying,
-                            isManualMarkingEnabled = false,
-                            onSwipeToAdd = { playerViewModel.addToQueue(track, showToast = true) },
-                            onClick = {
-                                playerViewModel.playTracks(tracks, index)
-                                onNavigateToPlayer()
-                            }
-                        )
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { trackViewModel.loadTracks() },
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (tracks.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (searchQuery.isEmpty()) {
+                        if (isFavoritesMode) Text("No favorites yet") else CircularProgressIndicator()
+                    } else {
+                        Text("Nothing found")
                     }
                 }
+            } else {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 70.dp, bottom = 160.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                            SwipeableTrackCard(
+                                track = track,
+                                isCurrent = currentTrack?.id == track.id,
+                                isPlaying = isPlaying,
+                                isManualMarkingEnabled = false,
+                                onSwipeToAdd = { playerViewModel.addToQueue(track, showToast = true) },
+                                onClick = {
+                                    playerViewModel.playTracks(tracks, index)
+                                    onNavigateToPlayer()
+                                }
+                            )
+                        }
+                    }
 
-                FastScrollbar(
-                    listState = listState,
-                    itemCount = tracks.size,
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .padding(top = 80.dp, bottom = 180.dp, end = 4.dp)
-                        .width(20.dp)
-                )
+                    FastScrollbar(
+                        listState = listState,
+                        itemCount = tracks.size,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(top = 80.dp, bottom = 180.dp, end = 4.dp)
+                            .width(20.dp)
+                    )
+                }
             }
-        }
 
-        Surface(
-            modifier = Modifier
-                .padding(top = 16.dp, end = 16.dp)
-                .align(Alignment.TopEnd),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-            tonalElevation = 8.dp,
-            shadowElevation = 6.dp
-        ) {
-            Row(
-                modifier = Modifier.padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Кнопка перемешивания слева (идентична по размеру правой панели)
+            Surface(
+                modifier = Modifier
+                    .padding(top = 16.dp, start = 16.dp)
+                    .align(Alignment.TopStart),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+                tonalElevation = 8.dp,
+                shadowElevation = 6.dp
             ) {
-                ModeToggleButton(
-                    selected = !isFavoritesMode,
-                    icon = Icons.Default.MusicNote,
-                    onClick = { isFavoritesMode = false }
-                )
-                
-                ModeToggleButton(
-                    selected = isFavoritesMode,
-                    icon = Icons.Default.Favorite,
-                    onClick = { isFavoritesMode = true }
-                )
+                Box(
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .height(40.dp)
+                        .width(80.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        .clickable {
+                            if (tracks.isNotEmpty()) {
+                                // Запускаем перемешанный список и активируем режим перемешивания
+                                playerViewModel.shuffleAndPlay(tracks)
+                                onNavigateToPlayer()
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shuffle,
+                        contentDescription = "Shuffle all",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Панель переключения режимов справа
+            Surface(
+                modifier = Modifier
+                    .padding(top = 16.dp, end = 16.dp)
+                    .align(Alignment.TopEnd),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+                tonalElevation = 8.dp,
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ModeToggleButton(
+                        selected = !isFavoritesMode,
+                        icon = Icons.Default.MusicNote,
+                        onClick = { isFavoritesMode = false }
+                    )
+                    
+                    ModeToggleButton(
+                        selected = isFavoritesMode,
+                        icon = Icons.Default.Favorite,
+                        onClick = { isFavoritesMode = true }
+                    )
+                }
             }
         }
     }

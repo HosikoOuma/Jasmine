@@ -21,6 +21,7 @@ class SettingsRepository(private val context: Context) {
         val MIN_TRACK_DURATION = intPreferencesKey("min_track_duration")
         val DEFAULT_SORT_TYPE = stringPreferencesKey("default_sort_type")
         val DEFAULT_SORT_REVERSED = booleanPreferencesKey("default_sort_reversed")
+        val PROGRESS_BAR_STYLE = stringPreferencesKey("progress_bar_style")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -43,33 +44,31 @@ class SettingsRepository(private val context: Context) {
         preferences[DEFAULT_SORT_REVERSED] ?: false
     }
 
+    val progressBarStyle: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PROGRESS_BAR_STYLE] ?: "STANDARD"
+    }
+
     suspend fun setCrossfadeEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[CROSSFADE_ENABLED] = enabled
-        }
+        context.dataStore.edit { preferences -> preferences[CROSSFADE_ENABLED] = enabled }
     }
 
     suspend fun setCrossfadeDuration(duration: Long) {
-        context.dataStore.edit { preferences ->
-            preferences[CROSSFADE_DURATION] = duration
-        }
+        context.dataStore.edit { preferences -> preferences[CROSSFADE_DURATION] = duration }
     }
 
     suspend fun setMinTrackDuration(seconds: Int) {
-        context.dataStore.edit { preferences ->
-            preferences[MIN_TRACK_DURATION] = seconds
-        }
+        context.dataStore.edit { preferences -> preferences[MIN_TRACK_DURATION] = seconds }
     }
 
     suspend fun setDefaultSortType(sortType: String) {
-        context.dataStore.edit { preferences ->
-            preferences[DEFAULT_SORT_TYPE] = sortType
-        }
+        context.dataStore.edit { preferences -> preferences[DEFAULT_SORT_TYPE] = sortType }
     }
 
     suspend fun setDefaultSortReversed(reversed: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[DEFAULT_SORT_REVERSED] = reversed
-        }
+        context.dataStore.edit { preferences -> preferences[DEFAULT_SORT_REVERSED] = reversed }
+    }
+
+    suspend fun setProgressBarStyle(style: String) {
+        context.dataStore.edit { preferences -> preferences[PROGRESS_BAR_STYLE] = style }
     }
 }

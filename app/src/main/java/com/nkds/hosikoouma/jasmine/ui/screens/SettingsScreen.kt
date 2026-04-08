@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -26,8 +27,10 @@ fun SettingsScreen(
     val minTrackDuration by viewModel.minTrackDuration.collectAsState()
     val defaultSortType by viewModel.defaultSortType.collectAsState()
     val isDefaultSortReversed by viewModel.isDefaultSortReversed.collectAsState()
+    val progressBarStyle by viewModel.progressBarStyle.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
+    var showStyleDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -71,6 +74,21 @@ fun SettingsScreen(
                 )
             }
         }
+
+        ListItem(
+            headlineContent = { Text("Player Progress Style") },
+            supportingContent = { 
+                val styleLabel = when(progressBarStyle) {
+                    "WAVE" -> "Wave Visualizer"
+                    "NEON" -> "Neon Glow"
+                    "DOTTED" -> "Dotted Line"
+                    "SOLID" -> "Solid Thick"
+                    else -> "Standard Slider"
+                }
+                Text(styleLabel)
+            },
+            modifier = Modifier.clickable { showStyleDialog = true }
+        )
         
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
@@ -96,7 +114,6 @@ fun SettingsScreen(
             )
         }
 
-        // --- DEFAULT SORTING ---
         ListItem(
             headlineContent = { Text("Default Sorting") },
             supportingContent = { 
@@ -157,6 +174,35 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (showStyleDialog) {
+        AlertDialog(
+            onDismissRequest = { showStyleDialog = false },
+            title = { Text("Progress Bar Style") },
+            text = {
+                Column {
+                    StyleOption("Standard Slider", ProgressBarStyle.STANDARD, progressBarStyle) { 
+                        viewModel.setProgressBarStyle(it) 
+                    }
+                    StyleOption("Solid Thick", ProgressBarStyle.SOLID, progressBarStyle) { 
+                        viewModel.setProgressBarStyle(it) 
+                    }
+                    StyleOption("Dotted Line", ProgressBarStyle.DOTTED, progressBarStyle) { 
+                        viewModel.setProgressBarStyle(it) 
+                    }
+                    StyleOption("Wave Visualizer", ProgressBarStyle.WAVE, progressBarStyle) { 
+                        viewModel.setProgressBarStyle(it) 
+                    }
+                    StyleOption("Neon Glow", ProgressBarStyle.NEON, progressBarStyle) {
+                        viewModel.setProgressBarStyle(it) 
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStyleDialog = false }) { Text("Done") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -174,6 +220,26 @@ fun SortOption(
             .padding(vertical = 8.dp)
     ) {
         RadioButton(selected = value == currentValue, onClick = null)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(label)
+    }
+}
+
+@Composable
+fun StyleOption(
+    label: String,
+    value: ProgressBarStyle,
+    currentValue: String,
+    onSelect: (ProgressBarStyle) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(value) }
+            .padding(vertical = 8.dp)
+    ) {
+        RadioButton(selected = value.name == currentValue, onClick = null)
         Spacer(modifier = Modifier.width(8.dp))
         Text(label)
     }

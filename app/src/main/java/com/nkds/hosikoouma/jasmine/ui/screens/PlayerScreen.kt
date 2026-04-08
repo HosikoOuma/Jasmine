@@ -30,10 +30,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -50,48 +54,45 @@ fun PlayerScreen(
     val repeatMode by viewModel.repeatMode.collectAsState()
     val isFavorite by viewModel.isCurrentFavorite.collectAsState()
     
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val progressStyleStr by settingsViewModel.progressBarStyle.collectAsState()
+    val progressStyle = try {
+        ProgressBarStyle.valueOf(progressStyleStr)
+    } catch (e: Exception) {
+        ProgressBarStyle.STANDARD
+    }
+    
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
 
-    var backProgress by remember { mutableFloatStateOf(0f) }
-    var isBacking by remember { mutableStateOf(false) }
+    var playerBackProgress by remember { mutableFloatStateOf(0f) }
+    var isBackingPlayer by remember { mutableStateOf(false) }
 
-    // Predictive Back для очереди (влево)
     PredictiveBackHandler(enabled = showQueue) { progressFlow ->
         try {
-            isBacking = true
-            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
+            progressFlow.collect { }
             showQueue = false
-        } finally {
-            isBacking = false
-            backProgress = 0f
-        }
+        } catch (e: Exception) { }
     }
 
-    // Predictive Back для текста (вправо)
     PredictiveBackHandler(enabled = showLyrics) { progressFlow ->
         try {
-            isBacking = true
-            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
+            progressFlow.collect { }
             showLyrics = false
-        } finally {
-            isBacking = false
-            backProgress = 0f
-        }
+        } catch (e: Exception) { }
     }
 
-    // Predictive Back для плеера (вниз)
     PredictiveBackHandler(enabled = !showQueue && !showLyrics) { progressFlow ->
         try {
-            isBacking = true
-            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
+            isBackingPlayer = true
+            progressFlow.collect { backEvent -> playerBackProgress = backEvent.progress }
             onClose()
-        } finally {
-            isBacking = false
-            backProgress = 0f
+        } catch (e: Exception) {
+            isBackingPlayer = false
+            playerBackProgress = 0f
         }
     }
 
@@ -120,9 +121,8 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                alpha = 1f
-                if (!showQueue && !showLyrics && isBacking) {
-                    translationY = backProgress * size.height
+                if (!showQueue && !showLyrics && isBackingPlayer) {
+                    translationY = playerBackProgress * size.height
                 } else {
                     translationY = animatedOffset.value.coerceAtLeast(0f)
                 }
@@ -134,7 +134,7 @@ fun PlayerScreen(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
                             scope.launch {
-                                animatedOffset.animateTo(2500f, tween(200, easing = LinearOutSlowInEasing))
+                                animatedOffset.animateTo(2500f, tween(200))
                                 onClose()
                             }
                         } else {
@@ -142,7 +142,6 @@ fun PlayerScreen(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        // Сворачиваем плеер ТОЛЬКО если не открыта очередь или текст
                         if (!showQueue && !showLyrics) {
                             change.consume()
                             scope.launch { animatedOffset.snapTo(animatedOffset.value + dragAmount) }
@@ -187,14 +186,38 @@ fun PlayerScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Column(modifier = Modifier.fillMaxWidth()) {
-                Slider(
-                    value = sliderValue,
-                    onValueChange = { sliderValue = it; lastSeekTime = System.currentTimeMillis() },
-                    onValueChangeFinished = { viewModel.seekTo(sliderValue.toLong()); lastSeekTime = System.currentTimeMillis() },
-                    interactionSource = sliderInteractionSource,
-                    valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant)
-                )
+                if (progressStyle == ProgressBarStyle.STANDARD) {
+                    Slider(
+                        value = sliderValue,
+                        onValueChange = { 
+                            sliderValue = it
+                            lastSeekTime = System.currentTimeMillis()
+                        },
+                        onValueChangeFinished = {
+                            viewModel.seekTo(sliderValue.toLong())
+                            lastSeekTime = System.currentTimeMillis()
+                        },
+                        interactionSource = sliderInteractionSource,
+                        valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                        colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                } else {
+                    JasmineProgressBar(
+                        value = sliderValue,
+                        onValueChange = { 
+                            sliderValue = it
+                            lastSeekTime = System.currentTimeMillis()
+                        },
+                        onValueChangeFinished = {
+                            viewModel.seekTo(sliderValue.toLong())
+                            lastSeekTime = System.currentTimeMillis()
+                        },
+                        valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                        style = progressStyle,
+                        isPlaying = isPlaying
+                    )
+                }
+
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     Text(formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
@@ -205,7 +228,7 @@ fun PlayerScreen(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() })
-                AnimatedControlIcon(icon = Icons.Default.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() })
+                AnimatedControlIcon(icon = Icons.Default.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() } )
                 AnimatedControlIcon(icon = Icons.Default.SkipPrevious, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() })
                 AnimatedControlIcon(icon = Icons.Default.SkipNext, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() })
 
@@ -235,18 +258,10 @@ fun PlayerScreen(
         // ОЧЕРЕДЬ
         AnimatedVisibility(
             visible = showQueue,
-            enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
+            enter = slideInHorizontally(initialOffsetX = { -it }),
+            exit = slideOutHorizontally(targetOffsetX = { -it })
         ) {
-            Box(modifier = Modifier.pointerInput(Unit) {
-                // ПЕРЕХВАТ ЖЕСТОВ: не даем свайпу вниз пробрасываться к плееру
-                detectVerticalDragGestures { _, _ -> } 
-            }.graphicsLayer {
-                alpha = 1f
-                if (showQueue && isBacking) {
-                    translationX = -backProgress * size.width
-                }
-            }) {
+            Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
                 QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
             }
         }
@@ -254,18 +269,10 @@ fun PlayerScreen(
         // ТЕКСТ
         AnimatedVisibility(
             visible = showLyrics,
-            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            enter = slideInHorizontally(initialOffsetX = { it }),
+            exit = slideOutHorizontally(targetOffsetX = { it })
         ) {
-            Box(modifier = Modifier.pointerInput(Unit) {
-                // ПЕРЕХВАТ ЖЕСТОВ: текст тоже не должен сворачивать плеер свайпом
-                detectVerticalDragGestures { _, _ -> }
-            }.graphicsLayer {
-                alpha = 1f
-                if (showLyrics && isBacking) {
-                    translationX = backProgress * size.width
-                }
-            }) {
+            Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
                 LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
             }
         }

@@ -8,6 +8,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class ProgressBarStyle {
+    STANDARD,
+    SOLID,
+    DOTTED,
+    WAVE,
+    NEON
+}
+
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SettingsRepository(application)
 
@@ -29,6 +37,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     val isDefaultSortReversed = repository.isDefaultSortReversed.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), false
+    )
+
+    val progressBarStyle = repository.progressBarStyle.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD"
     )
 
     fun setCrossfadeEnabled(enabled: Boolean) {
@@ -58,6 +70,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setDefaultSortReversed(reversed: Boolean) {
         viewModelScope.launch {
             repository.setDefaultSortReversed(reversed)
+        }
+    }
+
+    fun setProgressBarStyle(style: ProgressBarStyle) {
+        viewModelScope.launch {
+            repository.setProgressBarStyle(style.name)
         }
     }
 }
