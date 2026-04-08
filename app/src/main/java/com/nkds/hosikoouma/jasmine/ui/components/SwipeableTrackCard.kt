@@ -24,8 +24,9 @@ fun SwipeableTrackCard(
     track: Track,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    onSwipeAction: () -> Unit, // Универсальное действие (добавить или удалить)
+    onSwipeAction: () -> Unit,
     onClick: () -> Unit,
+    enabled: Boolean = true, // Параметр для отключения свайпа
     isManualMarkingEnabled: Boolean = true,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
@@ -37,7 +38,7 @@ fun SwipeableTrackCard(
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = {
-            if (it == SwipeToDismissBoxValue.StartToEnd && isThresholdReached) {
+            if (it == SwipeToDismissBoxValue.StartToEnd && isThresholdReached && enabled) {
                 onSwipeAction()
                 isThresholdReached = false
             }
@@ -50,7 +51,7 @@ fun SwipeableTrackCard(
         dismissState.progress
     } else 0f
 
-    val reached = currentProgress >= threshold
+    val reached = currentProgress >= threshold && enabled
 
     LaunchedEffect(reached) {
         if (reached) {
@@ -65,37 +66,39 @@ fun SwipeableTrackCard(
 
     SwipeToDismissBox(
         state = dismissState,
+        enableDismissFromStartToEnd = enabled, // Отключаем жест, если не enabled
         enableDismissFromEndToStart = false,
         backgroundContent = {
-            // Если трек в очереди - красим в красный (удаление), иначе в основной цвет (добавление)
-            val activeColor = if (isAddedToQueue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-            
-            val bgColor by animateColorAsState(
-                if (isThresholdReached) activeColor.copy(alpha = 0.4f)
-                else activeColor.copy(alpha = 0.15f),
-                label = "swipeBg"
-            )
+            if (enabled) {
+                val activeColor = if (isAddedToQueue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
 
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(vertical = 2.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(bgColor),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Icon(
-                    imageVector = if (isAddedToQueue) Icons.Default.PlaylistRemove else Icons.AutoMirrored.Filled.PlaylistAdd,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .padding(start = 24.dp)
-                        .graphicsLayer {
-                            val scale = if (isThresholdReached) 1.4f else 1.0f
-                            scaleX = scale
-                            scaleY = scale
-                        },
-                    tint = if (isThresholdReached) activeColor else activeColor.copy(alpha = 0.6f)
+                val bgColor by animateColorAsState(
+                    if (isThresholdReached) activeColor.copy(alpha = 0.4f)
+                    else activeColor.copy(alpha = 0.15f),
+                    label = "swipeBg"
                 )
+
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 2.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(bgColor),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Icon(
+                        imageVector = if (isAddedToQueue) Icons.Default.PlaylistRemove else Icons.AutoMirrored.Filled.PlaylistAdd,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(start = 24.dp)
+                            .graphicsLayer {
+                                val scale = if (isThresholdReached) 1.4f else 1.0f
+                                scaleX = scale
+                                scaleY = scale
+                            },
+                        tint = if (isThresholdReached) activeColor else activeColor.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
     ) {

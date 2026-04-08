@@ -305,11 +305,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         val currentList = _playlistBase.value
         val index = currentList.indexOfFirst { it.uid == track.uid }
-        
+
         if (index != -1) {
             controller.removeMediaItem(index)
             _manualQueueUids.value = _manualQueueUids.value - track.uid
-            
+
             viewModelScope.launch {
                 _toastEvent.emit("Removed from queue: ${track.title}")
             }
@@ -342,7 +342,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             controller.seekTo(0L)
             _progress.value = 0L
         } else {
-            controller.seekToPrevious() 
+            controller.seekToPrevious()
         }
     }
 
