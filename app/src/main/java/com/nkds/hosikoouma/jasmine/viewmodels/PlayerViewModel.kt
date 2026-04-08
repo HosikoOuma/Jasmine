@@ -341,7 +341,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun skipToNext() { controller?.seekToNext() }
-    fun skipToPrevious() { controller?.seekToPrevious() }
+    
+    fun skipToPrevious() { 
+        val controller = controller ?: return
+        // Если трек проиграл больше 3 секунд, сбрасываем его в начало
+        if (controller.currentPosition > 3000L) {
+            controller.seekTo(0L)
+            _progress.value = 0L
+        } else {
+            // Иначе переключаем на предыдущий
+            controller.seekToPrevious() 
+        }
+    }
 
     fun toggleShuffle() {
         val controller = controller ?: return

@@ -68,6 +68,20 @@ fun PlayerScreen(
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
 
+    // Логика уменьшения обложки (только при ручной паузе)
+    var isAlbumArtMinimized by remember { mutableStateOf(!isPlaying) }
+    
+    // Автоматически разворачиваем, если музыка начала играть (например, при переключении)
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) isAlbumArtMinimized = false
+    }
+
+    val albumArtScale by animateFloatAsState(
+        targetValue = if (isAlbumArtMinimized) 0.8f else 0.9f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+        label = "albumArtScale"
+    )
+
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackingPlayer by remember { mutableStateOf(false) }
 
@@ -107,12 +121,10 @@ fun PlayerScreen(
 
     var sliderValue by remember { mutableFloatStateOf(0f) }
     var lastSeekTime by remember { mutableLongStateOf(0L) }
-    val sliderInteractionSource = remember { MutableInteractionSource() }
-    val isSliderPressed by sliderInteractionSource.collectIsPressedAsState()
 
     LaunchedEffect(progress) {
         val now = System.currentTimeMillis()
-        if (!isSliderPressed && (now - lastSeekTime > 1000L)) {
+        if (now - lastSeekTime > 1000L) {
             sliderValue = progress.toFloat()
         }
     }
@@ -157,6 +169,7 @@ fun PlayerScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Header Space
             Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (currentTrack?.isManual == true) {
                     Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f), shape = CircleShape, modifier = Modifier.padding(top = 8.dp)) {
@@ -169,23 +182,40 @@ fun PlayerScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.weight(0.2f))
 
-            Surface(modifier = Modifier.fillMaxWidth(0.95f).aspectRatio(1f).clip(RoundedCornerShape(24.dp)), color = Color.DarkGray, tonalElevation = 8.dp) {
-                AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(currentTrack?.albumArtUri).crossfade(true).build(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            // ФИКСИРОВАННЫЙ КОНТЕЙНЕР ДЛЯ ОБЛОЖКИ (предотвращает прыжки интерфейса)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .aspectRatio(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(albumArtScale / 0.9f) // Относительный масштаб внутри контейнера
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(24.dp)), 
+                    color = Color.DarkGray, 
+                    tonalElevation = 8.dp
+                ) {
+                    AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(currentTrack?.albumArtUri).crossfade(true).build(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.weight(0.3f))
 
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Text info
+            Column(modifier = Modifier.fillMaxWidth().height(72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(currentTrack?.title ?: "Unknown Title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(currentTrack?.artist ?: "Unknown Artist", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Column(modifier = Modifier.fillMaxWidth()) {
+            // Progress Bar
+            Column(modifier = Modifier.fillMaxWidth().height(84.dp)) {
                 if (progressStyle == ProgressBarStyle.STANDARD) {
                     Slider(
                         value = sliderValue,
@@ -197,7 +227,7 @@ fun PlayerScreen(
                             viewModel.seekTo(sliderValue.toLong())
                             lastSeekTime = System.currentTimeMillis()
                         },
-                        interactionSource = sliderInteractionSource,
+                        interactionSource = remember { MutableInteractionSource() },
                         valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
                         colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant)
                     )
@@ -217,15 +247,15 @@ fun PlayerScreen(
                         isPlaying = isPlaying
                     )
                 }
-
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     Text(formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
+            // Playback Controls
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() })
                 AnimatedControlIcon(icon = Icons.Default.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() } )
@@ -237,41 +267,47 @@ fun PlayerScreen(
                 val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.9f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
                 val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
 
-                Surface(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.togglePlayPause() }, interactionSource = playPauseInteractionSource, modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = playPauseScale }, shape = RoundedCornerShape(cornerPercent), color = MaterialTheme.colorScheme.primary) {
+                Surface(
+                    onClick = { 
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val willPause = isPlaying
+                        viewModel.togglePlayPause()
+                        isAlbumArtMinimized = willPause // Уменьшаем только если ставим на паузу вручную
+                    },
+                    interactionSource = playPauseInteractionSource,
+                    modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = playPauseScale },
+                    shape = RoundedCornerShape(cornerPercent),
+                    color = MaterialTheme.colorScheme.primary
+                ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.weight(0.5f))
 
-            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
-                AnimatedControlIcon(Icons.AutoMirrored.Filled.PlaylistPlay, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
-                AnimatedControlIcon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, size = 24.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
-                AnimatedControlIcon(Icons.Default.Lyrics, size = 24.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showLyrics = true })
-                AnimatedControlIcon(Icons.Default.MoreHoriz, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
+            // Bottom Actions
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), 
+                horizontalArrangement = Arrangement.SpaceAround, 
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AnimatedControlIcon(Icons.AutoMirrored.Filled.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
+                AnimatedControlIcon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
+                AnimatedControlIcon(Icons.Default.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showLyrics = true })
+                AnimatedControlIcon(Icons.Default.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
             }
         }
 
-        // ОЧЕРЕДЬ
-        AnimatedVisibility(
-            visible = showQueue,
-            enter = slideInHorizontally(initialOffsetX = { -it }),
-            exit = slideOutHorizontally(targetOffsetX = { -it })
-        ) {
+        // Overlays
+        AnimatedVisibility(visible = showQueue, enter = slideInHorizontally(initialOffsetX = { -it }), exit = slideOutHorizontally(targetOffsetX = { -it })) {
             Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
                 QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
             }
         }
 
-        // ТЕКСТ
-        AnimatedVisibility(
-            visible = showLyrics,
-            enter = slideInHorizontally(initialOffsetX = { it }),
-            exit = slideOutHorizontally(targetOffsetX = { it })
-        ) {
+        AnimatedVisibility(visible = showLyrics, enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it })) {
             Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
                 LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
             }

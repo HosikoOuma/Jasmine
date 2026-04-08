@@ -22,6 +22,7 @@ class SettingsRepository(private val context: Context) {
         val DEFAULT_SORT_TYPE = stringPreferencesKey("default_sort_type")
         val DEFAULT_SORT_REVERSED = booleanPreferencesKey("default_sort_reversed")
         val PROGRESS_BAR_STYLE = stringPreferencesKey("progress_bar_style")
+        val APP_FONT_FAMILY = stringPreferencesKey("app_font_family")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -48,6 +49,10 @@ class SettingsRepository(private val context: Context) {
         preferences[PROGRESS_BAR_STYLE] ?: "STANDARD"
     }
 
+    val appFontFamily: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[APP_FONT_FAMILY] ?: "DEFAULT"
+    }
+
     suspend fun setCrossfadeEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences -> preferences[CROSSFADE_ENABLED] = enabled }
     }
@@ -70,5 +75,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setProgressBarStyle(style: String) {
         context.dataStore.edit { preferences -> preferences[PROGRESS_BAR_STYLE] = style }
+    }
+
+    suspend fun setAppFontFamily(fontFamily: String) {
+        context.dataStore.edit { preferences -> preferences[APP_FONT_FAMILY] = fontFamily }
     }
 }

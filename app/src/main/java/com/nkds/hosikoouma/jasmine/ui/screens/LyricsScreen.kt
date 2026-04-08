@@ -1,8 +1,7 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,12 +11,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -155,13 +157,12 @@ fun SyncedLyricsView(
     val listState = rememberLazyListState()
     val currentLineIndex = lines.indexOfLast { it.timestamp <= currentProgress }
 
-    // Авто-скролл и виброотклик при смене строки
     LaunchedEffect(currentLineIndex) {
         if (currentLineIndex >= 0) {
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             listState.animateScrollToItem(
                 index = currentLineIndex,
-                scrollOffset = -400 // Центрируем строку
+                scrollOffset = -400
             )
         }
     }
@@ -169,42 +170,28 @@ fun SyncedLyricsView(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally // Центрирование колонок
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         itemsIndexed(lines) { index, line ->
             val isCurrent = index == currentLineIndex
-            
-            // Анимация цвета: текущая - белая/основная, остальные - серые и прозрачные
             val color by animateColorAsState(
-                targetValue = if (isCurrent) MaterialTheme.colorScheme.onSurface 
+                targetValue = if (isCurrent) MaterialTheme.colorScheme.primary 
                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                animationSpec = tween(durationMillis = 400),
-                label = "colorAnim"
+                animationSpec = tween(400),
+                label = "color"
             )
-            
-            // Анимация масштаба: текущая чуть больше
             val scale by animateFloatAsState(
-                targetValue = if (isCurrent) 1.0f else 0.92f,
-                animationSpec = tween(durationMillis = 400),
-                label = "scaleAnim"
+                targetValue = if (isCurrent) 1.0f else 0.9f,
+                animationSpec = tween(400),
+                label = "scale"
             )
-
-            // Анимация прозрачности: для глубокого эффекта затухания
             val alpha by animateFloatAsState(
                 targetValue = if (isCurrent) 1f else 0.4f,
-                animationSpec = tween(durationMillis = 400),
-                label = "alphaAnim"
+                animationSpec = tween(400),
+                label = "alpha"
             )
-            
-            Text(
-                text = line.text,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Black,
-                    fontSize = 28.sp,
-                    lineHeight = 38.sp
-                ),
-                color = color,
-                textAlign = TextAlign.Center, // Центрирование текста внутри строки
+
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 16.dp)
@@ -213,10 +200,77 @@ fun SyncedLyricsView(
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onSeek(line.timestamp)
-                    }
-            )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                // Если строка пустая или содержит "инструментал" - показываем анимацию нот
+                if (line.text.isBlank() || line.text.contains("instrumental", ignoreCase = true) || line.text == "♪") {
+                    InstrumentalAnimation(isCurrent, color)
+                } else {
+                    Text(
+                        text = line.text,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            fontSize = 28.sp,
+                            lineHeight = 38.sp
+                        ),
+                        color = color,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
         item { Spacer(modifier = Modifier.height(400.dp)) }
+    }
+}
+
+@Composable
+fun InstrumentalAnimation(active: Boolean, color: Color) {
+    val infiniteTransition = rememberInfiniteTransition(label = "notes")
+    
+    // Нота 1: Вращается
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    // Нота 2: Пульсирует (меняет размер)
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        modifier = Modifier.padding(vertical = 8.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.MusicNote,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier
+                .size(32.dp)
+                .rotate(if (active) rotation else 0f)
+        )
+        Icon(
+            imageVector = Icons.Default.MusicNote,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier
+                .size(32.dp)
+                .scale(if (active) pulseScale else 1f)
+        )
     }
 }
 

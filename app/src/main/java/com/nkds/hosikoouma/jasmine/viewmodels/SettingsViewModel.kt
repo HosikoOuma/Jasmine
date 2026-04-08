@@ -16,6 +16,12 @@ enum class ProgressBarStyle {
     NEON
 }
 
+enum class AppFontFamily {
+    DEFAULT,
+    GOOGLE_SANS,
+    JETBRAINS_MONO
+}
+
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SettingsRepository(application)
 
@@ -43,39 +49,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD"
     )
 
+    val appFontFamily = repository.appFontFamily.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), "DEFAULT"
+    )
+
     fun setCrossfadeEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            repository.setCrossfadeEnabled(enabled)
-        }
+        viewModelScope.launch { repository.setCrossfadeEnabled(enabled) }
     }
 
     fun setCrossfadeDuration(duration: Long) {
-        viewModelScope.launch {
-            repository.setCrossfadeDuration(duration)
-        }
+        viewModelScope.launch { repository.setCrossfadeDuration(duration) }
     }
 
     fun setMinTrackDuration(seconds: Int) {
-        viewModelScope.launch {
-            repository.setMinTrackDuration(seconds)
-        }
+        viewModelScope.launch { repository.setMinTrackDuration(seconds) }
     }
 
     fun setDefaultSortType(sortType: String) {
-        viewModelScope.launch {
-            repository.setDefaultSortType(sortType)
-        }
+        viewModelScope.launch { repository.setDefaultSortType(sortType) }
     }
 
     fun setDefaultSortReversed(reversed: Boolean) {
-        viewModelScope.launch {
-            repository.setDefaultSortReversed(reversed)
-        }
+        viewModelScope.launch { repository.setDefaultSortReversed(reversed) }
     }
 
     fun setProgressBarStyle(style: ProgressBarStyle) {
-        viewModelScope.launch {
-            repository.setProgressBarStyle(style.name)
-        }
+        viewModelScope.launch { repository.setProgressBarStyle(style.name) }
+    }
+
+    fun setAppFontFamily(fontFamily: AppFontFamily) {
+        viewModelScope.launch { repository.setAppFontFamily(fontFamily.name) }
     }
 }

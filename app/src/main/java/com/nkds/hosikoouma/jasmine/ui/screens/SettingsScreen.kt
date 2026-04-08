@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.AppFontFamily
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import kotlin.math.roundToInt
@@ -28,9 +29,11 @@ fun SettingsScreen(
     val defaultSortType by viewModel.defaultSortType.collectAsState()
     val isDefaultSortReversed by viewModel.isDefaultSortReversed.collectAsState()
     val progressBarStyle by viewModel.progressBarStyle.collectAsState()
+    val appFontFamily by viewModel.appFontFamily.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf(false) }
+    var showFontDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -92,6 +95,29 @@ fun SettingsScreen(
         
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
+        // --- APPEARANCE ---
+        Text(
+            text = "Appearance",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+
+        ListItem(
+            headlineContent = { Text("App Font") },
+            supportingContent = { 
+                val fontLabel = when(appFontFamily) {
+                    "GOOGLE_SANS" -> "Google Sans"
+                    "JETBRAINS_MONO" -> "JetBrains Mono Nerd"
+                    else -> "System Default"
+                }
+                Text(fontLabel)
+            },
+            modifier = Modifier.clickable { showFontDialog = true }
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
         // --- LIBRARY ---
         Text(
             text = "Library",
@@ -141,6 +167,9 @@ fun SettingsScreen(
             headlineContent = { Text("Version") },
             supportingContent = { Text("1.0.0 (Jasmine)") }
         )
+
+        // ПУСТОЕ ПРОСТРАНСТВО ВНИЗУ (чтобы миниплеер не перекрывал пункты)
+        Spacer(modifier = Modifier.height(160.dp))
     }
 
     if (showSortDialog) {
@@ -193,7 +222,7 @@ fun SettingsScreen(
                     StyleOption("Wave Visualizer", ProgressBarStyle.WAVE, progressBarStyle) { 
                         viewModel.setProgressBarStyle(it) 
                     }
-                    StyleOption("Neon Glow", ProgressBarStyle.NEON, progressBarStyle) {
+                    StyleOption("Neon Glow", ProgressBarStyle.NEON, progressBarStyle) { 
                         viewModel.setProgressBarStyle(it) 
                     }
                 }
@@ -203,44 +232,51 @@ fun SettingsScreen(
             }
         )
     }
-}
 
-@Composable
-fun SortOption(
-    label: String,
-    value: String,
-    currentValue: String,
-    onSelect: (String) -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onSelect(value) }
-            .padding(vertical = 8.dp)
-    ) {
-        RadioButton(selected = value == currentValue, onClick = null)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(label)
+    if (showFontDialog) {
+        AlertDialog(
+            onDismissRequest = { showFontDialog = false },
+            title = { Text("App Font") },
+            text = {
+                Column {
+                    FontOption("System Default", AppFontFamily.DEFAULT, appFontFamily) { 
+                        viewModel.setAppFontFamily(it) 
+                    }
+                    FontOption("Google Sans", AppFontFamily.GOOGLE_SANS, appFontFamily) { 
+                        viewModel.setAppFontFamily(it) 
+                    }
+                    FontOption("JetBrains Mono Nerd", AppFontFamily.JETBRAINS_MONO, appFontFamily) { 
+                        viewModel.setAppFontFamily(it) 
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFontDialog = false }) { Text("Done") }
+            }
+        )
     }
 }
 
 @Composable
-fun StyleOption(
-    label: String,
-    value: ProgressBarStyle,
-    currentValue: String,
-    onSelect: (ProgressBarStyle) -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onSelect(value) }
-            .padding(vertical = 8.dp)
-    ) {
+fun SortOption(label: String, value: String, currentValue: String, onSelect: (String) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
+        RadioButton(selected = value == currentValue, onClick = null)
+        Spacer(modifier = Modifier.width(8.dp)); Text(label)
+    }
+}
+
+@Composable
+fun StyleOption(label: String, value: ProgressBarStyle, currentValue: String, onSelect: (ProgressBarStyle) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
         RadioButton(selected = value.name == currentValue, onClick = null)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(label)
+        Spacer(modifier = Modifier.width(8.dp)); Text(label)
+    }
+}
+
+@Composable
+fun FontOption(label: String, value: AppFontFamily, currentValue: String, onSelect: (AppFontFamily) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
+        RadioButton(selected = value.name == currentValue, onClick = null)
+        Spacer(modifier = Modifier.width(8.dp)); Text(label)
     }
 }

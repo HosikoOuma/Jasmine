@@ -2,7 +2,7 @@ package com.nkds.hosikoouma.jasmine.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -51,23 +51,30 @@ fun JasmineProgressBar(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
-            .pointerInput(valueRange, value) {
+            // Объединяем жесты в один pointerInput для стабильности
+            .pointerInput(valueRange) {
+                detectDragGestures(
+                    onDragStart = { /* можно добавить haptic */ },
+                    onDragEnd = { onValueChangeFinished() },
+                    onDragCancel = { onValueChangeFinished() },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        val width = size.width.toFloat()
+                        // Вычисляем новое значение на основе абсолютной позиции пальца X
+                        val newProgress = (change.position.x / width).coerceIn(0f, 1f)
+                        val newValue = newProgress * (valueRange.endInclusive - valueRange.start) + valueRange.start
+                        onValueChange(newValue)
+                    }
+                )
+            }
+            .pointerInput(valueRange) {
                 detectTapGestures { offset ->
-                    val newValue = (offset.x / size.width) * (valueRange.endInclusive - valueRange.start) + valueRange.start
-                    onValueChange(newValue.coerceIn(valueRange))
+                    val width = size.width.toFloat()
+                    val newProgress = (offset.x / width).coerceIn(0f, 1f)
+                    val newValue = newProgress * (valueRange.endInclusive - valueRange.start) + valueRange.start
+                    onValueChange(newValue)
                     onValueChangeFinished()
                 }
-            }
-            .pointerInput(valueRange, value) {
-                detectHorizontalDragGestures(
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        val deltaProgress = dragAmount / size.width
-                        val deltaValue = deltaProgress * (valueRange.endInclusive - valueRange.start)
-                        onValueChange((value + deltaValue).coerceIn(valueRange))
-                    },
-                    onDragEnd = { onValueChangeFinished() }
-                )
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -89,35 +96,14 @@ fun JasmineProgressBar(
                     val dotSpacingEffect = PathEffect.dashPathEffect(floatArrayOf(1f, 40f), 0f)
                     val strokeThickness = 10.dp.toPx()
                     
-                    drawLine(
-                        color = inactiveColor,
-                        start = Offset(0f, height / 2),
-                        end = Offset(width, height / 2),
-                        strokeWidth = strokeThickness,
-                        cap = StrokeCap.Round,
-                        pathEffect = dotSpacingEffect
-                    )
-                    drawLine(
-                        color = activeColor,
-                        start = Offset(0f, height / 2),
-                        end = Offset(progressWidth, height / 2),
-                        strokeWidth = strokeThickness,
-                        cap = StrokeCap.Round,
-                        pathEffect = dotSpacingEffect
-                    )
+                    drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = strokeThickness, cap = StrokeCap.Round, pathEffect = dotSpacingEffect)
+                    drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = strokeThickness, cap = StrokeCap.Round, pathEffect = dotSpacingEffect)
                 }
                 ProgressBarStyle.WAVE -> {
                     val points = 100
                     val frequency = 2f
                     
-                    // Неактивная часть (линия)
-                    drawLine(
-                        color = inactiveColor,
-                        start = Offset(progressWidth, height / 2),
-                        end = Offset(width, height / 2),
-                        strokeWidth = 12f, // Увеличил с 10f
-                        cap = StrokeCap.Round
-                    )
+                    drawLine(inactiveColor, Offset(progressWidth, height / 2), Offset(width, height / 2), strokeWidth = 12f, cap = StrokeCap.Round)
 
                     val activePath = Path()
                     val activePoints = (points * progress).toInt()
@@ -133,19 +119,10 @@ fun JasmineProgressBar(
                         val yEnd = height / 2 + (sin((progress * points) / frequency + phase) * animatedAmplitude)
                         activePath.lineTo(xEnd, yEnd)
                         
-                        // Рисуем волну жирнее
-                        drawPath(
-                            path = activePath, 
-                            color = activeColor, 
-                            style = Stroke(width = 14f, cap = StrokeCap.Round) // Увеличил с 10f
-                        )
+                        drawPath(activePath, activeColor, style = Stroke(width = 14f, cap = StrokeCap.Round))
                         
                         if (progress > 0f) {
-                            drawCircle(
-                                color = activeColor,
-                                radius = 7.dp.toPx(), // Чуть увеличил ползунок
-                                center = Offset(xEnd, yEnd)
-                            )
+                            drawCircle(activeColor, radius = 7.dp.toPx(), center = Offset(xEnd, yEnd))
                         }
                     }
                 }
