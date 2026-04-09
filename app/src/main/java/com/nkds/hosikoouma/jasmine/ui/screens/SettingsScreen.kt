@@ -1,13 +1,12 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -32,11 +31,17 @@ fun SettingsScreen(
     val progressBarStyle by viewModel.progressBarStyle.collectAsState()
     val appFontFamily by viewModel.appFontFamily.collectAsState()
     val darkMode by viewModel.darkMode.collectAsState()
+    
+    val paletteStyle by viewModel.paletteStyle.collectAsState()
+    val amoledDarkMode by viewModel.amoledDarkMode.collectAsState()
+    val useDynamicColor by viewModel.useDynamicColor.collectAsState()
+    val useAlbumArtColor by viewModel.useAlbumArtColor.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf(false) }
     var showFontDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showPaletteDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -118,6 +123,49 @@ fun SettingsScreen(
             },
             modifier = Modifier.clickable { showThemeDialog = true }
         )
+
+        ListItem(
+            headlineContent = { Text("AMOLED Dark Mode") },
+            supportingContent = { Text("Pure black background in dark theme") },
+            trailingContent = {
+                Switch(
+                    checked = amoledDarkMode,
+                    onCheckedChange = { viewModel.setAmoledDarkMode(it) }
+                )
+            }
+        )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ListItem(
+                headlineContent = { Text("Dynamic Colors (Material You)") },
+                supportingContent = { Text("Use system accent colors") },
+                trailingContent = {
+                    Switch(
+                        checked = useDynamicColor,
+                        onCheckedChange = { viewModel.setUseDynamicColor(it) }
+                    )
+                }
+            )
+        }
+
+        ListItem(
+            headlineContent = { Text("Use Album Art Color") },
+            supportingContent = { Text("Generate theme from current track cover") },
+            trailingContent = {
+                Switch(
+                    checked = useAlbumArtColor,
+                    onCheckedChange = { viewModel.setUseAlbumArtColor(it) }
+                )
+            }
+        )
+
+        if (!useDynamicColor || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            ListItem(
+                headlineContent = { Text("Palette Style") },
+                supportingContent = { Text(paletteStyle) },
+                modifier = Modifier.clickable { showPaletteDialog = true }
+            )
+        }
 
         ListItem(
             headlineContent = { Text("App Font") },
@@ -290,6 +338,37 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showFontDialog = false }) { Text("Done") }
+            }
+        )
+    }
+
+    if (showPaletteDialog) {
+        AlertDialog(
+            onDismissRequest = { showPaletteDialog = false },
+            title = { Text("Palette Style") },
+            text = {
+                val styles = listOf(
+                    "TonalSpot", "Neutral", "Vibrant", "Expressive", 
+                    "Rainbow", "FruitSalad", "Monochrome", "Fidelity", "Content"
+                )
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    styles.forEach { style ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.setPaletteStyle(style) }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            RadioButton(selected = style == paletteStyle, onClick = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(style)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPaletteDialog = false }) { Text("Done") }
             }
         )
     }
