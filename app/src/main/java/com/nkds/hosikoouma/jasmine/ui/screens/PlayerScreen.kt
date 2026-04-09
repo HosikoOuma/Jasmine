@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -12,7 +13,10 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,7 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +43,7 @@ import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel,
@@ -52,6 +56,7 @@ fun PlayerScreen(
     val shuffleEnabled by viewModel.shuffleModeEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
     val isFavorite by viewModel.isCurrentFavorite.collectAsState()
+    val systemVolume by viewModel.systemVolume.collectAsState()
     
     val settingsViewModel: SettingsViewModel = viewModel()
     val progressStyleStr by settingsViewModel.progressBarStyle.collectAsState()
@@ -66,6 +71,7 @@ fun PlayerScreen(
 
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
+    var showMoreActions by remember { mutableStateOf(false) }
 
     var isAlbumArtMinimized by remember { mutableStateOf(!isPlaying) }
     
@@ -96,7 +102,7 @@ fun PlayerScreen(
         } catch (e: Exception) { }
     }
 
-    PredictiveBackHandler(enabled = !showQueue && !showLyrics) { progressFlow ->
+    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions) { progressFlow ->
         try {
             isBackingPlayer = true
             progressFlow.collect { backEvent -> playerBackProgress = backEvent.progress }
@@ -151,7 +157,7 @@ fun PlayerScreen(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        if (!showQueue && !showLyrics) {
+                        if (!showQueue && !showLyrics && !showMoreActions) {
                             change.consume()
                             scope.launch { animatedOffset.snapTo(animatedOffset.value + dragAmount) }
                         }
@@ -284,7 +290,7 @@ fun PlayerScreen(
                 AnimatedControlIcon(Icons.AutoMirrored.Filled.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
                 AnimatedControlIcon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
                 AnimatedControlIcon(Icons.Default.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showLyrics = true })
-                AnimatedControlIcon(Icons.Default.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) })
+                AnimatedControlIcon(Icons.Default.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showMoreActions = true })
             }
         }
 
@@ -297,6 +303,72 @@ fun PlayerScreen(
         AnimatedVisibility(visible = showLyrics, enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it })) {
             Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
                 LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
+            }
+        }
+
+        if (showMoreActions) {
+            ModalBottomSheet(
+                onDismissRequest = { showMoreActions = false },
+                sheetState = rememberModalBottomSheetState(),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 32.dp)
+                ) {
+                    Text(
+                        text = currentTrack?.title ?: "Track Actions",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                    
+                    // Volume Control section
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.VolumeDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Slider(
+                            value = systemVolume,
+                            onValueChange = { viewModel.setSystemVolume(it) },
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+                    ListItem(
+                        headlineContent = { Text("Add to Playlist") },
+                        leadingContent = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
+                        modifier = Modifier.clickable { /* TODO */ }
+                    )
+                    ListItem(
+                        headlineContent = { Text("View Artist") },
+                        leadingContent = { Icon(Icons.Default.Person, null) },
+                        modifier = Modifier.clickable { /* TODO */ }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Share Track") },
+                        leadingContent = { Icon(Icons.Default.Share, null) },
+                        modifier = Modifier.clickable { /* TODO */ }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Sleep Timer") },
+                        leadingContent = { Icon(Icons.Default.Timer, null) },
+                        modifier = Modifier.clickable { /* TODO */ }
+                    )
+                }
             }
         }
     }

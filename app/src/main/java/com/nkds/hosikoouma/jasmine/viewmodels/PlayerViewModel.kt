@@ -1,7 +1,12 @@
 package com.nkds.hosikoouma.jasmine.viewmodels
 
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -33,6 +38,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val favoritesRepository = FavoritesRepository(application)
     private val lyricsRepository = LyricsRepository(application)
+    private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     private val _currentTrackBase = MutableStateFlow<Track?>(null)
     private val _playlistBase = MutableStateFlow<List<Track>>(emptyList())
@@ -52,6 +58,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode = _repeatMode.asStateFlow()
+
+    private val _systemVolume = MutableStateFlow(0f)
+    val systemVolume = _systemVolume.asStateFlow()
 
     private val _toastEvent = MutableSharedFlow<String>()
     val toastEvent = _toastEvent.asSharedFlow()
@@ -92,6 +101,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var progressJob: Job? = null
 
+    private val volumeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") {
+                updateVolumeState()
+            }
+        }
+    }
+
     init {
         val sessionToken = SessionToken(application, ComponentName(application, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(application, sessionToken).buildAsync()
@@ -110,6 +127,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         }
+
+        updateVolumeState()
+        application.registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"))
+    }
+
+    private fun updateVolumeState() {
+        val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        _systemVolume.value = current.toFloat() / max.toFloat()
     }
 
     private fun loadLyrics(track: Track, actualDuration: Long) {
@@ -334,6 +360,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _progress.value = position
     }
 
+    fun setSystemVolume(vol: Float) {
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val target = (vol * max).toInt()
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+        _systemVolume.value = vol
+    }
+
     fun skipToNext() { controller?.seekToNext() }
     
     fun skipToPrevious() { 
@@ -404,5 +437,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         super.onCleared()
         controllerFuture?.let { MediaController.releaseFuture(it) }
         stopProgressUpdate()
+        try {
+            getApplication<Application>().unregisterReceiver(volumeReceiver)
+        } catch (e: Exception) {
+            // ignore
+        }
     }
 }

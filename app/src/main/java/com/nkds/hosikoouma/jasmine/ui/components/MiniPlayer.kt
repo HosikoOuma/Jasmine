@@ -1,8 +1,14 @@
 package com.nkds.hosikoouma.jasmine.ui.components
 
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -15,11 +21,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat.getSystemService
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun MiniPlayer(
@@ -33,6 +42,11 @@ fun MiniPlayer(
     val duration by viewModel.duration.collectAsState()
 
     if (currentTrack == null) return
+
+    val context = LocalContext.current
+    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
+    val scope = rememberCoroutineScope()
+    val offsetX = remember { Animatable(0f) }
 
     val progressFactor by animateFloatAsState(
         targetValue = if (duration > 0) progress.toFloat() / duration.toFloat() else 0f,
@@ -65,8 +79,29 @@ fun MiniPlayer(
             .padding(horizontal = 16.dp)
             .height(64.dp)
             .fillMaxWidth()
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = rememberDraggableState { delta ->
+                    scope.launch {
+                        offsetX.snapTo(offsetX.value + delta)
+                    }
+                },
+                onDragStopped = {
+                    if (offsetX.value > 160) {
+                        viewModel.skipToNext()
+                        vibrate(vibrator)
+                    } else if (offsetX.value < -160) {
+                        viewModel.skipToPrevious()
+                        vibrate(vibrator)
+                    }
+                    scope.launch {
+                        offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
+                    }
+                }
+            )
             .graphicsLayer {
                 translationY = floatingOffset
+                translationX = offsetX.value
                 scaleX = scale
                 scaleY = scale
             }
@@ -133,5 +168,14 @@ fun MiniPlayer(
                 }
             }
         }
+    }
+}
+
+private fun vibrate(vibrator: Vibrator?) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+    } else {
+        @Suppress("DEPRECATION")
+        vibrator?.vibrate(50)
     }
 }
