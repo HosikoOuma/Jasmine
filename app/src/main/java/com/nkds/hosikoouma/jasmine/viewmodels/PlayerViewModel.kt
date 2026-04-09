@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Bundle
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -236,13 +237,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun mediaToTrack(mediaItem: MediaItem): Track {
+        val path = mediaItem.mediaMetadata.extras?.getString("path") ?: ""
         return Track(
             id = mediaItem.mediaId.toLongOrNull() ?: 0L,
             title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
             artist = mediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
             duration = 0,
             contentUri = mediaItem.localConfiguration?.uri ?: Uri.EMPTY,
-            albumArtUri = mediaItem.mediaMetadata.artworkUri
+            albumArtUri = mediaItem.mediaMetadata.artworkUri,
+            path = path
         )
     }
 
@@ -281,6 +284,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun createMediaItem(track: Track): MediaItem {
+        val extras = Bundle().apply {
+            putString("path", track.path)
+        }
         return MediaItem.Builder()
             .setMediaId(track.id.toString())
             .setUri(track.contentUri)
@@ -289,6 +295,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     .setTitle(track.title)
                     .setArtist(track.artist)
                     .setArtworkUri(track.albumArtUri)
+                    .setExtras(extras)
                     .build()
             )
             .build()

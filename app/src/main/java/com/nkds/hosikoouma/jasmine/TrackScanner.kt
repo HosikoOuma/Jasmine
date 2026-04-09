@@ -21,7 +21,8 @@ class TrackScanner(private val context: Context) {
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.ALBUM_ID
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DATA
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
@@ -43,6 +44,7 @@ class TrackScanner(private val context: Context) {
                 val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
                 val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
@@ -50,6 +52,7 @@ class TrackScanner(private val context: Context) {
                     val artist = cursor.getString(artistColumn) ?: "Unknown Artist"
                     val duration = cursor.getLong(durationColumn)
                     val albumId = cursor.getLong(albumIdColumn)
+                    val path = cursor.getString(dataColumn) ?: ""
 
                     val contentUri = ContentUris.withAppendedId(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -61,7 +64,7 @@ class TrackScanner(private val context: Context) {
                         albumId
                     )
 
-                    tracks.add(Track(id, title, artist, duration, contentUri, albumArtUri))
+                    tracks.add(Track(id, title, artist, duration, contentUri, albumArtUri, path))
                 }
             }
         } catch (e: Exception) {

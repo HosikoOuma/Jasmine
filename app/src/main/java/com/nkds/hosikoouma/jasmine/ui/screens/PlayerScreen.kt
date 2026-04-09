@@ -37,6 +37,7 @@ import androidx.media3.common.Player
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
+import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
@@ -72,6 +73,7 @@ fun PlayerScreen(
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreActions by remember { mutableStateOf(false) }
+    var showTrackInfo by remember { mutableStateOf(false) }
 
     var isAlbumArtMinimized by remember { mutableStateOf(!isPlaying) }
     
@@ -102,7 +104,7 @@ fun PlayerScreen(
         } catch (e: Exception) { }
     }
 
-    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions) { progressFlow ->
+    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions && !showTrackInfo) { progressFlow ->
         try {
             isBackingPlayer = true
             progressFlow.collect { backEvent -> playerBackProgress = backEvent.progress }
@@ -157,7 +159,7 @@ fun PlayerScreen(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        if (!showQueue && !showLyrics && !showMoreActions) {
+                        if (!showQueue && !showLyrics && !showMoreActions && !showTrackInfo) {
                             change.consume()
                             scope.launch { animatedOffset.snapTo(animatedOffset.value + dragAmount) }
                         }
@@ -349,6 +351,14 @@ fun PlayerScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
                     ListItem(
+                        headlineContent = { Text("Details") },
+                        leadingContent = { Icon(Icons.Default.Info, null) },
+                        modifier = Modifier.clickable { 
+                            showMoreActions = false
+                            showTrackInfo = true
+                        }
+                    )
+                    ListItem(
                         headlineContent = { Text("Add to Playlist") },
                         leadingContent = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
                         modifier = Modifier.clickable { /* TODO */ }
@@ -370,6 +380,13 @@ fun PlayerScreen(
                     )
                 }
             }
+        }
+
+        if (showTrackInfo && currentTrack != null) {
+            TrackInfoBottomSheet(
+                track = currentTrack!!,
+                onDismissRequest = { showTrackInfo = false }
+            )
         }
     }
 }

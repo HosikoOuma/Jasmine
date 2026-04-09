@@ -9,6 +9,7 @@ data class Track(
     val duration: Long,
     val contentUri: Uri,
     val albumArtUri: Uri?,
+    val path: String = "",
     val uid: String = id.toString(),
     val isManual: Boolean = false
 )
