@@ -34,7 +34,6 @@ import androidx.media3.common.Player
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
-import com.nkds.hosikoouma.jasmine.viewmodels.PlayerBackgroundStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
@@ -60,13 +59,6 @@ fun PlayerScreen(
         ProgressBarStyle.valueOf(progressStyleStr)
     } catch (e: Exception) {
         ProgressBarStyle.STANDARD
-    }
-
-    val backgroundStyleStr by settingsViewModel.playerBackgroundStyle.collectAsState()
-    val backgroundStyle = try {
-        PlayerBackgroundStyle.valueOf(backgroundStyleStr)
-    } catch (e: Exception) {
-        PlayerBackgroundStyle.STANDARD
     }
     
     val haptic = LocalHapticFeedback.current
@@ -167,7 +159,7 @@ fun PlayerScreen(
                 )
             }
     ) {
-        PlayerBackground(style = backgroundStyle, albumArtUri = currentTrack?.albumArtUri)
+        PlayerBackground(albumArtUri = currentTrack?.albumArtUri)
 
         Column(
             modifier = Modifier

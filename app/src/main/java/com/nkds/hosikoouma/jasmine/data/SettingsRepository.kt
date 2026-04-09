@@ -22,7 +22,6 @@ class SettingsRepository(private val context: Context) {
         val DEFAULT_SORT_TYPE = stringPreferencesKey("default_sort_type")
         val DEFAULT_SORT_REVERSED = booleanPreferencesKey("default_sort_reversed")
         val PROGRESS_BAR_STYLE = stringPreferencesKey("progress_bar_style")
-        val PLAYER_BACKGROUND_STYLE = stringPreferencesKey("player_background_style")
         val APP_FONT_FAMILY = stringPreferencesKey("app_font_family")
         val DARK_MODE = stringPreferencesKey("dark_mode")
     }
@@ -49,10 +48,6 @@ class SettingsRepository(private val context: Context) {
 
     val progressBarStyle: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[PROGRESS_BAR_STYLE] ?: "STANDARD"
-    }
-
-    val playerBackgroundStyle: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PLAYER_BACKGROUND_STYLE] ?: "STANDARD"
     }
 
     val appFontFamily: Flow<String> = context.dataStore.data.map { preferences ->
@@ -85,10 +80,6 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setProgressBarStyle(style: String) {
         context.dataStore.edit { preferences -> preferences[PROGRESS_BAR_STYLE] = style }
-    }
-
-    suspend fun setPlayerBackgroundStyle(style: String) {
-        context.dataStore.edit { preferences -> preferences[PLAYER_BACKGROUND_STYLE] = style }
     }
 
     suspend fun setAppFontFamily(fontFamily: String) {

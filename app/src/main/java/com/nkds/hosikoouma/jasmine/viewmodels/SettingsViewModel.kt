@@ -16,12 +16,6 @@ enum class ProgressBarStyle {
     NEON
 }
 
-enum class PlayerBackgroundStyle {
-    STANDARD,
-    BLURRED_COVER,
-    AURA
-}
-
 enum class AppFontFamily {
     DEFAULT,
     GOOGLE_SANS,
@@ -61,10 +55,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD"
     )
 
-    val playerBackgroundStyle = repository.playerBackgroundStyle.stateIn(
-        viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD"
-    )
-
     val appFontFamily = repository.appFontFamily.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), "DEFAULT"
     )
@@ -95,10 +85,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setProgressBarStyle(style: ProgressBarStyle) {
         viewModelScope.launch { repository.setProgressBarStyle(style.name) }
-    }
-
-    fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) {
-        viewModelScope.launch { repository.setPlayerBackgroundStyle(style.name) }
     }
 
     fun setAppFontFamily(fontFamily: AppFontFamily) {

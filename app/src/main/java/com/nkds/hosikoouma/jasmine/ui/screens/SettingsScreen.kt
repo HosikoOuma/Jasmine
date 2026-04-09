@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.AppFontFamily
 import com.nkds.hosikoouma.jasmine.viewmodels.DarkMode
-import com.nkds.hosikoouma.jasmine.viewmodels.PlayerBackgroundStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import kotlin.math.roundToInt
@@ -31,13 +30,11 @@ fun SettingsScreen(
     val defaultSortType by viewModel.defaultSortType.collectAsState()
     val isDefaultSortReversed by viewModel.isDefaultSortReversed.collectAsState()
     val progressBarStyle by viewModel.progressBarStyle.collectAsState()
-    val playerBackgroundStyle by viewModel.playerBackgroundStyle.collectAsState()
     val appFontFamily by viewModel.appFontFamily.collectAsState()
     val darkMode by viewModel.darkMode.collectAsState()
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf(false) }
-    var showBackgroundDialog by remember { mutableStateOf(false) }
     var showFontDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
 
@@ -97,19 +94,6 @@ fun SettingsScreen(
                 Text(styleLabel)
             },
             modifier = Modifier.clickable { showStyleDialog = true }
-        )
-
-        ListItem(
-            headlineContent = { Text("Player Background") },
-            supportingContent = { 
-                val bgLabel = when(playerBackgroundStyle) {
-                    "BLURRED_COVER" -> "Blurred Cover"
-                    "AURA" -> "Aura Gradient"
-                    else -> "Standard Surface"
-                }
-                Text(bgLabel)
-            },
-            modifier = Modifier.clickable { showBackgroundDialog = true }
         )
         
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -287,29 +271,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showBackgroundDialog) {
-        AlertDialog(
-            onDismissRequest = { showBackgroundDialog = false },
-            title = { Text("Player Background Style") },
-            text = {
-                Column {
-                    BackgroundOption("Standard Surface", PlayerBackgroundStyle.STANDARD, playerBackgroundStyle) { 
-                        viewModel.setPlayerBackgroundStyle(it) 
-                    }
-                    BackgroundOption("Blurred Cover", PlayerBackgroundStyle.BLURRED_COVER, playerBackgroundStyle) { 
-                        viewModel.setPlayerBackgroundStyle(it) 
-                    }
-                    BackgroundOption("Aura Gradient", PlayerBackgroundStyle.AURA, playerBackgroundStyle) { 
-                        viewModel.setPlayerBackgroundStyle(it) 
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showBackgroundDialog = false }) { Text("Done") }
-            }
-        )
-    }
-
     if (showFontDialog) {
         AlertDialog(
             onDismissRequest = { showFontDialog = false },
@@ -352,14 +313,6 @@ fun ThemeOption(label: String, value: DarkMode, currentValue: String, onSelect: 
 
 @Composable
 fun StyleOption(label: String, value: ProgressBarStyle, currentValue: String, onSelect: (ProgressBarStyle) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
-        RadioButton(selected = value.name == currentValue, onClick = null)
-        Spacer(modifier = Modifier.width(8.dp)); Text(label)
-    }
-}
-
-@Composable
-fun BackgroundOption(label: String, value: PlayerBackgroundStyle, currentValue: String, onSelect: (PlayerBackgroundStyle) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
         RadioButton(selected = value.name == currentValue, onClick = null)
         Spacer(modifier = Modifier.width(8.dp)); Text(label)
