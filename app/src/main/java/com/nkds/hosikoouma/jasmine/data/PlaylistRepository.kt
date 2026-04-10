@@ -23,8 +23,20 @@ class PlaylistRepository(private val context: Context) {
         m3uManager.deletePlaylistFile(playlist.name)
     }
 
-    suspend fun addTrackToPlaylist(playlistId: Long, track: Track) {
+    suspend fun addTrackToPlaylist(playlistId: Long, track: Track, allPlaylistTracks: List<Track>) {
         playlistDao.addTrackToPlaylist(PlaylistTrackEntity(playlistId, track.id))
+        updateM3UFile(playlistId, allPlaylistTracks + track)
+    }
+
+    suspend fun removeTrackFromPlaylist(playlistId: Long, trackId: Long, allPlaylistTracks: List<Track>) {
+        playlistDao.removeTrackFromPlaylist(playlistId, trackId)
+        val updatedTracks = allPlaylistTracks.filter { it.id != trackId }
+        updateM3UFile(playlistId, updatedTracks)
+    }
+
+    private suspend fun updateM3UFile(playlistId: Long, tracks: List<Track>) {
+        val playlist = allPlaylists.first().find { it.id == playlistId } ?: return
+        m3uManager.savePlaylist(playlist.name, tracks)
     }
 
     fun getTrackIdsForPlaylist(playlistId: Long): Flow<List<Long>> {

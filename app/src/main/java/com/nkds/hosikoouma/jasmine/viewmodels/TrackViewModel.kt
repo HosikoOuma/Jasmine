@@ -207,6 +207,7 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     fun addFolderToBlacklist(path: String) = viewModelScope.launch { settingsRepository.addFolderToBlacklist(path) }
     fun removeFolderFromBlacklist(path: String) = viewModelScope.launch { settingsRepository.removeFolderFromBlacklist(path) }
 
+    // Playlist Operations
     fun createPlaylist(name: String) = viewModelScope.launch { playlistRepository.createPlaylist(name) }
     
     fun deletePlaylist(playlistId: Long) = viewModelScope.launch { 
@@ -216,10 +217,9 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
-        val track = _tracks.value.find { it.id == trackId }
-        if (track != null) {
-            playlistRepository.addTrackToPlaylist(playlistId, track)
-        }
+        val track = _tracks.value.find { it.id == trackId } ?: return@launch
+        val currentPlaylistTracks = getTracksForPlaylist(playlistId).first()
+        playlistRepository.addTrackToPlaylist(playlistId, track, currentPlaylistTracks)
     }
 
     fun importPlaylists() = viewModelScope.launch {

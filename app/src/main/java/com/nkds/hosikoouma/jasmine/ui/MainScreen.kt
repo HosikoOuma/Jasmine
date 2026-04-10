@@ -5,7 +5,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
@@ -25,12 +28,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.navigation.JasmineNavHost
+import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineBottomBar
 import com.nkds.hosikoouma.jasmine.ui.components.MiniPlayer
 import com.nkds.hosikoouma.jasmine.ui.screens.PlayerScreen
@@ -57,6 +62,7 @@ fun MainScreen(
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showTrackPickerDialog by remember { mutableStateOf(false) }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -76,6 +82,7 @@ fun MainScreen(
                 val path = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
                 path.substringAfterLast("/")
             }
+            currentRoute?.startsWith("playlist_detail") == true -> "Playlist"
             currentRoute == Screen.LibraryAlbums.route -> "Albums"
             currentRoute == Screen.LibraryArtists.route -> "Artists"
             currentRoute == Screen.LibraryFolders.route -> "Folders"
@@ -113,14 +120,13 @@ fun MainScreen(
     }
 
     val isTracksScreen = currentRoute == Screen.Tracks.route
-    
-    // Определяем, нужно ли показывать кнопку сортировки на текущем экране
     val shouldShowSort = remember(currentRoute) {
         currentRoute == Screen.Tracks.route || 
         currentRoute == Screen.LibraryAlbums.route ||
         currentRoute == Screen.LibraryArtists.route ||
         currentRoute == Screen.LibraryFolders.route ||
-        currentRoute == Screen.LibraryPlaylists.route
+        currentRoute == Screen.LibraryPlaylists.route ||
+        currentRoute?.startsWith("playlist_detail") == true
     }
 
     val isCollapsed by remember {
@@ -236,13 +242,22 @@ fun MainScreen(
             },
             floatingActionButton = {
                 if (currentRoute == Screen.LibraryPlaylists.route) {
-                    LargeFloatingActionButton(
+                    FloatingActionButton(
                         onClick = { showCreatePlaylistDialog = true },
                         modifier = Modifier.padding(bottom = 140.dp),
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ) {
                         Icon(Icons.Rounded.Add, "Create Playlist")
+                    }
+                } else if (currentRoute?.startsWith("playlist_detail") == true) {
+                    FloatingActionButton(
+                        onClick = { showTrackPickerDialog = true },
+                        modifier = Modifier.padding(bottom = 140.dp),
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ) {
+                        Icon(Icons.Rounded.Add, "Add tracks")
                     }
                 }
             }
@@ -332,6 +347,53 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { showCreatePlaylistDialog = false }) { Text("Cancel") }
             }
+        )
+    }
+
+    if (showTrackPickerDialog) {
+        val allTracks by trackViewModel.allTracks.collectAsState()
+        val playlistId = navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L
+        val playlistTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsState(initial = emptyList())
+
+        AlertDialog(
+            onDismissRequest = { showTrackPickerDialog = false },
+            title = { Text("Select Tracks") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 450.dp)
+                ) {
+                    items(allTracks.size) { index ->
+                        val track = allTracks[index]
+                        val isAlreadyInPlaylist = playlistTracks.any { it.id == track.id }
+                        ListItem(
+                            headlineContent = { 
+                                Text(
+                                    track.title, 
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isAlreadyInPlaylist) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                ) 
+                            },
+                            supportingContent = { Text(track.artist) },
+                            trailingContent = {
+                                if (isAlreadyInPlaylist) {
+                                    Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                                }
+                            },
+                            modifier = Modifier.clickable {
+                                trackViewModel.addTrackToPlaylist(playlistId, track.id)
+                            }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTrackPickerDialog = false }) {
+                    Text("Done")
+                }
+            },
+            shape = RoundedCornerShape(28.dp)
         )
     }
 }
