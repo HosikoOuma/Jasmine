@@ -113,6 +113,16 @@ fun MainScreen(
     }
 
     val isTracksScreen = currentRoute == Screen.Tracks.route
+    
+    // Определяем, нужно ли показывать кнопку сортировки на текущем экране
+    val shouldShowSort = remember(currentRoute) {
+        currentRoute == Screen.Tracks.route || 
+        currentRoute == Screen.LibraryAlbums.route ||
+        currentRoute == Screen.LibraryArtists.route ||
+        currentRoute == Screen.LibraryFolders.route ||
+        currentRoute == Screen.LibraryPlaylists.route
+    }
+
     val isCollapsed by remember {
         derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f }
     }
@@ -166,22 +176,24 @@ fun MainScreen(
                     },
                     actions = {
                         AnimatedVisibility(
-                            visible = (isCollapsed || isSearching) && isTracksScreen,
+                            visible = (isCollapsed || isSearching || shouldShowSort) && (isTracksScreen || shouldShowSort),
                             enter = fadeIn() + expandHorizontally(),
                             exit = fadeOut() + shrinkHorizontally()
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { 
-                                    if (isSearching) trackViewModel.setSearchQuery("")
-                                    isSearching = !isSearching 
-                                }) {
-                                    Icon(
-                                        imageVector = if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search,
-                                        contentDescription = "Search"
-                                    )
+                                if (isTracksScreen) {
+                                    IconButton(onClick = { 
+                                        if (isSearching) trackViewModel.setSearchQuery("")
+                                        isSearching = !isSearching 
+                                    }) {
+                                        Icon(
+                                            imageVector = if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search,
+                                            contentDescription = "Search"
+                                        )
+                                    }
                                 }
                                 
-                                if (!isSearching) {
+                                if (!isSearching && shouldShowSort) {
                                     Box {
                                         IconButton(onClick = { showSortMenu = true }) {
                                             Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = "Sort")
@@ -223,11 +235,10 @@ fun MainScreen(
                 )
             },
             floatingActionButton = {
-                // Кнопка создания плейлиста теперь здесь, чтобы быть поверх градиента
                 if (currentRoute == Screen.LibraryPlaylists.route) {
                     LargeFloatingActionButton(
                         onClick = { showCreatePlaylistDialog = true },
-                        modifier = Modifier.padding(bottom = 140.dp), // Отступ для баров
+                        modifier = Modifier.padding(bottom = 140.dp),
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ) {
@@ -245,7 +256,6 @@ fun MainScreen(
                     modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
                 )
                 
-                // ГРАДИЕНТ перенесен сюда, чтобы FAB (находящийся в Scaffold) был выше него
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -264,7 +274,6 @@ fun MainScreen(
             }
         }
 
-        // БАРЫ
         Box(
             modifier = Modifier
                 .fillMaxSize()

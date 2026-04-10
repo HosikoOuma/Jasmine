@@ -26,7 +26,7 @@ enum class SortType {
 data class Album(val name: String, val artist: String, val tracks: List<Track>)
 data class Artist(val name: String, val tracks: List<Track>)
 data class Folder(val name: String, val path: String, val tracks: List<Track>)
-data class Playlist(val id: Long, val name: String, val tracks: List<Track>)
+data class Playlist(val id: Long, val name: String, val tracks: List<Track>, val createdAt: Long = 0)
 
 class TrackViewModel(application: Application) : AndroidViewModel(application) {
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
@@ -77,33 +77,58 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val albums: StateFlow<List<Album>> = _tracks.map { tracks ->
-        tracks.groupBy { it.album }
+    // Сортировка для альбомов
+    val albums: StateFlow<List<Album>> = combine(_tracks, _sortType, _isReversed) { tracks, sort, reversed ->
+        val grouped = tracks.groupBy { it.album }
             .map { (name, albumTracks) -> Album(name, albumTracks.first().artist, albumTracks) }
-            .sortedBy { it.name.lowercase() }
+        
+        val sorted = when (sort) {
+            SortType.BY_NAME -> grouped.sortedBy { it.name.lowercase() }
+            SortType.BY_ARTIST -> grouped.sortedBy { it.artist.lowercase() }
+            SortType.BY_DATE -> grouped.sortedByDescending { it.tracks.maxOfOrNull { t -> t.id } ?: 0L }
+            SortType.BY_DURATION -> grouped.sortedBy { it.tracks.sumOf { t -> t.duration } }
+        }
+        if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val artists: StateFlow<List<Artist>> = _tracks.map { tracks ->
-        tracks.groupBy { it.artist }
+    // Сортировка для артистов
+    val artists: StateFlow<List<Artist>> = combine(_tracks, _sortType, _isReversed) { tracks, sort, reversed ->
+        val grouped = tracks.groupBy { it.artist }
             .map { Artist(it.key, it.value) }
-            .sortedBy { it.name.lowercase() }
+        
+        val sorted = when (sort) {
+            SortType.BY_NAME, SortType.BY_ARTIST -> grouped.sortedBy { it.name.lowercase() }
+            SortType.BY_DATE -> grouped.sortedByDescending { it.tracks.maxOfOrNull { t -> t.id } ?: 0L }
+            SortType.BY_DURATION -> grouped.sortedBy { it.tracks.sumOf { t -> t.duration } }
+        }
+        if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val folders: StateFlow<List<Folder>> = _tracks.map { tracks ->
-        tracks.groupBy { 
+    // Сортировка для папок
+    val folders: StateFlow<List<Folder>> = combine(_tracks, _sortType, _isReversed) { tracks, sort, reversed ->
+        val grouped = tracks.groupBy { 
             val file = File(it.path)
             file.parent ?: "Unknown"
         }.map { Folder(it.key.substringAfterLast("/"), it.key, it.value) }
-            .sortedBy { it.name.lowercase() }
+        
+        val sorted = when (sort) {
+            SortType.BY_NAME -> grouped.sortedBy { it.name.lowercase() }
+            SortType.BY_ARTIST -> grouped.sortedBy { it.tracks.first().artist.lowercase() }
+            SortType.BY_DATE -> grouped.sortedByDescending { it.tracks.maxOfOrNull { t -> t.id } ?: 0L }
+            SortType.BY_DURATION -> grouped.sortedBy { it.tracks.sumOf { t -> t.duration } }
+        }
+        if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val playlists: StateFlow<List<Playlist>> = combine(
-        playlistRepository.allPlaylists,
-        _tracks
-    ) { playlistEntities, tracks ->
-        playlistEntities.map { entity ->
-            Playlist(entity.id, entity.name, emptyList()) 
+    // Сортировка для плейлистов
+    val playlists: StateFlow<List<Playlist>> = combine(playlistRepository.allPlaylists, _sortType, _isReversed) { entities, sort, reversed ->
+        val grouped = entities.map { Playlist(it.id, it.name, emptyList(), it.createdAt) }
+        val sorted = when (sort) {
+            SortType.BY_NAME -> grouped.sortedBy { it.name.lowercase() }
+            SortType.BY_DATE -> grouped.sortedByDescending { it.createdAt }
+            else -> grouped.sortedBy { it.name.lowercase() }
         }
+        if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
