@@ -5,23 +5,29 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.AppFontFamily
 import com.nkds.hosikoouma.jasmine.viewmodels.DarkMode
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel = viewModel()
+    viewModel: SettingsViewModel = viewModel(),
+    trackViewModel: TrackViewModel
 ) {
     val isCrossfadeEnabled by viewModel.isCrossfadeEnabled.collectAsState()
     val crossfadeDuration by viewModel.crossfadeDuration.collectAsState()
@@ -42,6 +48,7 @@ fun SettingsScreen(
     var showFontDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showPaletteDialog by remember { mutableStateOf(false) }
+    var showBlacklistDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -219,6 +226,12 @@ fun SettingsScreen(
             modifier = Modifier.clickable { showSortDialog = true }
         )
 
+        ListItem(
+            headlineContent = { Text("Blacklisted Folders") },
+            supportingContent = { Text("Manage excluded music folders") },
+            modifier = Modifier.clickable { showBlacklistDialog = true }
+        )
+
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
         
         Text(
@@ -236,6 +249,68 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(160.dp))
     }
 
+    if (showBlacklistDialog) {
+        val allFolders by trackViewModel.folders.collectAsState()
+        val blacklistedFolders by trackViewModel.blacklistedFolders.collectAsState()
+
+        AlertDialog(
+            onDismissRequest = { showBlacklistDialog = false },
+            title = { Text("Blacklisted Folders") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (allFolders.isEmpty()) {
+                        Text("No folders found")
+                    }
+                    allFolders.forEach { folder ->
+                        val isBlacklisted = blacklistedFolders.contains(folder.path)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (isBlacklisted) {
+                                        trackViewModel.removeFolderFromBlacklist(folder.path)
+                                    } else {
+                                        trackViewModel.addFolderToBlacklist(folder.path)
+                                    }
+                                }
+                                .padding(vertical = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isBlacklisted) Icons.Rounded.Block else Icons.Rounded.Folder,
+                                contentDescription = null,
+                                tint = if (isBlacklisted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = folder.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isBlacklisted) FontWeight.Normal else FontWeight.Bold,
+                                    color = if (isBlacklisted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = folder.path,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Checkbox(
+                                checked = isBlacklisted,
+                                onCheckedChange = null,
+                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.error)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBlacklistDialog = false }) { Text("Done") }
+            }
+        )
+    }
+
+    // ... (остальные диалоги без изменений)
     if (showSortDialog) {
         AlertDialog(
             onDismissRequest = { showSortDialog = false },

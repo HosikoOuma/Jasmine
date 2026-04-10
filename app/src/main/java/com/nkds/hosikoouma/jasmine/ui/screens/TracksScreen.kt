@@ -82,6 +82,7 @@ fun TracksScreen(
     val currentTrack by playerViewModel.currentTrack.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val isRefreshing by trackViewModel.isRefreshing.collectAsState()
+    val isLoaded by trackViewModel.isLoaded.collectAsState()
 
     var selectedTracks by remember { mutableStateOf(setOf<Track>()) }
     val isInSelectionMode by remember { derivedStateOf { selectedTracks.isNotEmpty() } }
@@ -126,10 +127,14 @@ fun TracksScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (tracks.isEmpty()) {
+            if (!isLoaded && tracks.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (tracks.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     if (searchQuery.isEmpty()) {
-                        if (isFavoritesMode) Text("No favorites yet") else CircularProgressIndicator()
+                        Text(if (isFavoritesMode) "No favorites yet" else "No tracks found")
                     } else {
                         Text("Nothing found")
                     }

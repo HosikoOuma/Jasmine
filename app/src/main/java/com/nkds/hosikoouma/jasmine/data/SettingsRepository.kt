@@ -25,6 +25,8 @@ class SettingsRepository(private val context: Context) {
         val USE_DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
         val USE_ALBUM_ART_COLOR = booleanPreferencesKey("use_album_art_color")
         val SEED_COLOR = intPreferencesKey("seed_color")
+        
+        val BLACKLISTED_FOLDERS = stringSetPreferencesKey("blacklisted_folders")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -41,6 +43,8 @@ class SettingsRepository(private val context: Context) {
     val useDynamicColor: Flow<Boolean> = context.dataStore.data.map { it[USE_DYNAMIC_COLOR] ?: true }
     val useAlbumArtColor: Flow<Boolean> = context.dataStore.data.map { it[USE_ALBUM_ART_COLOR] ?: true }
     val seedColor: Flow<Int> = context.dataStore.data.map { it[SEED_COLOR] ?: 0xFF6750A4.toInt() }
+    
+    val blacklistedFolders: Flow<Set<String>> = context.dataStore.data.map { it[BLACKLISTED_FOLDERS] ?: emptySet() }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) = context.dataStore.edit { it[CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeDuration(duration: Long) = context.dataStore.edit { it[CROSSFADE_DURATION] = duration }
@@ -56,4 +60,14 @@ class SettingsRepository(private val context: Context) {
     suspend fun setUseDynamicColor(enabled: Boolean) = context.dataStore.edit { it[USE_DYNAMIC_COLOR] = enabled }
     suspend fun setUseAlbumArtColor(enabled: Boolean) = context.dataStore.edit { it[USE_ALBUM_ART_COLOR] = enabled }
     suspend fun setSeedColor(color: Int) = context.dataStore.edit { it[SEED_COLOR] = color }
+    
+    suspend fun addFolderToBlacklist(path: String) = context.dataStore.edit { 
+        val current = it[BLACKLISTED_FOLDERS] ?: emptySet()
+        it[BLACKLISTED_FOLDERS] = current + path
+    }
+    
+    suspend fun removeFolderFromBlacklist(path: String) = context.dataStore.edit { 
+        val current = it[BLACKLISTED_FOLDERS] ?: emptySet()
+        it[BLACKLISTED_FOLDERS] = current - path
+    }
 }

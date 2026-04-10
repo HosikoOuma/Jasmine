@@ -57,28 +57,43 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
 
     val minDurationLimit = settingsRepository.minTrackDuration
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+        
+    val blacklistedFolders = settingsRepository.blacklistedFolders
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     val favoriteTrackIds: StateFlow<Set<String>> = favoritesRepository.favoriteTrackIds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
+    // Вспомогательный поток фильтров
+    private val filtersFlow = combine(minDurationLimit, blacklistedFolders) { dur, blacklist ->
+        Pair(dur, blacklist)
+    }
+
     val filteredTracks: StateFlow<List<Track>> = combine(
-        _tracks, _searchQuery, _sortType, _isReversed, minDurationLimit
-    ) { tracks, query, sort, reversed, minDur ->
-        val timeFiltered = tracks.filter { it.duration >= minDur * 1000L }
+        _tracks, _searchQuery, _sortType, _isReversed, filtersFlow
+    ) { tracks, query, sort, reversed, filters ->
+        val (minDur, blacklist) = filters
+        val folderFiltered = tracks.filter { track ->
+            blacklist.none { blacklistedPath -> track.path.startsWith(blacklistedPath) }
+        }
+        val timeFiltered = folderFiltered.filter { it.duration >= minDur * 1000L }
         filterAndSort(timeFiltered, query, sort, reversed)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val favoriteTracks: StateFlow<List<Track>> = combine(
-        _tracks, favoriteTrackIds, _searchQuery, minDurationLimit
-    ) { tracks, favIds, query, minDur ->
-        val favorites = tracks.filter { favIds.contains(it.id.toString()) && it.duration >= minDur * 1000L }
+        _tracks, favoriteTrackIds, _searchQuery, filtersFlow
+    ) { tracks, favIds, query, filters ->
+        val (minDur, blacklist) = filters
+        val folderFiltered = tracks.filter { track ->
+            blacklist.none { blacklistedPath -> track.path.startsWith(blacklistedPath) }
+        }
+        val favorites = folderFiltered.filter { favIds.contains(it.id.toString()) && it.duration >= minDur * 1000L }
         if (query.isBlank()) favorites else favorites.filter { 
             it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true) 
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Сортировка для альбомов
-    val albums: StateFlow<List<Album>> = combine(_tracks, _sortType, _isReversed) { tracks, sort, reversed ->
+    val albums: StateFlow<List<Album>> = combine(filteredTracks, _sortType, _isReversed) { tracks, sort, reversed ->
         val grouped = tracks.groupBy { it.album }
             .map { (name, albumTracks) -> Album(name, albumTracks.first().artist, albumTracks) }
         
@@ -91,8 +106,7 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Сортировка для артистов
-    val artists: StateFlow<List<Artist>> = combine(_tracks, _sortType, _isReversed) { tracks, sort, reversed ->
+    val artists: StateFlow<List<Artist>> = combine(filteredTracks, _sortType, _isReversed) { tracks, sort, reversed ->
         val grouped = tracks.groupBy { it.artist }
             .map { Artist(it.key, it.value) }
         
@@ -104,8 +118,7 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Сортировка для папок
-    val folders: StateFlow<List<Folder>> = combine(_tracks, _sortType, _isReversed) { tracks, sort, reversed ->
+    val folders: StateFlow<List<Folder>> = combine(_tracks, _sortType, _isReversed, blacklistedFolders) { tracks, sort, reversed, blacklist ->
         val grouped = tracks.groupBy { 
             val file = File(it.path)
             file.parent ?: "Unknown"
@@ -120,7 +133,6 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Сортировка для плейлистов
     val playlists: StateFlow<List<Playlist>> = combine(playlistRepository.allPlaylists, _sortType, _isReversed) { entities, sort, reversed ->
         val grouped = entities.map { Playlist(it.id, it.name, emptyList(), it.createdAt) }
         val sorted = when (sort) {
@@ -191,6 +203,10 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
             settingsRepository.setDefaultSortReversed(reversed)
         }
     }
+
+    // Blacklist operations
+    fun addFolderToBlacklist(path: String) = viewModelScope.launch { settingsRepository.addFolderToBlacklist(path) }
+    fun removeFolderFromBlacklist(path: String) = viewModelScope.launch { settingsRepository.removeFolderFromBlacklist(path) }
 
     // Playlist Operations
     fun createPlaylist(name: String) = viewModelScope.launch { playlistRepository.createPlaylist(name) }

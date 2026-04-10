@@ -43,7 +43,9 @@ fun JasmineNavHost(
         composable(Screen.Library.route) { 
             LibraryScreen(navController = navController, trackViewModel = trackViewModel) 
         }
-        composable(Screen.Settings.route) { SettingsScreen() }
+        composable(Screen.Settings.route) { 
+            SettingsScreen(trackViewModel = trackViewModel) 
+        }
         
         // Вложенные экраны библиотеки
         composable(Screen.LibraryAlbums.route) { 
