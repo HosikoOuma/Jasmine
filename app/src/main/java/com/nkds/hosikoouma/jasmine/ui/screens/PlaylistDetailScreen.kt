@@ -1,6 +1,5 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -11,22 +10,27 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistDetailScreen(
     playlistId: Long,
     navController: NavController,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
-    onNavigateToPlayer: () -> Unit
+    onNavigateToPlayer: () -> Unit,
+    onAddTracksClick: () -> Unit,
+    selectedTracks: Set<Track>,
+    onToggleTrackSelection: (Track) -> Unit
 ) {
     val playlists by trackViewModel.playlists.collectAsState()
     val playlist = playlists.find { it.id == playlistId }
@@ -34,8 +38,8 @@ fun PlaylistDetailScreen(
     
     val currentTrack by playerViewModel.currentTrack.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
-
-    var showTrackPicker by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val isInSelectionMode = selectedTracks.isNotEmpty()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (playlist == null) {
@@ -58,7 +62,7 @@ fun PlaylistDetailScreen(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
-                    onClick = { showTrackPicker = true },
+                    onClick = onAddTracksClick,
                     shape = RoundedCornerShape(16.dp),
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                 ) {
@@ -74,64 +78,29 @@ fun PlaylistDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 itemsIndexed(playlistTracks) { index, track ->
+                    val isSelected = selectedTracks.contains(track)
                     SwipeableTrackCard(
                         track = track,
                         isCurrent = currentTrack?.id == track.id,
                         isPlaying = isPlaying,
-                        isSelected = false,
+                        isSelected = isSelected,
+                        enabled = !isInSelectionMode,
                         onSwipeAction = { playerViewModel.addToQueue(track, showToast = true) },
                         onClick = {
-                            playerViewModel.playTracks(playlistTracks, index)
-                            onNavigateToPlayer()
+                            if (isInSelectionMode) {
+                                onToggleTrackSelection(track)
+                            } else {
+                                playerViewModel.playTracks(playlistTracks, index)
+                                onNavigateToPlayer()
+                            }
+                        },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onToggleTrackSelection(track)
                         }
                     )
                 }
             }
         }
-    }
-
-    if (showTrackPicker) {
-        val allTracks by trackViewModel.allTracks.collectAsState()
-        
-        AlertDialog(
-            onDismissRequest = { showTrackPicker = false },
-            title = { Text("Select Tracks") },
-            text = {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 450.dp)
-                ) {
-                    itemsIndexed(allTracks) { _, track ->
-                        val isAlreadyInPlaylist = playlistTracks.any { it.id == track.id }
-                        ListItem(
-                            headlineContent = { 
-                                Text(
-                                    track.title, 
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isAlreadyInPlaylist) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                ) 
-                            },
-                            supportingContent = { Text(track.artist) },
-                            trailingContent = {
-                                if (isAlreadyInPlaylist) {
-                                    Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                                }
-                            },
-                            modifier = Modifier.clickable {
-                                trackViewModel.addTrackToPlaylist(playlistId, track.id)
-                                // We keep the picker open to add multiple tracks
-                            }
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTrackPicker = false }) {
-                    Text("Done")
-                }
-            },
-            shape = RoundedCornerShape(28.dp)
-        )
     }
 }

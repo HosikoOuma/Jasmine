@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
+import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.screens.*
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
@@ -27,6 +28,9 @@ fun JasmineNavHost(
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     onNavigateToPlayer: () -> Unit,
+    selectedTracks: Set<Track>,
+    onToggleTrackSelection: (Track) -> Unit,
+    onAddTracksToPlaylist: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -50,7 +54,9 @@ fun JasmineNavHost(
             TracksScreen(
                 trackViewModel = trackViewModel, 
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                selectedTracks = selectedTracks,
+                onToggleTrackSelection = onToggleTrackSelection
             ) 
         }
         composable(Screen.Radio.route) { PlaceholderScreen(Screen.Radio.icon) }
@@ -87,7 +93,9 @@ fun JasmineNavHost(
                 navController = navController,
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                selectedTracks = selectedTracks,
+                onToggleTrackSelection = onToggleTrackSelection
             )
         }
 
@@ -102,7 +110,9 @@ fun JasmineNavHost(
                 navController = navController,
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                selectedTracks = selectedTracks,
+                onToggleTrackSelection = onToggleTrackSelection
             )
         }
 
@@ -117,7 +127,9 @@ fun JasmineNavHost(
                 navController = navController,
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                selectedTracks = selectedTracks,
+                onToggleTrackSelection = onToggleTrackSelection
             )
         }
 
@@ -131,7 +143,10 @@ fun JasmineNavHost(
                 navController = navController,
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                onAddTracksClick = onAddTracksToPlaylist,
+                selectedTracks = selectedTracks,
+                onToggleTrackSelection = onToggleTrackSelection
             )
         }
     }

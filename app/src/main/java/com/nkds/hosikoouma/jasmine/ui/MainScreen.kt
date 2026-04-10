@@ -1,7 +1,11 @@
 package com.nkds.hosikoouma.jasmine.ui
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -11,11 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,15 +36,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
+import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.navigation.JasmineNavHost
+import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineBottomBar
 import com.nkds.hosikoouma.jasmine.ui.components.MiniPlayer
+import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.ui.screens.PlayerScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SortType
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -64,33 +72,74 @@ fun MainScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showTrackPickerDialog by remember { mutableStateOf(false) }
+    var showDeletePlaylistDialog by remember { mutableStateOf(false) }
+
+    // Общее состояние выделения треков
+    var selectedTracks by remember { mutableStateOf(setOf<Track>()) }
+    val isInSelectionMode by remember { derivedStateOf { selectedTracks.isNotEmpty() } }
+    var showMoreMenu by remember { mutableStateOf(false) }
+    var showDeleteTracksDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val dynamicTitle = remember(currentRoute, navBackStackEntry) {
-        when {
-            currentRoute?.startsWith("album_detail") == true -> {
-                val encoded = navBackStackEntry?.arguments?.getString("albumName") ?: "Album"
-                URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
-            }
-            currentRoute?.startsWith("artist_detail") == true -> {
-                val encoded = navBackStackEntry?.arguments?.getString("artistName") ?: "Artist"
-                URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
-            }
-            currentRoute?.startsWith("folder_detail") == true -> {
-                val encoded = navBackStackEntry?.arguments?.getString("folderPath") ?: "Folder"
-                val path = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
-                path.substringAfterLast("/")
-            }
-            currentRoute?.startsWith("playlist_detail") == true -> "Playlist"
-            currentRoute == Screen.LibraryAlbums.route -> "Albums"
-            currentRoute == Screen.LibraryArtists.route -> "Artists"
-            currentRoute == Screen.LibraryFolders.route -> "Folders"
-            currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
-            else -> {
-                val currentScreen = Screen.items.find { it.route == currentRoute }
-                currentScreen?.title ?: "Jasmine"
+    // Снимаем выделение при смене экрана
+    LaunchedEffect(currentRoute) {
+        selectedTracks = emptySet()
+    }
+
+    val playlistId = navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L
+    val playlistTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsState(initial = emptyList())
+    val playlists by trackViewModel.playlists.collectAsState()
+    val currentPlaylistName = remember(playlists, playlistId) {
+        playlists.find { it.id == playlistId }?.name ?: "Playlist"
+    }
+
+    val deleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            selectedTracks = emptySet()
+            trackViewModel.loadTracks()
+            Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        trackViewModel.pendingDeleteIntent.collect { intentSender ->
+            deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+        }
+    }
+
+    val dynamicTitle = remember(currentRoute, navBackStackEntry, currentPlaylistName, selectedTracks.size) {
+        if (isInSelectionMode) {
+            "${selectedTracks.size} selected"
+        } else {
+            when {
+                currentRoute?.startsWith("album_detail") == true -> {
+                    val encoded = navBackStackEntry?.arguments?.getString("albumName") ?: "Album"
+                    URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+                }
+                currentRoute?.startsWith("artist_detail") == true -> {
+                    val encoded = navBackStackEntry?.arguments?.getString("artistName") ?: "Artist"
+                    URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+                }
+                currentRoute?.startsWith("folder_detail") == true -> {
+                    val encoded = navBackStackEntry?.arguments?.getString("folderPath") ?: "Folder"
+                    val path = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+                    path.substringAfterLast("/")
+                }
+                currentRoute?.startsWith("playlist_detail") == true -> currentPlaylistName
+                currentRoute == Screen.LibraryAlbums.route -> "Albums"
+                currentRoute == Screen.LibraryArtists.route -> "Artists"
+                currentRoute == Screen.LibraryFolders.route -> "Folders"
+                currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
+                else -> {
+                    val currentScreen = Screen.items.find { it.route == currentRoute }
+                    currentScreen?.title ?: "Jasmine"
+                }
             }
         }
     }
@@ -122,7 +171,7 @@ fun MainScreen(
 
     val isTracksScreen = currentRoute == Screen.Tracks.route
     val shouldShowSort = remember(currentRoute) {
-        currentRoute == Screen.Tracks.route || 
+        currentRoute == Screen.Tracks.route ||
         currentRoute == Screen.LibraryAlbums.route ||
         currentRoute == Screen.LibraryArtists.route ||
         currentRoute == Screen.LibraryFolders.route ||
@@ -132,17 +181,6 @@ fun MainScreen(
 
     val isCollapsed by remember {
         derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f }
-    }
-
-    BackHandler(enabled = isPlayerExpanded || isSearching || canPop) {
-        if (isPlayerExpanded) {
-            isPlayerExpanded = false
-        } else if (isSearching) {
-            isSearching = false
-            trackViewModel.setSearchQuery("")
-        } else if (canPop) {
-            navController.popBackStack()
-        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -175,63 +213,127 @@ fun MainScreen(
                         }
                     },
                     navigationIcon = {
-                        if (canPop && !isSearching) {
+                        if (isInSelectionMode) {
+                            IconButton(onClick = { selectedTracks = emptySet() }) {
+                                Icon(Icons.Rounded.Close, "Clear selection")
+                            }
+                        } else if (canPop && !isSearching) {
                             IconButton(onClick = { navController.popBackStack() }) {
                                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                             }
                         }
                     },
                     actions = {
-                        AnimatedVisibility(
-                            visible = (isCollapsed || isSearching || shouldShowSort) && (isTracksScreen || shouldShowSort),
-                            enter = fadeIn() + expandHorizontally(),
-                            exit = fadeOut() + shrinkHorizontally()
-                        ) {
+                        if (isInSelectionMode) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isTracksScreen) {
-                                    IconButton(onClick = { 
-                                        if (isSearching) trackViewModel.setSearchQuery("")
-                                        isSearching = !isSearching 
-                                    }) {
-                                        Icon(
-                                            imageVector = if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search,
-                                            contentDescription = "Search"
+                                if (selectedTracks.size == 1) {
+                                    IconButton(onClick = { showTrackInfoForSelection = selectedTracks.first() }) {
+                                        Icon(Icons.Rounded.Info, null)
+                                    }
+                                }
+                                IconButton(onClick = {
+                                    playerViewModel.addTracksToQueue(selectedTracks.toList())
+                                    selectedTracks = emptySet()
+                                }) {
+                                    Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null)
+                                }
+                                Box {
+                                    IconButton(onClick = { showMoreMenu = true }) {
+                                        Icon(Icons.Rounded.MoreVert, null)
+                                    }
+                                    DropdownMenu(
+                                        expanded = showMoreMenu,
+                                        onDismissRequest = { showMoreMenu = false },
+                                        shape = RoundedCornerShape(24.dp),
+                                        modifier = Modifier.width(220.dp)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Share") },
+                                            leadingIcon = { Icon(Icons.Rounded.Share, null) },
+                                            onClick = {
+                                                showMoreMenu = false
+                                                ShareHelper.shareTracks(context, selectedTracks.toList())
+                                                selectedTracks = emptySet()
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Add to playlist") },
+                                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
+                                            onClick = {
+                                                showMoreMenu = false
+                                                showAddToPlaylistDialog = true
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Delete from device", fontWeight = FontWeight.Bold) },
+                                            leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                            onClick = {
+                                                showMoreMenu = false
+                                                showDeleteTracksDialog = true
+                                            },
+                                            colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
                                         )
                                     }
                                 }
-                                
-                                if (!isSearching && shouldShowSort) {
-                                    Box {
-                                        IconButton(onClick = { showSortMenu = true }) {
-                                            Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = "Sort")
+                            }
+                        } else {
+                            AnimatedVisibility(
+                                visible = (isCollapsed || isSearching || shouldShowSort) && (isTracksScreen || shouldShowSort),
+                                enter = fadeIn() + expandHorizontally(),
+                                exit = fadeOut() + shrinkHorizontally()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (currentRoute?.startsWith("playlist_detail") == true && !isSearching) {
+                                        IconButton(onClick = { showDeletePlaylistDialog = true }) {
+                                            Icon(Icons.Rounded.Delete, "Delete Playlist", tint = MaterialTheme.colorScheme.error)
                                         }
-                                        DropdownMenu(
-                                            expanded = showSortMenu,
-                                            onDismissRequest = { showSortMenu = false }
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text("By Name") },
-                                                onClick = { trackViewModel.setSortType(SortType.BY_NAME); showSortMenu = false }
+                                    }
+
+                                    if (isTracksScreen) {
+                                        IconButton(onClick = { 
+                                            if (isSearching) trackViewModel.setSearchQuery("")
+                                            isSearching = !isSearching 
+                                        }) {
+                                            Icon(
+                                                imageVector = if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search,
+                                                contentDescription = "Search"
                                             )
-                                            DropdownMenuItem(
-                                                text = { Text("By Artist") },
-                                                onClick = { trackViewModel.setSortType(SortType.BY_ARTIST); showSortMenu = false }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("By Date Added") },
-                                                onClick = { trackViewModel.setSortType(SortType.BY_DATE); showSortMenu = false }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("By Duration") },
-                                                onClick = { trackViewModel.setSortType(SortType.BY_DURATION); showSortMenu = false }
-                                            )
-                                            HorizontalDivider()
-                                            val isReversed by trackViewModel.isReversed.collectAsState()
-                                            DropdownMenuItem(
-                                                text = { Text(if (isReversed) "Normal Order" else "Reverse Order") },
-                                                leadingIcon = { Icon(Icons.Rounded.FilterList, null) },
-                                                onClick = { trackViewModel.toggleReverse(); showSortMenu = false }
-                                            )
+                                        }
+                                    }
+                                    
+                                    if (!isSearching && shouldShowSort) {
+                                        Box {
+                                            IconButton(onClick = { showSortMenu = true }) {
+                                                Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = "Sort")
+                                            }
+                                            DropdownMenu(
+                                                expanded = showSortMenu,
+                                                onDismissRequest = { showSortMenu = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("By Name") },
+                                                    onClick = { trackViewModel.setSortType(SortType.BY_NAME); showSortMenu = false }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("By Artist") },
+                                                    onClick = { trackViewModel.setSortType(SortType.BY_ARTIST); showSortMenu = false }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("By Date Added") },
+                                                    onClick = { trackViewModel.setSortType(SortType.BY_DATE); showSortMenu = false }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("By Duration") },
+                                                    onClick = { trackViewModel.setSortType(SortType.BY_DURATION); showSortMenu = false }
+                                                )
+                                                HorizontalDivider()
+                                                val isReversed by trackViewModel.isReversed.collectAsState()
+                                                DropdownMenuItem(
+                                                    text = { Text(if (isReversed) "Normal Order" else "Reverse Order") },
+                                                    leadingIcon = { Icon(Icons.Rounded.FilterList, null) },
+                                                    onClick = { trackViewModel.toggleReverse(); showSortMenu = false }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -242,23 +344,25 @@ fun MainScreen(
                 )
             },
             floatingActionButton = {
-                if (currentRoute == Screen.LibraryPlaylists.route) {
-                    FloatingActionButton(
-                        onClick = { showCreatePlaylistDialog = true },
-                        modifier = Modifier.padding(bottom = 140.dp),
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Icon(Icons.Rounded.Add, "Create Playlist")
-                    }
-                } else if (currentRoute?.startsWith("playlist_detail") == true) {
-                    FloatingActionButton(
-                        onClick = { showTrackPickerDialog = true },
-                        modifier = Modifier.padding(bottom = 140.dp),
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Icon(Icons.Rounded.Add, "Add tracks")
+                if (!isInSelectionMode) {
+                    if (currentRoute == Screen.LibraryPlaylists.route) {
+                        FloatingActionButton(
+                            onClick = { showCreatePlaylistDialog = true },
+                            modifier = Modifier.padding(bottom = 140.dp),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(Icons.Rounded.Add, "Create Playlist")
+                        }
+                    } else if (currentRoute?.startsWith("playlist_detail") == true && playlistTracks.isNotEmpty()) {
+                        FloatingActionButton(
+                            onClick = { showTrackPickerDialog = true },
+                            modifier = Modifier.padding(bottom = 140.dp),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(Icons.Rounded.Add, "Add tracks")
+                        }
                     }
                 }
             }
@@ -269,9 +373,27 @@ fun MainScreen(
                     trackViewModel = trackViewModel,
                     playerViewModel = playerViewModel,
                     onNavigateToPlayer = { isPlayerExpanded = true },
+                    selectedTracks = selectedTracks,
+                    onToggleTrackSelection = { track ->
+                        selectedTracks = if (selectedTracks.contains(track)) selectedTracks - track else selectedTracks + track
+                    },
+                    onAddTracksToPlaylist = { showTrackPickerDialog = true },
                     modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
                 )
                 
+                // ПОМЕЩАЕМ BACKHANDLER ЗДЕСЬ (ПОСЛЕ NAVHOST ДЛЯ ПРИОРИТЕТА)
+                BackHandler(enabled = isInSelectionMode || isPlayerExpanded || isSearching || canPop) {
+                    when {
+                        isInSelectionMode -> selectedTracks = emptySet()
+                        isPlayerExpanded -> isPlayerExpanded = false
+                        isSearching -> {
+                            isSearching = false
+                            trackViewModel.setSearchQuery("")
+                        }
+                        canPop -> navController.popBackStack()
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -322,6 +444,7 @@ fun MainScreen(
         }
     }
 
+    // Диалоги
     if (showCreatePlaylistDialog) {
         var playlistName by remember { mutableStateOf("") }
         AlertDialog(
@@ -353,8 +476,7 @@ fun MainScreen(
 
     if (showTrackPickerDialog) {
         val allTracks by trackViewModel.allTracks.collectAsState()
-        val playlistId = navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L
-        val playlistTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsState(initial = emptyList())
+        val pTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsState(initial = emptyList())
 
         AlertDialog(
             onDismissRequest = { showTrackPickerDialog = false },
@@ -367,7 +489,7 @@ fun MainScreen(
                 ) {
                     items(allTracks.size) { index ->
                         val track = allTracks[index]
-                        val isAlreadyInPlaylist = playlistTracks.any { it.id == track.id }
+                        val isAlreadyInPlaylist = pTracks.any { it.id == track.id }
                         ListItem(
                             leadingContent = {
                                 AlbumArt(
@@ -411,6 +533,72 @@ fun MainScreen(
                 }
             },
             shape = RoundedCornerShape(28.dp)
+        )
+    }
+
+    if (showDeletePlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeletePlaylistDialog = false },
+            title = { Text("Delete Playlist") },
+            text = { Text("Are you sure you want to delete \"$currentPlaylistName\"? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        trackViewModel.deletePlaylist(playlistId)
+                        showDeletePlaylistDialog = false
+                        navController.popBackStack()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeletePlaylistDialog = false }) { Text("Cancel") }
+            },
+            shape = RoundedCornerShape(28.dp)
+        )
+    }
+
+    if (showDeleteTracksDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteTracksDialog = false },
+            title = { Text("Delete Tracks") },
+            text = { Text("Are you sure you want to delete ${selectedTracks.size} tracks from your device? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteTracksDialog = false
+                        playerViewModel.prepareForDeletion(selectedTracks.toList())
+                        trackViewModel.deleteTracks(selectedTracks.toList())
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteTracksDialog = false }) { Text("Cancel") }
+            },
+            shape = RoundedCornerShape(28.dp)
+        )
+    }
+
+    if (showAddToPlaylistDialog) {
+        AddToPlaylistDialog(
+            onDismissRequest = { showAddToPlaylistDialog = false },
+            onPlaylistSelected = { pid ->
+                selectedTracks.forEach { track ->
+                    trackViewModel.addTrackToPlaylist(pid, track.id)
+                }
+                selectedTracks = emptySet()
+                showAddToPlaylistDialog = false
+                Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
+            },
+            trackViewModel = trackViewModel
+        )
+    }
+
+    if (showTrackInfoForSelection != null) {
+        TrackInfoBottomSheet(
+            track = showTrackInfoForSelection!!,
+            onDismissRequest = { showTrackInfoForSelection = null }
         )
     }
 }

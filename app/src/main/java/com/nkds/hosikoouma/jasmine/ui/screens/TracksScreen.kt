@@ -2,7 +2,6 @@ package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.app.Activity
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +30,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
@@ -65,7 +66,9 @@ import kotlinx.coroutines.launch
 fun TracksScreen(
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
-    onNavigateToPlayer: () -> Unit
+    onNavigateToPlayer: () -> Unit,
+    selectedTracks: Set<Track>,
+    onToggleTrackSelection: (Track) -> Unit
 ) {
     var isFavoritesMode by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -83,34 +86,6 @@ fun TracksScreen(
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val isRefreshing by trackViewModel.isRefreshing.collectAsState()
     val isLoaded by trackViewModel.isLoaded.collectAsState()
-
-    var selectedTracks by remember { mutableStateOf(setOf<Track>()) }
-    val isInSelectionMode by remember { derivedStateOf { selectedTracks.isNotEmpty() } }
-    
-    var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
-    var showMoreMenu by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
-
-    val deleteLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            selectedTracks = emptySet()
-            trackViewModel.loadTracks()
-            Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        trackViewModel.pendingDeleteIntent.collect { intentSender ->
-            deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
-        }
-    }
-
-    BackHandler(enabled = isInSelectionMode) {
-        selectedTracks = emptySet()
-    }
 
     LaunchedEffect(isFavoritesMode) { listState.scrollToItem(0) }
     LaunchedEffect(searchQuery) { if (searchQuery.isNotEmpty()) listState.scrollToItem(0) }
@@ -156,7 +131,7 @@ fun TracksScreen(
                             isPlaying = isPlaying,
                             isSelected = isSelected,
                             isManualMarkingEnabled = true,
-                            enabled = !isInSelectionMode,
+                            enabled = selectedTracks.isEmpty(), // Отключаем свайпы, если начато выделение
                             onSwipeAction = { 
                                 if (track.isManual) {
                                     playerViewModel.removeFromQueue(track)
@@ -165,8 +140,8 @@ fun TracksScreen(
                                 }
                             },
                             onClick = {
-                                if (isInSelectionMode) {
-                                    selectedTracks = if (isSelected) selectedTracks - track else selectedTracks + track
+                                if (selectedTracks.isNotEmpty()) {
+                                    onToggleTrackSelection(track)
                                 } else {
                                     playerViewModel.playTracks(tracks, index)
                                     onNavigateToPlayer()
@@ -174,96 +149,15 @@ fun TracksScreen(
                             },
                             onLongClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                selectedTracks = if (isSelected) selectedTracks - track else selectedTracks + track
+                                onToggleTrackSelection(track)
                             }
                         )
                     }
                 }
             }
 
-            if (isInSelectionMode) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                        .align(Alignment.TopCenter),
-                    shape = RoundedCornerShape(32.dp),
-                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-                    tonalElevation = 8.dp,
-                    shadowElevation = 6.dp
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { selectedTracks = emptySet() }) {
-                                Icon(Icons.Rounded.Close, null)
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text("${selectedTracks.size} selected", style = MaterialTheme.typography.titleMedium)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (selectedTracks.size == 1) {
-                                IconButton(onClick = { showTrackInfoForSelection = selectedTracks.first() }) {
-                                    Icon(Icons.Rounded.Info, null)
-                                }
-                            }
-                            IconButton(onClick = {
-                                playerViewModel.addTracksToQueue(selectedTracks.toList())
-                                selectedTracks = emptySet()
-                            }) {
-                                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null)
-                            }
-
-                            Box {
-                                IconButton(onClick = { showMoreMenu = true }) {
-                                    Icon(Icons.Rounded.MoreVert, null)
-                                }
-                                DropdownMenu(
-                                    expanded = showMoreMenu,
-                                    onDismissRequest = { showMoreMenu = false },
-                                    offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 8.dp),
-                                    shape = RoundedCornerShape(24.dp),
-                                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(12.dp),
-                                    modifier = Modifier.width(220.dp)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Add to playlist") },
-                                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            showAddToPlaylistDialog = true
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                "Delete from device",
-                                                fontWeight = FontWeight.ExtraBold
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Rounded.Delete,
-                                                null,
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                        },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            showDeleteDialog = true
-                                        },
-                                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
+            if (selectedTracks.isEmpty()) {
+                // Shuffle Button
                 Surface(
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
                     shape = CircleShape,
@@ -297,6 +191,7 @@ fun TracksScreen(
                     }
                 }
 
+                // Mode Selector
                 Surface(
                     modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
                     shape = CircleShape,
@@ -322,55 +217,6 @@ fun TracksScreen(
                 }
             }
         }
-    }
-
-    if (showAddToPlaylistDialog) {
-        AddToPlaylistDialog(
-            onDismissRequest = { showAddToPlaylistDialog = false },
-            onPlaylistSelected = { playlistId ->
-                selectedTracks.forEach { track ->
-                    trackViewModel.addTrackToPlaylist(playlistId, track.id)
-                }
-                selectedTracks = emptySet()
-                showAddToPlaylistDialog = false
-                Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
-            },
-            trackViewModel = trackViewModel
-        )
-    }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Tracks") },
-            text = { Text("Are you sure you want to delete ${selectedTracks.size} tracks from your device? This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        playerViewModel.prepareForDeletion(selectedTracks.toList())
-                        trackViewModel.deleteTracks(selectedTracks.toList())
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            shape = RoundedCornerShape(28.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
-        )
-    }
-
-    if (showTrackInfoForSelection != null) {
-        TrackInfoBottomSheet(
-            track = showTrackInfoForSelection!!,
-            onDismissRequest = { showTrackInfoForSelection = null }
-        )
     }
 }
 

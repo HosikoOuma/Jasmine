@@ -6,9 +6,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
@@ -20,12 +23,16 @@ fun AlbumDetailScreen(
     navController: NavController,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
-    onNavigateToPlayer: () -> Unit
+    onNavigateToPlayer: () -> Unit,
+    selectedTracks: Set<Track>,
+    onToggleTrackSelection: (Track) -> Unit
 ) {
     val albums by trackViewModel.albums.collectAsState()
     val album = albums.find { it.name == albumName }
     val currentTrack by playerViewModel.currentTrack.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val haptic = LocalHapticFeedback.current
+    val isInSelectionMode = selectedTracks.isNotEmpty()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (album == null) {
@@ -58,15 +65,25 @@ fun AlbumDetailScreen(
                 }
 
                 itemsIndexed(album.tracks) { index, track ->
+                    val isSelected = selectedTracks.contains(track)
                     SwipeableTrackCard(
                         track = track,
                         isCurrent = currentTrack?.id == track.id,
                         isPlaying = isPlaying,
-                        isSelected = false,
+                        isSelected = isSelected,
+                        enabled = !isInSelectionMode,
                         onSwipeAction = { playerViewModel.addToQueue(track, showToast = true) },
                         onClick = {
-                            playerViewModel.playTracks(album.tracks, index)
-                            onNavigateToPlayer()
+                            if (isInSelectionMode) {
+                                onToggleTrackSelection(track)
+                            } else {
+                                playerViewModel.playTracks(album.tracks, index)
+                                onNavigateToPlayer()
+                            }
+                        },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onToggleTrackSelection(track)
                         }
                     )
                 }

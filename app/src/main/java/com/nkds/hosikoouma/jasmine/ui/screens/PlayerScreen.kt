@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
+import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
@@ -394,7 +395,11 @@ fun PlayerScreen(
                     ListItem(
                         headlineContent = { Text("Share Track") },
                         leadingContent = { Icon(Icons.Rounded.Share, null) },
-                        modifier = Modifier.clickable { /* TODO */ }
+                        modifier = Modifier.clickable { 
+                            val track = currentTrack ?: return@clickable
+                            ShareHelper.shareTrack(context, track)
+                            showMoreActions = false
+                        }
                     )
                     ListItem(
                         headlineContent = { Text("Sleep Timer") },
