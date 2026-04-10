@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class ProgressBarStyle { STANDARD, SOLID, DOTTED, WAVE, NEON }
-enum class AppFontFamily { DEFAULT, GOOGLE_SANS, JETBRAINS_MONO }
+enum class AppFontFamily { DEFAULT, GOOGLE_SANS, JETBRAINS_MONO, NUNITO }
 enum class DarkMode { FOLLOW_SYSTEM, LIGHT, DARK }
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {

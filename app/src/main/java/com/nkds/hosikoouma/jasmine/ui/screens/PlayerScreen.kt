@@ -13,11 +13,12 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.automirrored.filled.VolumeDown
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -87,8 +88,15 @@ fun PlayerScreen(
         label = "albumArtScale"
     )
 
+    // Back Gesture states
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackingPlayer by remember { mutableStateOf(false) }
+
+    var queueBackProgress by remember { mutableFloatStateOf(0f) }
+    var isBackingQueue by remember { mutableStateOf(false) }
+
+    var lyricsBackProgress by remember { mutableFloatStateOf(0f) }
+    var isBackingLyrics by remember { mutableStateOf(false) }
 
     PredictiveBackHandler(enabled = showQueue) { progressFlow ->
         try {
@@ -180,7 +188,7 @@ fun PlayerScreen(
                 if (currentTrack?.isManual == true) {
                     Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f), shape = CircleShape, modifier = Modifier.padding(top = 8.dp)) {
                         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
+                            Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("From Queue", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
                         }
@@ -254,10 +262,10 @@ fun PlayerScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() })
-                AnimatedControlIcon(icon = Icons.Default.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() } )
-                AnimatedControlIcon(icon = Icons.Default.SkipPrevious, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() })
-                AnimatedControlIcon(icon = Icons.Default.SkipNext, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() })
+                AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() })
+                AnimatedControlIcon(icon = Icons.Rounded.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() } )
+                AnimatedControlIcon(icon = Icons.Rounded.SkipPrevious, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() })
+                AnimatedControlIcon(icon = Icons.Rounded.SkipNext, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() })
 
                 val playPauseInteractionSource = remember { MutableInteractionSource() }
                 val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
@@ -277,7 +285,7 @@ fun PlayerScreen(
                     color = MaterialTheme.colorScheme.primary
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
+                        Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
                     }
                 }
             }
@@ -289,21 +297,37 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceAround, 
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AnimatedControlIcon(Icons.AutoMirrored.Filled.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
-                AnimatedControlIcon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
-                AnimatedControlIcon(Icons.Default.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showLyrics = true })
-                AnimatedControlIcon(Icons.Default.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showMoreActions = true })
+                AnimatedControlIcon(Icons.AutoMirrored.Rounded.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
+                AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
+                AnimatedControlIcon(Icons.Rounded.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showLyrics = true })
+                AnimatedControlIcon(Icons.Rounded.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showMoreActions = true })
             }
         }
 
         AnimatedVisibility(visible = showQueue, enter = slideInHorizontally(initialOffsetX = { -it }), exit = slideOutHorizontally(targetOffsetX = { -it })) {
-            Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    if (isBackingQueue) {
+                        translationY = queueBackProgress * size.height
+                    }
+                }
+                .pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }
+            ) {
                 QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
             }
         }
 
         AnimatedVisibility(visible = showLyrics, enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it })) {
-            Box(modifier = Modifier.pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    if (isBackingLyrics) {
+                        translationY = lyricsBackProgress * size.height
+                    }
+                }
+                .pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }
+            ) {
                 LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
             }
         }
@@ -334,7 +358,7 @@ fun PlayerScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.VolumeDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.AutoMirrored.Rounded.VolumeDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Slider(
                             value = systemVolume,
                             onValueChange = { viewModel.setSystemVolume(it) },
@@ -345,14 +369,14 @@ fun PlayerScreen(
                                 inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         )
-                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
                     ListItem(
                         headlineContent = { Text("Details") },
-                        leadingContent = { Icon(Icons.Default.Info, null) },
+                        leadingContent = { Icon(Icons.Rounded.Info, null) },
                         modifier = Modifier.clickable { 
                             showMoreActions = false
                             showTrackInfo = true
@@ -360,22 +384,22 @@ fun PlayerScreen(
                     )
                     ListItem(
                         headlineContent = { Text("Add to Playlist") },
-                        leadingContent = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
+                        leadingContent = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
                         modifier = Modifier.clickable { /* TODO */ }
                     )
                     ListItem(
                         headlineContent = { Text("View Artist") },
-                        leadingContent = { Icon(Icons.Default.Person, null) },
+                        leadingContent = { Icon(Icons.Rounded.Person, null) },
                         modifier = Modifier.clickable { /* TODO */ }
                     )
                     ListItem(
                         headlineContent = { Text("Share Track") },
-                        leadingContent = { Icon(Icons.Default.Share, null) },
+                        leadingContent = { Icon(Icons.Rounded.Share, null) },
                         modifier = Modifier.clickable { /* TODO */ }
                     )
                     ListItem(
                         headlineContent = { Text("Sleep Timer") },
-                        leadingContent = { Icon(Icons.Default.Timer, null) },
+                        leadingContent = { Icon(Icons.Rounded.Timer, null) },
                         modifier = Modifier.clickable { /* TODO */ }
                     )
                 }

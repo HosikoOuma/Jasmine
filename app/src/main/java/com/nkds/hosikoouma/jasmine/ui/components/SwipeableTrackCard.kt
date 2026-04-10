@@ -26,7 +26,9 @@ fun SwipeableTrackCard(
     isPlaying: Boolean,
     onSwipeAction: () -> Unit,
     onClick: () -> Unit,
-    enabled: Boolean = true, // Параметр для отключения свайпа
+    onLongClick: () -> Unit = {},
+    isSelected: Boolean = false,
+    enabled: Boolean = true,
     isManualMarkingEnabled: Boolean = true,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
@@ -66,10 +68,10 @@ fun SwipeableTrackCard(
 
     SwipeToDismissBox(
         state = dismissState,
-        enableDismissFromStartToEnd = enabled, // Отключаем жест, если не enabled
+        enableDismissFromStartToEnd = enabled && !isSelected, // Disable swipe if selected
         enableDismissFromEndToStart = false,
         backgroundContent = {
-            if (enabled) {
+            if (enabled && !isSelected) {
                 val activeColor = if (isAddedToQueue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
 
                 val bgColor by animateColorAsState(
@@ -107,7 +109,9 @@ fun SwipeableTrackCard(
             isCurrent = isCurrent,
             isManual = if (isManualMarkingEnabled) track.isManual else false,
             isPlaying = isPlaying,
+            isSelected = isSelected,
             onClick = onClick,
+            onLongClick = onLongClick,
             trailingContent = trailingContent
         )
     }

@@ -41,9 +41,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val lyricsRepository = LyricsRepository(application)
     private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    private val _currentTrackBase = MutableStateFlow<Track?>(null)
-    private val _playlistBase = MutableStateFlow<List<Track>>(emptyList())
-    private val _manualQueueUids = MutableStateFlow<Set<String>>(emptySet())
+    private val _currentTrack = MutableStateFlow<Track?>(null)
+    val currentTrack = _currentTrack.asStateFlow()
+
+    private val _playlist = MutableStateFlow<List<Track>>(emptyList())
+    val playlist = _playlist.asStateFlow()
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying = _isPlaying.asStateFlow()
@@ -84,14 +86,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val syncedRemoteLyrics: StateFlow<List<LyricsLine>?> = _remoteLyrics
         .map { LyricsHelper.parseLrc(it?.syncedLyrics) }
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
-
-    val currentTrack: StateFlow<Track?> = combine(_currentTrackBase, _manualQueueUids) { track, manualUids ->
-        track?.copy(isManual = manualUids.contains(track.uid))
-    }.stateIn(viewModelScope, SharingStarted.Lazily, null)
-
-    val playlist: StateFlow<List<Track>> = combine(_playlistBase, _manualQueueUids) { list, manualUids ->
-        list.map { it.copy(isManual = manualUids.contains(it.uid)) }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val isCurrentFavorite: StateFlow<Boolean> = combine(
         currentTrack,
@@ -198,7 +192,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun updateCurrentTrack(mediaItem: MediaItem?) {
         val controller = controller ?: return
         if (mediaItem == null) {
-            _currentTrackBase.value = null
+            _currentTrack.value = null
             return
         }
         
@@ -212,7 +206,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             "fallback_${mediaItem.mediaId}_$currentIndex"
         }
         
-        _currentTrackBase.value = mediaToTrack(mediaItem).copy(uid = uid)
+        _currentTrack.value = mediaToTrack(mediaItem).copy(uid = uid)
     }
 
     private fun updatePlaylist() {
@@ -233,11 +227,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 items.add(mediaToTrack(mediaItem).copy(uid = window.uid.toString()))
             }
         }
-        _playlistBase.value = items
+        _playlist.value = items
     }
 
     private fun mediaToTrack(mediaItem: MediaItem): Track {
-        val path = mediaItem.mediaMetadata.extras?.getString("path") ?: ""
+        val extras = mediaItem.mediaMetadata.extras
+        val path = extras?.getString("path") ?: ""
+        val isManual = extras?.getBoolean("isManual") ?: false
         return Track(
             id = mediaItem.mediaId.toLongOrNull() ?: 0L,
             title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
@@ -245,7 +241,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             duration = 0,
             contentUri = mediaItem.localConfiguration?.uri ?: Uri.EMPTY,
             albumArtUri = mediaItem.mediaMetadata.artworkUri,
-            path = path
+            path = path,
+            isManual = isManual
         )
     }
 
@@ -259,7 +256,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun playTracks(tracks: List<Track>, startIndex: Int) {
         val controller = controller ?: return
         originalPlaylist = tracks 
-        _manualQueueUids.value = emptySet()
         _shuffleModeEnabled.value = false
         
         val mediaItems = tracks.map { track -> createMediaItem(track) }
@@ -273,7 +269,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         originalPlaylist = tracks
         val shuffled = tracks.shuffled()
-        _manualQueueUids.value = emptySet()
         
         val mediaItems = shuffled.map { track -> createMediaItem(track) }
         
@@ -283,9 +278,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _shuffleModeEnabled.value = true
     }
 
-    private fun createMediaItem(track: Track): MediaItem {
+    private fun createMediaItem(track: Track, isManual: Boolean = false): MediaItem {
         val extras = Bundle().apply {
             putString("path", track.path)
+            putBoolean("isManual", isManual)
         }
         return MediaItem.Builder()
             .setMediaId(track.id.toString())
@@ -307,26 +303,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (currentIdx == -1) return
 
         var insertPos = currentIdx + 1
-        val currentList = _playlistBase.value
-        val manualUids = _manualQueueUids.value
+        val currentList = _playlist.value
         
-        while (insertPos < currentList.size && manualUids.contains(currentList[insertPos].uid)) {
+        while (insertPos < currentList.size && currentList[insertPos].isManual) {
             insertPos++
         }
 
-        controller.addMediaItem(insertPos, createMediaItem(track))
+        controller.addMediaItem(insertPos, createMediaItem(track, isManual = true))
         
-        viewModelScope.launch {
-            delay(400)
-            controller.currentTimeline.let { timeline ->
-                if (insertPos < timeline.windowCount) {
-                    val window = Timeline.Window()
-                    val uid = timeline.getWindow(insertPos, window).uid.toString()
-                    _manualQueueUids.value = _manualQueueUids.value + uid
-                }
-            }
-        }
-
         if (showToast) {
             viewModelScope.launch {
                 _toastEvent.emit("Added to queue: ${track.title}")
@@ -334,15 +318,33 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun addTracksToQueue(tracks: List<Track>) {
+        val controller = controller ?: return
+        val currentIdx = controller.currentMediaItemIndex
+        if (currentIdx == -1) return
+
+        var insertPos = currentIdx + 1
+        val currentList = _playlist.value
+        
+        while (insertPos < currentList.size && currentList[insertPos].isManual) {
+            insertPos++
+        }
+
+        val mediaItems = tracks.map { createMediaItem(it, isManual = true) }
+        controller.addMediaItems(insertPos, mediaItems)
+
+        viewModelScope.launch {
+            _toastEvent.emit("Added ${tracks.size} tracks to queue")
+        }
+    }
+
     fun removeFromQueue(track: Track) {
         val controller = controller ?: return
-        val currentList = _playlistBase.value
+        val currentList = _playlist.value
         val index = currentList.indexOfFirst { it.uid == track.uid }
 
         if (index != -1) {
             controller.removeMediaItem(index)
-            _manualQueueUids.value = _manualQueueUids.value - track.uid
-
             viewModelScope.launch {
                 _toastEvent.emit("Removed from queue: ${track.title}")
             }
@@ -391,10 +393,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val currentlyEnabled = _shuffleModeEnabled.value
         
         if (!currentlyEnabled) {
-            val currentItems = _playlistBase.value.toMutableList()
+            val currentItems = _playlist.value.toMutableList()
             if (currentItems.isEmpty()) return
             
-            val curTrack = _currentTrackBase.value
+            val curTrack = _currentTrack.value
             val currentIndex = currentItems.indexOfFirst { it.uid == curTrack?.uid }
             
             val currentPosition = controller.currentPosition
@@ -402,16 +404,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             currentItems.shuffle()
             if (removedTrack != null) currentItems.add(0, removedTrack)
             
-            val mediaItems = currentItems.map { createMediaItem(it) }
+            val mediaItems = currentItems.map { createMediaItem(it, isManual = it.isManual) }
             controller.setMediaItems(mediaItems, 0, currentPosition)
             _shuffleModeEnabled.value = true
         } else {
             if (originalPlaylist.isNotEmpty()) {
-                val curTrack = _currentTrackBase.value
+                val curTrack = _currentTrack.value
                 val indexInOriginal = originalPlaylist.indexOfFirst { it.id == curTrack?.id }.coerceAtLeast(0)
                 val currentPosition = controller.currentPosition
                 
-                val mediaItems = originalPlaylist.map { createMediaItem(it) }
+                val mediaItems = originalPlaylist.map { createMediaItem(it, isManual = false) }
                 controller.setMediaItems(mediaItems, indexInOriginal, currentPosition)
             }
             _shuffleModeEnabled.value = false

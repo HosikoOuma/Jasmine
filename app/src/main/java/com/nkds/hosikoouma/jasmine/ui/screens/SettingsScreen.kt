@@ -173,6 +173,7 @@ fun SettingsScreen(
                 val fontLabel = when(appFontFamily) {
                     "GOOGLE_SANS" -> "Google Sans"
                     "JETBRAINS_MONO" -> "JetBrains Mono Nerd"
+                    "NUNITO" -> "Nunito"
                     else -> "System Default"
                 }
                 Text(fontLabel)
@@ -333,6 +334,9 @@ fun SettingsScreen(
                     }
                     FontOption("JetBrains Mono Nerd", AppFontFamily.JETBRAINS_MONO, appFontFamily) { 
                         viewModel.setAppFontFamily(it) 
+                    }
+                    FontOption("Nunito", AppFontFamily.NUNITO, appFontFamily) {
+                        viewModel.setAppFontFamily(it)
                     }
                 }
             },

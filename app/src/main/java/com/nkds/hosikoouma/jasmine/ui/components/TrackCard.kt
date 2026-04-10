@@ -2,12 +2,15 @@ package com.nkds.hosikoouma.jasmine.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,20 +22,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackCard(
     track: Track,
     isCurrent: Boolean,
     isManual: Boolean = false,
     isPlaying: Boolean = false,
+    isSelected: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     val cardColor by animateColorAsState(
-        targetValue = if (isCurrent) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
+        targetValue = when {
+            isSelected -> MaterialTheme.colorScheme.secondaryContainer
+            isCurrent -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+            else -> MaterialTheme.colorScheme.surfaceVariant
         },
         animationSpec = tween(500),
         label = "cardColor"
@@ -41,25 +47,46 @@ fun TrackCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .then(
-                if (isManual && !isCurrent) {
+                if (isManual && !isCurrent && !isSelected) {
                     Modifier.border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                } else if (isSelected) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
                 } else Modifier
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 4.dp else 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent || isSelected) 4.dp else 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AlbumArt(
-                albumArtUri = track.albumArtUri,
-                modifier = Modifier.size(56.dp),
-                shape = RoundedCornerShape(14.dp)
-            )
+            Box(contentAlignment = Alignment.BottomEnd) {
+                AlbumArt(
+                    albumArtUri = track.albumArtUri,
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                if (isSelected) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape,
+                        modifier = Modifier.offset(x = 4.dp, y = 4.dp).size(20.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(2.dp)
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
@@ -74,7 +101,7 @@ fun TrackCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (isManual && !isCurrent) {
+                    if (isManual && !isCurrent && !isSelected) {
                         Spacer(Modifier.width(8.dp))
                         Box(
                             Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)
@@ -90,7 +117,7 @@ fun TrackCard(
                 )
             }
 
-            if (isCurrent) {
+            if (isCurrent && !isSelected) {
                 PlayingEqualizer(
                     isPlaying = isPlaying,
                     modifier = Modifier.padding(horizontal = 8.dp),

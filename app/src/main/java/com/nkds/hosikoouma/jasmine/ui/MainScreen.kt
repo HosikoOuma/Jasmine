@@ -7,10 +7,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -134,7 +134,7 @@ fun MainScreen(
                                     isSearching = !isSearching 
                                 }) {
                                     Icon(
-                                        imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                                        imageVector = if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search,
                                         contentDescription = "Search"
                                     )
                                 }
@@ -142,7 +142,7 @@ fun MainScreen(
                                 if (!isSearching) {
                                     Box {
                                         IconButton(onClick = { showSortMenu = true }) {
-                                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                                            Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = "Sort")
                                         }
                                         label@ DropdownMenu(
                                             expanded = showSortMenu,
@@ -168,7 +168,7 @@ fun MainScreen(
                                             val isReversed by trackViewModel.isReversed.collectAsState()
                                             DropdownMenuItem(
                                                 text = { Text(if (isReversed) "Normal Order" else "Reverse Order") },
-                                                leadingIcon = { Icon(Icons.Default.FilterList, null) },
+                                                leadingIcon = { Icon(Icons.Rounded.FilterList, null) },
                                                 onClick = { trackViewModel.toggleReverse(); showSortMenu = false }
                                             )
                                         }

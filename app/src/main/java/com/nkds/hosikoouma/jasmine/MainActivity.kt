@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
             val currentFontFamily = when(fontStyle) {
                 "GOOGLE_SANS" -> GoogleSans
                 "JETBRAINS_MONO" -> JetBrainsMonoNerd
+                "NUNITO" -> Nunito
                 else -> androidx.compose.ui.text.font.FontFamily.Default
             }
             

@@ -1,9 +1,11 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -17,9 +19,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -37,9 +44,12 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
+import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.launch
@@ -66,6 +76,16 @@ fun TracksScreen(
     val currentTrack by playerViewModel.currentTrack.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val isRefreshing by trackViewModel.isRefreshing.collectAsState()
+
+    var selectedTracks by remember { mutableStateOf(setOf<Track>()) }
+    val isInSelectionMode by remember { derivedStateOf { selectedTracks.isNotEmpty() } }
+    
+    var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isInSelectionMode) {
+        selectedTracks = emptySet()
+    }
 
     LaunchedEffect(isFavoritesMode) { listState.scrollToItem(0) }
     LaunchedEffect(searchQuery) { if (searchQuery.isNotEmpty()) listState.scrollToItem(0) }
@@ -100,11 +120,14 @@ fun TracksScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                        val isSelected = selectedTracks.contains(track)
                         SwipeableTrackCard(
                             track = track,
                             isCurrent = currentTrack?.id == track.id,
                             isPlaying = isPlaying,
+                            isSelected = isSelected,
                             isManualMarkingEnabled = true,
+                            enabled = !isInSelectionMode,
                             onSwipeAction = { 
                                 if (track.isManual) {
                                     playerViewModel.removeFromQueue(track)
@@ -113,73 +136,165 @@ fun TracksScreen(
                                 }
                             },
                             onClick = {
-                                playerViewModel.playTracks(tracks, index)
-                                onNavigateToPlayer()
+                                if (isInSelectionMode) {
+                                    selectedTracks = if (isSelected) selectedTracks - track else selectedTracks + track
+                                } else {
+                                    playerViewModel.playTracks(tracks, index)
+                                    onNavigateToPlayer()
+                                }
+                            },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                selectedTracks = if (isSelected) selectedTracks - track else selectedTracks + track
                             }
                         )
                     }
                 }
             }
 
-            // Shuffle Button
-            Surface(
-                modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-                tonalElevation = 8.dp,
-                shadowElevation = 6.dp
-            ) {
-                val interactionSource = remember { MutableInteractionSource() }
-                val isPressed by interactionSource.collectIsPressedAsState()
-                val scale by animateFloatAsState(
-                    targetValue = if (isPressed) 0.92f else 1f,
-                    animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                    label = "scale"
-                )
-
-                Box(
+            // Top Bar Overlay during Selection
+            if (isInSelectionMode) {
+                Surface(
                     modifier = Modifier
-                        .padding(4.dp).height(40.dp).width(80.dp)
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        .clickable(interactionSource = interactionSource, indication = null) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            if (tracks.isNotEmpty()) {
-                                playerViewModel.shuffleAndPlay(tracks)
-                                onNavigateToPlayer()
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .align(Alignment.TopCenter),
+                    shape = RoundedCornerShape(32.dp),
+                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 6.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { selectedTracks = emptySet() }) {
+                                Icon(Icons.Rounded.Close, null)
                             }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Shuffle, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
-                }
-            }
+                            Spacer(Modifier.width(8.dp))
+                            Text("${selectedTracks.size} selected", style = MaterialTheme.typography.titleMedium)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (selectedTracks.size == 1) {
+                                IconButton(onClick = { showTrackInfoForSelection = selectedTracks.first() }) {
+                                    Icon(Icons.Rounded.Info, null)
+                                }
+                            }
+                            IconButton(onClick = {
+                                playerViewModel.addTracksToQueue(selectedTracks.toList())
+                                selectedTracks = emptySet()
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null)
+                            }
 
-            // Mode Selector
-            Surface(
-                modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-                tonalElevation = 8.dp,
-                shadowElevation = 6.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                            Box {
+                                IconButton(onClick = { showMoreMenu = true }) {
+                                    Icon(Icons.Rounded.MoreVert, null)
+                                }
+                                DropdownMenu(
+                                    expanded = showMoreMenu,
+                                    onDismissRequest = { showMoreMenu = false },
+                                    offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 8.dp),
+                                    shape = RoundedCornerShape(24.dp),
+                                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(12.dp),
+                                    modifier = Modifier.width(220.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Delete from device",
+                                                fontWeight = FontWeight.ExtraBold
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Rounded.Delete,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        onClick = {
+                                            // Handle delete logic here
+                                            showMoreMenu = false
+                                        },
+                                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Shuffle Button
+                Surface(
+                    modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 6.dp
                 ) {
-                    ModeToggleButton(
-                        selected = !isFavoritesMode,
-                        icon = Icons.Default.MusicNote,
-                        onClick = { isFavoritesMode = false }
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.92f else 1f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                        label = "scale"
                     )
-                    ModeToggleButton(
-                        selected = isFavoritesMode,
-                        icon = Icons.Default.Favorite,
-                        onClick = { isFavoritesMode = true }
-                    )
+
+                    Box(
+                        modifier = Modifier
+                            .padding(4.dp).height(40.dp).width(80.dp)
+                            .graphicsLayer { scaleX = scale; scaleY = scale }
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            .clickable(interactionSource = interactionSource, indication = null) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                if (tracks.isNotEmpty()) {
+                                    playerViewModel.shuffleAndPlay(tracks)
+                                    onNavigateToPlayer()
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Shuffle, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
+                    }
+                }
+
+                // Mode Selector
+                Surface(
+                    modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 6.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ModeToggleButton(
+                            selected = !isFavoritesMode,
+                            icon = Icons.Rounded.MusicNote,
+                            onClick = { isFavoritesMode = false }
+                        )
+                        ModeToggleButton(
+                            selected = isFavoritesMode,
+                            icon = Icons.Rounded.Favorite,
+                            onClick = { isFavoritesMode = true }
+                        )
+                    }
                 }
             }
         }
+    }
+
+    if (showTrackInfoForSelection != null) {
+        TrackInfoBottomSheet(
+            track = showTrackInfoForSelection!!,
+            onDismissRequest = { showTrackInfoForSelection = null }
+        )
     }
 }
 
