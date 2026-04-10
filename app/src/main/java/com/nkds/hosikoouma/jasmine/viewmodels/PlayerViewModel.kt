@@ -234,11 +234,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val extras = mediaItem.mediaMetadata.extras
         val path = extras?.getString("path") ?: ""
         val isManual = extras?.getBoolean("isManual") ?: false
+        val duration = extras?.getLong("duration") ?: 0L
+
         return Track(
             id = mediaItem.mediaId.toLongOrNull() ?: 0L,
             title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
             artist = mediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
-            duration = 0,
+            duration = duration,
             contentUri = mediaItem.localConfiguration?.uri ?: Uri.EMPTY,
             albumArtUri = mediaItem.mediaMetadata.artworkUri,
             path = path,
@@ -282,6 +284,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val extras = Bundle().apply {
             putString("path", track.path)
             putBoolean("isManual", isManual)
+            putLong("duration", track.duration)
         }
         return MediaItem.Builder()
             .setMediaId(track.id.toString())
@@ -348,6 +351,41 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             viewModelScope.launch {
                 _toastEvent.emit("Removed from queue: ${track.title}")
             }
+        }
+    }
+
+    fun prepareForDeletion(tracksToDelete: List<Track>) {
+        val controller = controller ?: return
+        val currentTrackId = _currentTrack.value?.id
+        val currentPlaylist = _playlist.value
+        
+        val indicesToRemove = tracksToDelete.mapNotNull { toDelete ->
+            val idx = currentPlaylist.indexOfFirst { it.id == toDelete.id }
+            if (idx != -1) idx else null
+        }.distinct().sortedDescending()
+
+        if (indicesToRemove.isEmpty()) return
+
+        val isCurrentPlayingDeleted = tracksToDelete.any { it.id == currentTrackId }
+
+        if (isCurrentPlayingDeleted) {
+            val currentIndex = controller.currentMediaItemIndex
+            val totalItems = controller.mediaItemCount
+            
+            if (totalItems > 1) {
+                if (currentIndex == totalItems - 1) {
+                    // Это последний трек, переходим к предыдущему
+                    controller.seekToPreviousMediaItem()
+                } else {
+                    // Не последний, переходим к следующему
+                    controller.seekToNextMediaItem()
+                }
+            }
+        }
+
+        // Удаляем все выбранные треки из очереди контроллера
+        indicesToRemove.forEach { index ->
+            controller.removeMediaItem(index)
         }
     }
 

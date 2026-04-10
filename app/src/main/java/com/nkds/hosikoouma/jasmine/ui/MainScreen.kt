@@ -190,7 +190,6 @@ fun MainScreen(
             )
         }
 
-        // ГРАДИЕНТ (Затемнение снизу) - исправлен для светлой темы
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,7 +206,6 @@ fun MainScreen(
                 )
         )
 
-        // БАРЫ
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -227,7 +225,6 @@ fun MainScreen(
             }
         }
 
-        // ОБОЛОЧКА ПЛЕЕРА
         AnimatedVisibility(
             visible = isPlayerExpanded,
             enter = fadeIn(animationSpec = tween(300)),
@@ -235,6 +232,7 @@ fun MainScreen(
         ) {
             PlayerScreen(
                 viewModel = playerViewModel,
+                trackViewModel = trackViewModel,
                 onClose = { isPlayerExpanded = false }
             )
         }

@@ -1,7 +1,11 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -82,6 +86,23 @@ fun TracksScreen(
     
     var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    val deleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            selectedTracks = emptySet()
+            trackViewModel.loadTracks()
+            Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        trackViewModel.pendingDeleteIntent.collect { intentSender ->
+            deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+        }
+    }
 
     BackHandler(enabled = isInSelectionMode) {
         selectedTracks = emptySet()
@@ -152,7 +173,6 @@ fun TracksScreen(
                 }
             }
 
-            // Top Bar Overlay during Selection
             if (isInSelectionMode) {
                 Surface(
                     modifier = Modifier
@@ -217,8 +237,8 @@ fun TracksScreen(
                                             )
                                         },
                                         onClick = {
-                                            // Handle delete logic here
                                             showMoreMenu = false
+                                            showDeleteDialog = true
                                         },
                                         colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
                                     )
@@ -228,7 +248,6 @@ fun TracksScreen(
                     }
                 }
             } else {
-                // Shuffle Button
                 Surface(
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
                     shape = CircleShape,
@@ -262,7 +281,6 @@ fun TracksScreen(
                     }
                 }
 
-                // Mode Selector
                 Surface(
                     modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
                     shape = CircleShape,
@@ -288,6 +306,35 @@ fun TracksScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Tracks") },
+            text = { Text("Are you sure you want to delete ${selectedTracks.size} tracks from your device? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        // Сначала удаляем из очереди плеера и переключаем трек если нужно
+                        playerViewModel.prepareForDeletion(selectedTracks.toList())
+                        // Затем физически удаляем файлы
+                        trackViewModel.deleteTracks(selectedTracks.toList())
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
+        )
     }
 
     if (showTrackInfoForSelection != null) {
@@ -319,7 +366,6 @@ fun Modifier.simpleVerticalScrollbar(
         .pointerInput(state) {
             awaitEachGesture {
                 val down = awaitFirstDown()
-                // Если нажатие в правой части экрана (зона скроллбара ~40dp)
                 if (down.position.x > size.width - 40.dp.toPx()) {
                     verticalDrag(down.id) { change ->
                         change.consume()
@@ -345,7 +391,6 @@ fun Modifier.simpleVerticalScrollbar(
                 val elementCount = state.layoutInfo.totalItemsCount
                 val scrollbarFullHeight = size.height
                 
-                // Не рисуем, если всё помещается на экране
                 if (elementCount <= state.layoutInfo.visibleItemsInfo.size) return@drawWithContent
 
                 val scrollbarHeight = (scrollbarFullHeight / elementCount) * state.layoutInfo.visibleItemsInfo.size

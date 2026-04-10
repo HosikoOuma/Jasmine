@@ -1,6 +1,11 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -28,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +48,7 @@ import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -49,6 +56,7 @@ import java.util.Locale
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel,
+    trackViewModel: TrackViewModel,
     onClose: () -> Unit
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
@@ -68,6 +76,7 @@ fun PlayerScreen(
         ProgressBarStyle.STANDARD
     }
     
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
@@ -75,6 +84,23 @@ fun PlayerScreen(
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreActions by remember { mutableStateOf(false) }
     var showTrackInfo by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // Launcher для удаления (такой же как в TracksScreen)
+    val deleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            trackViewModel.loadTracks()
+            Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        trackViewModel.pendingDeleteIntent.collect { intentSender ->
+            deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+        }
+    }
 
     var isAlbumArtMinimized by remember { mutableStateOf(!isPlaying) }
     
@@ -402,8 +428,60 @@ fun PlayerScreen(
                         leadingContent = { Icon(Icons.Rounded.Timer, null) },
                         modifier = Modifier.clickable { /* TODO */ }
                     )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+                    ListItem(
+                        headlineContent = { 
+                            Text(
+                                "Delete from device", 
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            ) 
+                        },
+                        leadingContent = { 
+                            Icon(
+                                Icons.Rounded.Delete, 
+                                null, 
+                                tint = MaterialTheme.colorScheme.error 
+                            ) 
+                        },
+                        modifier = Modifier.clickable { 
+                            showMoreActions = false
+                            showDeleteDialog = true
+                        }
+                    )
                 }
             }
+        }
+
+        if (showDeleteDialog && currentTrack != null) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Delete Track") },
+                text = { Text("Are you sure you want to delete \"${currentTrack?.title}\" from your device?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteDialog = false
+                            currentTrack?.let { track ->
+                                viewModel.prepareForDeletion(listOf(track))
+                                trackViewModel.deleteTracks(listOf(track))
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+                shape = RoundedCornerShape(28.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
+            )
         }
 
         if (showTrackInfo && currentTrack != null) {

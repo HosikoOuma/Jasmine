@@ -1,6 +1,11 @@
 package com.nkds.hosikoouma.jasmine.viewmodels
 
 import android.app.Application
+import android.app.RecoverableSecurityException
+import android.content.ContentUris
+import android.content.IntentSender
+import android.os.Build
+import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.TrackScanner
@@ -27,7 +32,6 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
-    // Флаг того, что первая загрузка завершена
     private val _isLoaded = MutableStateFlow(false)
     val isLoaded = _isLoaded.asStateFlow()
 
@@ -39,6 +43,10 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isReversed = MutableStateFlow(false)
     val isReversed = _isReversed.asStateFlow()
+
+    // Для обработки удаления на Android 10+
+    private val _pendingDeleteIntent = MutableSharedFlow<IntentSender>()
+    val pendingDeleteIntent = _pendingDeleteIntent.asSharedFlow()
 
     val minDurationLimit = settingsRepository.minTrackDuration
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
@@ -98,7 +106,41 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
             val trackList = trackScanner.scanTracks()
             _tracks.value = trackList
             _isRefreshing.value = false
-            _isLoaded.value = true // Первая загрузка готова
+            _isLoaded.value = true
+        }
+    }
+
+    fun deleteTracks(tracks: List<Track>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val contentResolver = getApplication<Application>().contentResolver
+            val uris = tracks.map { track ->
+                ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
+            }
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val pendingIntent = MediaStore.createDeleteRequest(contentResolver, uris)
+                    _pendingDeleteIntent.emit(pendingIntent.intentSender)
+                } else {
+                    uris.forEach { uri ->
+                        try {
+                            contentResolver.delete(uri, null, null)
+                        } catch (e: SecurityException) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val recoverableSecurityException = e as? RecoverableSecurityException
+                                    ?: throw e
+                                _pendingDeleteIntent.emit(recoverableSecurityException.userAction.actionIntent.intentSender)
+                            } else {
+                                throw e
+                            }
+                        }
+                    }
+                    // После удаления обновляем список
+                    loadTracks()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
