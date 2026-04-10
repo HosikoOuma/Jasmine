@@ -32,9 +32,10 @@ fun LibraryScreen(
     val albums by trackViewModel.albums.collectAsState()
     val artists by trackViewModel.artists.collectAsState()
     val folders by trackViewModel.folders.collectAsState()
+    val playlists by trackViewModel.playlists.collectAsState()
 
     val libraryItems = listOf(
-        LibraryCategory("Playlists", Icons.AutoMirrored.Rounded.PlaylistPlay, 0, Screen.LibraryPlaylists.route),
+        LibraryCategory("Playlists", Icons.AutoMirrored.Rounded.PlaylistPlay, playlists.size, Screen.LibraryPlaylists.route),
         LibraryCategory("Albums", Icons.Rounded.Album, albums.size, Screen.LibraryAlbums.route),
         LibraryCategory("Artists", Icons.Rounded.Person, artists.size, Screen.LibraryArtists.route),
         LibraryCategory("Folders", Icons.Rounded.Folder, folders.size, Screen.LibraryFolders.route)

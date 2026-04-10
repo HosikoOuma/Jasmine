@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.IntentSender
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
@@ -64,7 +65,6 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     val favoriteTrackIds: StateFlow<Set<String>> = favoritesRepository.favoriteTrackIds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    // Вспомогательный поток фильтров
     private val filtersFlow = combine(minDurationLimit, blacklistedFolders) { dur, blacklist ->
         Pair(dur, blacklist)
     }
@@ -204,11 +204,9 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Blacklist operations
     fun addFolderToBlacklist(path: String) = viewModelScope.launch { settingsRepository.addFolderToBlacklist(path) }
     fun removeFolderFromBlacklist(path: String) = viewModelScope.launch { settingsRepository.removeFolderFromBlacklist(path) }
 
-    // Playlist Operations
     fun createPlaylist(name: String) = viewModelScope.launch { playlistRepository.createPlaylist(name) }
     
     fun deletePlaylist(playlistId: Long) = viewModelScope.launch { 
@@ -218,7 +216,18 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
-        playlistRepository.addTrackToPlaylist(playlistId, trackId)
+        val track = _tracks.value.find { it.id == trackId }
+        if (track != null) {
+            playlistRepository.addTrackToPlaylist(playlistId, track)
+        }
+    }
+
+    fun importPlaylists() = viewModelScope.launch {
+        playlistRepository.importM3UPlaylists(_tracks.value)
+    }
+
+    fun importPlaylistFromUri(uri: Uri, name: String) = viewModelScope.launch {
+        playlistRepository.importPlaylistFromUri(uri, name, _tracks.value)
     }
 
     fun getTracksForPlaylist(playlistId: Long): Flow<List<Track>> {
