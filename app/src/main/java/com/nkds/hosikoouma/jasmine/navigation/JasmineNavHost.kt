@@ -1,5 +1,7 @@
 package com.nkds.hosikoouma.jasmine.navigation
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Album
@@ -30,7 +32,19 @@ fun JasmineNavHost(
     NavHost(
         navController = navController,
         startDestination = Screen.Tracks.route,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400))
+        },
+        exitTransition = {
+            slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+        },
+        popEnterTransition = {
+            slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400))
+        },
+        popExitTransition = {
+            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+        }
     ) {
         composable(Screen.Tracks.route) { 
             TracksScreen(
