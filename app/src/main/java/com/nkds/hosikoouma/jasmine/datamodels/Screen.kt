@@ -22,6 +22,9 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     
     // Детальные экраны
     data object AlbumDetail : Screen("album_detail/{albumName}", "Album", Icons.Rounded.LibraryMusic)
+    data object ArtistDetail : Screen("artist_detail/{artistName}", "Artist", Icons.Rounded.LibraryMusic)
+    data object FolderDetail : Screen("folder_detail/{folderPath}", "Folder", Icons.Rounded.LibraryMusic)
+    data object PlaylistDetail : Screen("playlist_detail/{playlistId}", "Playlist", Icons.Rounded.LibraryMusic)
 
     companion object {
         val items get() = listOf(Tracks, Radio, Library, Settings)

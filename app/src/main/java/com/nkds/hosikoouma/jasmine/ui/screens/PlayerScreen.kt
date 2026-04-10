@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
+import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
@@ -85,8 +86,8 @@ fun PlayerScreen(
     var showMoreActions by remember { mutableStateOf(false) }
     var showTrackInfo by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
 
-    // Launcher для удаления (такой же как в TracksScreen)
     val deleteLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -117,12 +118,6 @@ fun PlayerScreen(
     // Back Gesture states
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackingPlayer by remember { mutableStateOf(false) }
-
-    var queueBackProgress by remember { mutableFloatStateOf(0f) }
-    var isBackingQueue by remember { mutableStateOf(false) }
-
-    var lyricsBackProgress by remember { mutableFloatStateOf(0f) }
-    var isBackingLyrics by remember { mutableStateOf(false) }
 
     PredictiveBackHandler(enabled = showQueue) { progressFlow ->
         try {
@@ -306,7 +301,7 @@ fun PlayerScreen(
                         isAlbumArtMinimized = willPause
                     },
                     interactionSource = playPauseInteractionSource,
-                    modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = playPauseScale },
+                    modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = scaleX },
                     shape = RoundedCornerShape(cornerPercent),
                     color = MaterialTheme.colorScheme.primary
                 ) {
@@ -331,31 +326,11 @@ fun PlayerScreen(
         }
 
         AnimatedVisibility(visible = showQueue, enter = slideInHorizontally(initialOffsetX = { -it }), exit = slideOutHorizontally(targetOffsetX = { -it })) {
-            Box(modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    if (isBackingQueue) {
-                        translationY = queueBackProgress * size.height
-                    }
-                }
-                .pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }
-            ) {
-                QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
-            }
+            QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
         }
 
         AnimatedVisibility(visible = showLyrics, enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it })) {
-            Box(modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    if (isBackingLyrics) {
-                        translationY = lyricsBackProgress * size.height
-                    }
-                }
-                .pointerInput(Unit) { detectVerticalDragGestures { _, _ -> } }
-            ) {
-                LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
-            }
+            LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
         }
 
         if (showMoreActions) {
@@ -377,25 +352,20 @@ fun PlayerScreen(
                         modifier = Modifier.padding(16.dp)
                     )
                     
-                    // Volume Control section
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.VolumeDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Slider(
                             value = systemVolume,
                             onValueChange = { viewModel.setSystemVolume(it) },
                             modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant)
                         )
-                        Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -411,7 +381,10 @@ fun PlayerScreen(
                     ListItem(
                         headlineContent = { Text("Add to Playlist") },
                         leadingContent = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
-                        modifier = Modifier.clickable { /* TODO */ }
+                        modifier = Modifier.clickable { 
+                            showMoreActions = false
+                            showAddToPlaylistDialog = true
+                        }
                     )
                     ListItem(
                         headlineContent = { Text("View Artist") },
@@ -432,20 +405,8 @@ fun PlayerScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
                     ListItem(
-                        headlineContent = { 
-                            Text(
-                                "Delete from device", 
-                                color = MaterialTheme.colorScheme.error,
-                                fontWeight = FontWeight.Bold
-                            ) 
-                        },
-                        leadingContent = { 
-                            Icon(
-                                Icons.Rounded.Delete, 
-                                null, 
-                                tint = MaterialTheme.colorScheme.error 
-                            ) 
-                        },
+                        headlineContent = { Text("Delete from device", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
+                        leadingContent = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
                         modifier = Modifier.clickable { 
                             showMoreActions = false
                             showDeleteDialog = true
@@ -453,6 +414,18 @@ fun PlayerScreen(
                     )
                 }
             }
+        }
+
+        if (showAddToPlaylistDialog && currentTrack != null) {
+            AddToPlaylistDialog(
+                onDismissRequest = { showAddToPlaylistDialog = false },
+                onPlaylistSelected = { playlistId ->
+                    trackViewModel.addTrackToPlaylist(playlistId, currentTrack!!.id)
+                    showAddToPlaylistDialog = false
+                    Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
+                },
+                trackViewModel = trackViewModel
+            )
         }
 
         if (showDeleteDialog && currentTrack != null) {
@@ -470,14 +443,10 @@ fun PlayerScreen(
                             }
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Delete")
-                    }
+                    ) { Text("Delete") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
                 },
                 shape = RoundedCornerShape(28.dp),
                 containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
@@ -485,10 +454,7 @@ fun PlayerScreen(
         }
 
         if (showTrackInfo && currentTrack != null) {
-            TrackInfoBottomSheet(
-                track = currentTrack!!,
-                onDismissRequest = { showTrackInfo = false }
-            )
+            TrackInfoBottomSheet(track = currentTrack!!, onDismissRequest = { showTrackInfo = false })
         }
     }
 }

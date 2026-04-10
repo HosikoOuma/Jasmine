@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
@@ -87,6 +89,7 @@ fun TracksScreen(
     var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
 
     val deleteLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -223,6 +226,14 @@ fun TracksScreen(
                                     modifier = Modifier.width(220.dp)
                                 ) {
                                     DropdownMenuItem(
+                                        text = { Text("Add to playlist") },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            showAddToPlaylistDialog = true
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = {
                                             Text(
                                                 "Delete from device",
@@ -308,6 +319,21 @@ fun TracksScreen(
         }
     }
 
+    if (showAddToPlaylistDialog) {
+        AddToPlaylistDialog(
+            onDismissRequest = { showAddToPlaylistDialog = false },
+            onPlaylistSelected = { playlistId ->
+                selectedTracks.forEach { track ->
+                    trackViewModel.addTrackToPlaylist(playlistId, track.id)
+                }
+                selectedTracks = emptySet()
+                showAddToPlaylistDialog = false
+                Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
+            },
+            trackViewModel = trackViewModel
+        )
+    }
+
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -317,9 +343,7 @@ fun TracksScreen(
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
-                        // Сначала удаляем из очереди плеера и переключаем трек если нужно
                         playerViewModel.prepareForDeletion(selectedTracks.toList())
-                        // Затем физически удаляем файлы
                         trackViewModel.deleteTracks(selectedTracks.toList())
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)

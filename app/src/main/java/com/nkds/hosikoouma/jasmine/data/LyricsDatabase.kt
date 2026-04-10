@@ -5,7 +5,7 @@ import androidx.room.*
 
 @Entity(tableName = "lyrics_cache")
 data class LyricsCacheEntity(
-    @PrimaryKey val trackId: String, // Можно использовать title + artist или mediaId
+    @PrimaryKey val trackId: String,
     val plainLyrics: String?,
     val syncedLyrics: String?,
     val timestamp: Long = System.currentTimeMillis()

@@ -9,8 +9,7 @@ import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.TrackScanner
-import com.nkds.hosikoouma.jasmine.data.FavoritesRepository
-import com.nkds.hosikoouma.jasmine.data.SettingsRepository
+import com.nkds.hosikoouma.jasmine.data.*
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -27,12 +26,16 @@ enum class SortType {
 data class Album(val name: String, val artist: String, val tracks: List<Track>)
 data class Artist(val name: String, val tracks: List<Track>)
 data class Folder(val name: String, val path: String, val tracks: List<Track>)
+data class Playlist(val id: Long, val name: String, val tracks: List<Track>)
 
 class TrackViewModel(application: Application) : AndroidViewModel(application) {
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
+    val allTracks = _tracks.asStateFlow()
+    
     private val trackScanner = TrackScanner(application)
     private val favoritesRepository = FavoritesRepository(application)
     private val settingsRepository = SettingsRepository(application)
+    private val playlistRepository = PlaylistRepository(application)
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
@@ -74,35 +77,34 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Группировка по альбомам
     val albums: StateFlow<List<Album>> = _tracks.map { tracks ->
         tracks.groupBy { it.album }
-            .map { (albumName, albumTracks) -> 
-                Album(albumName, albumTracks.first().artist, albumTracks) 
-            }
+            .map { (name, albumTracks) -> Album(name, albumTracks.first().artist, albumTracks) }
             .sortedBy { it.name.lowercase() }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Группировка по артистам
     val artists: StateFlow<List<Artist>> = _tracks.map { tracks ->
         tracks.groupBy { it.artist }
             .map { Artist(it.key, it.value) }
             .sortedBy { it.name.lowercase() }
-    }.stateAsFlow(viewModelScope, emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Группировка по папкам
     val folders: StateFlow<List<Folder>> = _tracks.map { tracks ->
         tracks.groupBy { 
             val file = File(it.path)
             file.parent ?: "Unknown"
-        }.map { 
-            Folder(it.key.substringAfterLast("/"), it.key, it.value) 
-        }.sortedBy { it.name.lowercase() }
+        }.map { Folder(it.key.substringAfterLast("/"), it.key, it.value) }
+            .sortedBy { it.name.lowercase() }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private fun <T> Flow<T>.stateAsFlow(scope: kotlinx.coroutines.CoroutineScope, initialValue: T): StateFlow<T> {
-        return this.stateIn(scope, SharingStarted.Lazily, initialValue)
-    }
+    val playlists: StateFlow<List<Playlist>> = combine(
+        playlistRepository.allPlaylists,
+        _tracks
+    ) { playlistEntities, tracks ->
+        playlistEntities.map { entity ->
+            Playlist(entity.id, entity.name, emptyList()) 
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
         loadTracks()
@@ -112,11 +114,7 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadSortSettings() {
         viewModelScope.launch {
             val defaultSort = settingsRepository.defaultSortType.first()
-            _sortType.value = try {
-                SortType.valueOf(defaultSort)
-            } catch (e: Exception) {
-                SortType.BY_DATE
-            }
+            _sortType.value = try { SortType.valueOf(defaultSort) } catch (e: Exception) { SortType.BY_DATE }
             _isReversed.value = settingsRepository.isDefaultSortReversed.first()
         }
     }
@@ -144,22 +142,6 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteTracks(tracks: List<Track>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val contentResolver = getApplication<Application>().contentResolver
-            val uris = tracks.map { track ->
-                ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
-            }
-
-            try {
-                val pendingIntent = MediaStore.createDeleteRequest(contentResolver, uris)
-                _pendingDeleteIntent.emit(pendingIntent.intentSender)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
     fun toggleFavorite(track: Track) {
         viewModelScope.launch {
             favoritesRepository.toggleFavorite(track.id.toString())
@@ -182,6 +164,36 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsRepository.setDefaultSortType(type.name)
             settingsRepository.setDefaultSortReversed(reversed)
+        }
+    }
+
+    // Playlist Operations
+    fun createPlaylist(name: String) = viewModelScope.launch { playlistRepository.createPlaylist(name) }
+    
+    fun deletePlaylist(playlistId: Long) = viewModelScope.launch { 
+        val currentPlaylists = playlistRepository.allPlaylists.first()
+        val entity = currentPlaylists.find { it.id == playlistId }
+        entity?.let { playlistRepository.deletePlaylist(it) }
+    }
+    
+    fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
+        playlistRepository.addTrackToPlaylist(playlistId, trackId)
+    }
+
+    fun getTracksForPlaylist(playlistId: Long): Flow<List<Track>> {
+        return combine(playlistRepository.getTrackIdsForPlaylist(playlistId), _tracks) { ids, tracks ->
+            ids.mapNotNull { id -> tracks.find { it.id == id } }
+        }
+    }
+
+    fun deleteTracks(tracks: List<Track>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val contentResolver = getApplication<Application>().contentResolver
+            val uris = tracks.map { ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, it.id) }
+            try {
+                val pendingIntent = MediaStore.createDeleteRequest(contentResolver, uris)
+                _pendingDeleteIntent.emit(pendingIntent.intentSender)
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 }

@@ -49,9 +49,15 @@ fun JasmineNavHost(
         composable(Screen.LibraryAlbums.route) { 
             AlbumListScreen(navController = navController, trackViewModel = trackViewModel) 
         }
-        composable(Screen.LibraryArtists.route) { PlaceholderScreen(Icons.Rounded.Person) }
-        composable(Screen.LibraryFolders.route) { PlaceholderScreen(Icons.Rounded.Folder) }
-        composable(Screen.LibraryPlaylists.route) { PlaceholderScreen(Icons.AutoMirrored.Rounded.PlaylistPlay) }
+        composable(Screen.LibraryArtists.route) { 
+            ArtistListScreen(navController = navController, trackViewModel = trackViewModel) 
+        }
+        composable(Screen.LibraryFolders.route) { 
+            FolderListScreen(navController = navController, trackViewModel = trackViewModel) 
+        }
+        composable(Screen.LibraryPlaylists.route) { 
+            PlaylistListScreen(navController = navController, trackViewModel = trackViewModel) 
+        }
 
         // Детальные экраны
         composable(
@@ -62,6 +68,50 @@ fun JasmineNavHost(
             val albumName = URLDecoder.decode(encodedName, StandardCharsets.UTF_8.toString())
             AlbumDetailScreen(
                 albumName = albumName,
+                navController = navController,
+                trackViewModel = trackViewModel,
+                playerViewModel = playerViewModel,
+                onNavigateToPlayer = onNavigateToPlayer
+            )
+        }
+
+        composable(
+            route = Screen.ArtistDetail.route,
+            arguments = listOf(navArgument("artistName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedName = backStackEntry.arguments?.getString("artistName") ?: ""
+            val artistName = URLDecoder.decode(encodedName, StandardCharsets.UTF_8.toString())
+            ArtistDetailScreen(
+                artistName = artistName,
+                navController = navController,
+                trackViewModel = trackViewModel,
+                playerViewModel = playerViewModel,
+                onNavigateToPlayer = onNavigateToPlayer
+            )
+        }
+
+        composable(
+            route = Screen.FolderDetail.route,
+            arguments = listOf(navArgument("folderPath") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedPath = backStackEntry.arguments?.getString("folderPath") ?: ""
+            val folderPath = URLDecoder.decode(encodedPath, StandardCharsets.UTF_8.toString())
+            FolderDetailScreen(
+                folderPath = folderPath,
+                navController = navController,
+                trackViewModel = trackViewModel,
+                playerViewModel = playerViewModel,
+                onNavigateToPlayer = onNavigateToPlayer
+            )
+        }
+
+        composable(
+            route = Screen.PlaylistDetail.route,
+            arguments = listOf(navArgument("playlistId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: 0L
+            PlaylistDetailScreen(
+                playlistId = playlistId,
                 navController = navController,
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,

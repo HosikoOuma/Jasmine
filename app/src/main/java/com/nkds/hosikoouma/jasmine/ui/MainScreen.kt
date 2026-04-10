@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Search
@@ -55,16 +56,25 @@ fun MainScreen(
     var isSearching by remember { mutableStateOf(false) }
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Определяем динамический заголовок
     val dynamicTitle = remember(currentRoute, navBackStackEntry) {
         when {
             currentRoute?.startsWith("album_detail") == true -> {
                 val encoded = navBackStackEntry?.arguments?.getString("albumName") ?: "Album"
                 URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+            }
+            currentRoute?.startsWith("artist_detail") == true -> {
+                val encoded = navBackStackEntry?.arguments?.getString("artistName") ?: "Artist"
+                URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+            }
+            currentRoute?.startsWith("folder_detail") == true -> {
+                val encoded = navBackStackEntry?.arguments?.getString("folderPath") ?: "Folder"
+                val path = URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+                path.substringAfterLast("/")
             }
             currentRoute == Screen.LibraryAlbums.route -> "Albums"
             currentRoute == Screen.LibraryArtists.route -> "Artists"
@@ -77,12 +87,10 @@ fun MainScreen(
         }
     }
 
-    // Проверяем, является ли текущий экран основным (из Bottom Bar)
     val isMainDestination = remember(currentRoute) {
         Screen.items.any { it.route == currentRoute }
     }
 
-    // Можем ли мы вернуться назад? (только если это не главный экран)
     val canPop = remember(navBackStackEntry, isMainDestination) {
         navController.previousBackStackEntry != null && !isMainDestination
     }
@@ -213,33 +221,50 @@ fun MainScreen(
                     },
                     scrollBehavior = scrollBehavior
                 )
+            },
+            floatingActionButton = {
+                // Кнопка создания плейлиста теперь здесь, чтобы быть поверх градиента
+                if (currentRoute == Screen.LibraryPlaylists.route) {
+                    LargeFloatingActionButton(
+                        onClick = { showCreatePlaylistDialog = true },
+                        modifier = Modifier.padding(bottom = 140.dp), // Отступ для баров
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ) {
+                        Icon(Icons.Rounded.Add, "Create Playlist")
+                    }
+                }
             }
         ) { innerPadding ->
-            JasmineNavHost(
-                navController = navController,
-                trackViewModel = trackViewModel,
-                playerViewModel = playerViewModel,
-                onNavigateToPlayer = { isPlayerExpanded = true },
-                modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
-            )
+            Box(Modifier.fillMaxSize()) {
+                JasmineNavHost(
+                    navController = navController,
+                    trackViewModel = trackViewModel,
+                    playerViewModel = playerViewModel,
+                    onNavigateToPlayer = { isPlayerExpanded = true },
+                    modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
+                )
+                
+                // ГРАДИЕНТ перенесен сюда, чтобы FAB (находящийся в Scaffold) был выше него
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        )
+                )
+            }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(240.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                            MaterialTheme.colorScheme.surface
-                        )
-                    )
-                )
-        )
-
+        // БАРЫ
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -270,5 +295,34 @@ fun MainScreen(
                 onClose = { isPlayerExpanded = false }
             )
         }
+    }
+
+    if (showCreatePlaylistDialog) {
+        var playlistName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylistDialog = false },
+            title = { Text("New Playlist") },
+            text = {
+                TextField(
+                    value = playlistName,
+                    onValueChange = { playlistName = it },
+                    placeholder = { Text("Playlist name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (playlistName.isNotBlank()) {
+                            trackViewModel.createPlaylist(playlistName)
+                            showCreatePlaylistDialog = false
+                        }
+                    }
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlaylistDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
