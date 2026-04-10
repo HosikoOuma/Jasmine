@@ -29,13 +29,14 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.navigation.JasmineNavHost
-import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
+import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineBottomBar
 import com.nkds.hosikoouma.jasmine.ui.components.MiniPlayer
 import com.nkds.hosikoouma.jasmine.ui.screens.PlayerScreen
@@ -368,19 +369,35 @@ fun MainScreen(
                         val track = allTracks[index]
                         val isAlreadyInPlaylist = playlistTracks.any { it.id == track.id }
                         ListItem(
+                            leadingContent = {
+                                AlbumArt(
+                                    albumArtUri = track.albumArtUri,
+                                    modifier = Modifier.size(48.dp),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                            },
                             headlineContent = { 
                                 Text(
                                     track.title, 
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isAlreadyInPlaylist) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    color = if (isAlreadyInPlaylist) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 ) 
                             },
-                            supportingContent = { Text(track.artist) },
+                            supportingContent = { 
+                                Text(
+                                    track.artist,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                ) 
+                            },
                             trailingContent = {
                                 if (isAlreadyInPlaylist) {
                                     Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                                 }
                             },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             modifier = Modifier.clickable {
                                 trackViewModel.addTrackToPlaylist(playlistId, track.id)
                             }
