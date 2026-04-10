@@ -15,6 +15,7 @@ import com.nkds.hosikoouma.jasmine.datamodels.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
 
 enum class SortType {
     BY_NAME,
@@ -22,6 +23,10 @@ enum class SortType {
     BY_DATE,
     BY_DURATION
 }
+
+data class Album(val name: String, val artist: String, val tracks: List<Track>)
+data class Artist(val name: String, val tracks: List<Track>)
+data class Folder(val name: String, val path: String, val tracks: List<Track>)
 
 class TrackViewModel(application: Application) : AndroidViewModel(application) {
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
@@ -44,7 +49,6 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     private val _isReversed = MutableStateFlow(false)
     val isReversed = _isReversed.asStateFlow()
 
-    // Для обработки удаления на Android 10+
     private val _pendingDeleteIntent = MutableSharedFlow<IntentSender>()
     val pendingDeleteIntent = _pendingDeleteIntent.asSharedFlow()
 
@@ -69,6 +73,36 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
             it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true) 
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Группировка по альбомам
+    val albums: StateFlow<List<Album>> = _tracks.map { tracks ->
+        tracks.groupBy { it.album }
+            .map { (albumName, albumTracks) -> 
+                Album(albumName, albumTracks.first().artist, albumTracks) 
+            }
+            .sortedBy { it.name.lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Группировка по артистам
+    val artists: StateFlow<List<Artist>> = _tracks.map { tracks ->
+        tracks.groupBy { it.artist }
+            .map { Artist(it.key, it.value) }
+            .sortedBy { it.name.lowercase() }
+    }.stateAsFlow(viewModelScope, emptyList())
+
+    // Группировка по папкам
+    val folders: StateFlow<List<Folder>> = _tracks.map { tracks ->
+        tracks.groupBy { 
+            val file = File(it.path)
+            file.parent ?: "Unknown"
+        }.map { 
+            Folder(it.key.substringAfterLast("/"), it.key, it.value) 
+        }.sortedBy { it.name.lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    private fun <T> Flow<T>.stateAsFlow(scope: kotlinx.coroutines.CoroutineScope, initialValue: T): StateFlow<T> {
+        return this.stateIn(scope, SharingStarted.Lazily, initialValue)
+    }
 
     init {
         loadTracks()
@@ -118,26 +152,8 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val pendingIntent = MediaStore.createDeleteRequest(contentResolver, uris)
-                    _pendingDeleteIntent.emit(pendingIntent.intentSender)
-                } else {
-                    uris.forEach { uri ->
-                        try {
-                            contentResolver.delete(uri, null, null)
-                        } catch (e: SecurityException) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                val recoverableSecurityException = e as? RecoverableSecurityException
-                                    ?: throw e
-                                _pendingDeleteIntent.emit(recoverableSecurityException.userAction.actionIntent.intentSender)
-                            } else {
-                                throw e
-                            }
-                        }
-                    }
-                    // После удаления обновляем список
-                    loadTracks()
-                }
+                val pendingIntent = MediaStore.createDeleteRequest(contentResolver, uris)
+                _pendingDeleteIntent.emit(pendingIntent.intentSender)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

@@ -20,6 +20,7 @@ class TrackScanner(private val context: Context) {
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DATA
@@ -42,6 +43,7 @@ class TrackScanner(private val context: Context) {
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
                 val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
                 val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
                 val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
@@ -50,6 +52,7 @@ class TrackScanner(private val context: Context) {
                     val id = cursor.getLong(idColumn)
                     val title = cursor.getString(titleColumn) ?: "Unknown Title"
                     val artist = cursor.getString(artistColumn) ?: "Unknown Artist"
+                    val album = cursor.getString(albumColumn) ?: "Unknown Album"
                     val duration = cursor.getLong(durationColumn)
                     val albumId = cursor.getLong(albumIdColumn)
                     val path = cursor.getString(dataColumn) ?: ""
@@ -64,7 +67,7 @@ class TrackScanner(private val context: Context) {
                         albumId
                     )
 
-                    tracks.add(Track(id, title, artist, duration, contentUri, albumArtUri, path))
+                    tracks.add(Track(id, title, artist, album, duration, contentUri, albumArtUri, path))
                 }
             }
         } catch (e: Exception) {

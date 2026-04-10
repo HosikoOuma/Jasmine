@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FilterList
@@ -35,6 +36,8 @@ import com.nkds.hosikoouma.jasmine.ui.screens.PlayerScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SortType
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,16 +56,43 @@ fun MainScreen(
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isSearching) {
-        if (isSearching) {
-            focusRequester.requestFocus()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    // Определяем динамический заголовок
+    val dynamicTitle = remember(currentRoute, navBackStackEntry) {
+        when {
+            currentRoute?.startsWith("album_detail") == true -> {
+                val encoded = navBackStackEntry?.arguments?.getString("albumName") ?: "Album"
+                URLDecoder.decode(encoded, StandardCharsets.UTF_8.toString())
+            }
+            currentRoute == Screen.LibraryAlbums.route -> "Albums"
+            currentRoute == Screen.LibraryArtists.route -> "Artists"
+            currentRoute == Screen.LibraryFolders.route -> "Folders"
+            currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
+            else -> {
+                val currentScreen = Screen.items.find { it.route == currentRoute }
+                currentScreen?.title ?: "Jasmine"
+            }
         }
     }
 
+    // Проверяем, является ли текущий экран основным (из Bottom Bar)
+    val isMainDestination = remember(currentRoute) {
+        Screen.items.any { it.route == currentRoute }
+    }
+
+    // Можем ли мы вернуться назад? (только если это не главный экран)
+    val canPop = remember(navBackStackEntry, isMainDestination) {
+        navController.previousBackStackEntry != null && !isMainDestination
+    }
+
+    LaunchedEffect(isSearching) {
+        if (isSearching) focusRequester.requestFocus()
+    }
+
     LaunchedEffect(isPlayerExpanded) {
-        if (isPlayerExpanded) {
-            keyboardController?.hide()
-        }
+        if (isPlayerExpanded) keyboardController?.hide()
     }
 
     LaunchedEffect(Unit) {
@@ -74,21 +104,19 @@ fun MainScreen(
         }
     }
 
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-    val currentRoute = currentDestination?.route
     val isTracksScreen = currentRoute == Screen.Tracks.route
-
     val isCollapsed by remember {
         derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f }
     }
 
-    BackHandler(enabled = isPlayerExpanded || isSearching) {
+    BackHandler(enabled = isPlayerExpanded || isSearching || canPop) {
         if (isPlayerExpanded) {
             isPlayerExpanded = false
         } else if (isSearching) {
             isSearching = false
             trackViewModel.setSearchQuery("")
+        } else if (canPop) {
+            navController.popBackStack()
         }
     }
 
@@ -118,8 +146,14 @@ fun MainScreen(
                                 singleLine = true
                             )
                         } else {
-                            val currentScreen = Screen.items.find { it.route == currentRoute }
-                            Text(currentScreen?.title ?: "Jasmine")
+                            Text(dynamicTitle)
+                        }
+                    },
+                    navigationIcon = {
+                        if (canPop && !isSearching) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                            }
                         }
                     },
                     actions = {
@@ -144,7 +178,7 @@ fun MainScreen(
                                         IconButton(onClick = { showSortMenu = true }) {
                                             Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = "Sort")
                                         }
-                                        label@ DropdownMenu(
+                                        DropdownMenu(
                                             expanded = showSortMenu,
                                             onDismissRequest = { showSortMenu = false }
                                         ) {
