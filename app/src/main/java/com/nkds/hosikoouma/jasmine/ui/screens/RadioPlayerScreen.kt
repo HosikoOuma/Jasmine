@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
+import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import kotlinx.coroutines.launch
@@ -39,12 +40,13 @@ import kotlinx.coroutines.launch
 @Composable
 fun RadioPlayerScreen(
     station: RadioStation,
-    isPlaying: Boolean,
-    onTogglePlay: () -> Unit,
-    onSkipNext: () -> Unit,
-    onSkipPrevious: () -> Unit,
+    playerViewModel: PlayerViewModel,
     onClose: () -> Unit
 ) {
+    val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val radioTrackTitle by playerViewModel.radioTrackTitle.collectAsState()
+    val radioTrackArtist by playerViewModel.radioTrackArtist.collectAsState()
+    
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val settingsViewModel: SettingsViewModel = viewModel()
@@ -129,7 +131,7 @@ fun RadioPlayerScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // LIVE Indicator (на месте From Queue)
+            // LIVE Indicator
             Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
@@ -187,13 +189,13 @@ fun RadioPlayerScreen(
 
             Spacer(modifier = Modifier.weight(0.3f))
 
-            // Текстовая информация
+            // Текстовая информация (ДИНАМИЧЕСКАЯ)
             Column(
                 modifier = Modifier.fillMaxWidth().height(72.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = station.name,
+                    text = radioTrackTitle ?: station.name,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -203,17 +205,18 @@ fun RadioPlayerScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Radio Stream",
+                    text = radioTrackArtist ?: "Radio Stream",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    maxLines = 1
+                    maxLines = 1,
+                    modifier = Modifier.basicMarquee()
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Прогресс-бар (LIVE - зафиксирован в конце)
+            // Прогресс-бар
             Column(modifier = Modifier.fillMaxWidth().height(84.dp)) {
                 if (progressStyle == ProgressBarStyle.STANDARD) {
                     Slider(
@@ -247,7 +250,7 @@ fun RadioPlayerScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Кнопки управления (равномерно распределены по центру)
+            // Кнопки управления (Назад -> Вперед -> Пауза)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -258,7 +261,16 @@ fun RadioPlayerScreen(
                     size = 44.dp,
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSkipPrevious()
+                        playerViewModel.skipToPrevious()
+                    }
+                )
+
+                RadioAnimatedControlIcon(
+                    icon = Icons.Rounded.SkipNext,
+                    size = 44.dp,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        playerViewModel.skipToNext()
                     }
                 )
 
@@ -275,19 +287,10 @@ fun RadioPlayerScreen(
                     label = "cornerAnimation"
                 )
 
-                RadioAnimatedControlIcon(
-                    icon = Icons.Rounded.SkipNext,
-                    size = 44.dp,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSkipNext()
-                    }
-                )
-
                 Surface(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onTogglePlay()
+                        playerViewModel.togglePlayPause()
                         if (isPlaying) isArtMinimized = true
                     },
                     interactionSource = playPauseInteractionSource,

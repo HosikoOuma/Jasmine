@@ -63,13 +63,14 @@ fun JasmineNavHost(
                 onToggleTrackSelection = onToggleTrackSelection
             ) 
         }
-        composable(Screen.Radio.route) { 
+        composable(Screen.Radio.route) {
+            val stations by radioViewModel.stations.collectAsState()
             RadioScreen(
                 viewModel = radioViewModel,
                 showAddDialog = showAddRadioDialog,
                 onDismissDialog = onDismissRadioDialog,
                 onStationClick = { station ->
-                    playerViewModel.playRadio(station)
+                    playerViewModel.playRadio(station,stations)
                     onNavigateToRadioPlayer()
                 }
             ) 

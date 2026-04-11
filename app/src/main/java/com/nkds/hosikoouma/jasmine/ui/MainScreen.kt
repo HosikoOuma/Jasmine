@@ -163,11 +163,18 @@ fun MainScreen(
         if (isPlayerExpanded || isRadioPlayerExpanded) keyboardController?.hide()
     }
 
+    val isRadioMode by playerViewModel.isRadioMode.collectAsState()
+
     LaunchedEffect(Unit) {
         val activity = context as? Activity
         val intent = activity?.intent
         if (intent?.getBooleanExtra("OPEN_PLAYER", false) == true) {
-            isPlayerExpanded = true
+            // Проверяем режим радио при открытии из уведомления
+            if (playerViewModel.isRadioMode.value) {
+                isRadioPlayerExpanded = true
+            } else {
+                isPlayerExpanded = true
+            }
             intent.removeExtra("OPEN_PLAYER")
         }
     }
@@ -186,8 +193,6 @@ fun MainScreen(
     val isCollapsed by remember {
         derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f }
     }
-
-    val isRadioMode by playerViewModel.isRadioMode.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -470,15 +475,11 @@ fun MainScreen(
             exit = ExitTransition.None
         ) {
             val currentStation by playerViewModel.currentRadioStation.collectAsState()
-            val isPlaying by playerViewModel.isPlaying.collectAsState()
             
             currentStation?.let { station ->
                 RadioPlayerScreen(
                     station = station,
-                    isPlaying = isPlaying,
-                    onTogglePlay = { playerViewModel.togglePlayPause() },
-                    onSkipNext = { playerViewModel.skipToNext() },
-                    onSkipPrevious = { playerViewModel.skipToPrevious() },
+                    playerViewModel = playerViewModel,
                     onClose = { isRadioPlayerExpanded = false }
                 )
             }
@@ -633,6 +634,13 @@ fun MainScreen(
                 }
             },
             trackViewModel = trackViewModel
+        )
+    }
+
+    if (showTrackInfoForSelection != null) {
+        TrackInfoBottomSheet(
+            track = showTrackInfoForSelection!!,
+            onDismissRequest = { showTrackInfoForSelection = null }
         )
     }
 }
