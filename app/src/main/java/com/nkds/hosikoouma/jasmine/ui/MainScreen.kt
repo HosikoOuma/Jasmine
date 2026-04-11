@@ -46,6 +46,7 @@ import com.nkds.hosikoouma.jasmine.ui.components.JasmineBottomBar
 import com.nkds.hosikoouma.jasmine.ui.components.MiniPlayer
 import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.ui.screens.PlayerScreen
+import com.nkds.hosikoouma.jasmine.ui.screens.RadioPlayerScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SortType
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
@@ -67,12 +68,14 @@ fun MainScreen(
     val focusRequester = remember { FocusRequester() }
     
     var isPlayerExpanded by rememberSaveable { mutableStateOf(false) }
+    var isRadioPlayerExpanded by rememberSaveable { mutableStateOf(false) }
     var isSearching by remember { mutableStateOf(false) }
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showTrackPickerDialog by remember { mutableStateOf(false) }
     var showDeletePlaylistDialog by remember { mutableStateOf(false) }
+    var showAddRadioDialog by remember { mutableStateOf(false) }
 
     // Общее состояние выделения треков
     var selectedTracks by remember { mutableStateOf(setOf<Track>()) }
@@ -156,8 +159,8 @@ fun MainScreen(
         if (isSearching) focusRequester.requestFocus()
     }
 
-    LaunchedEffect(isPlayerExpanded) {
-        if (isPlayerExpanded) keyboardController?.hide()
+    LaunchedEffect(isPlayerExpanded, isRadioPlayerExpanded) {
+        if (isPlayerExpanded || isRadioPlayerExpanded) keyboardController?.hide()
     }
 
     LaunchedEffect(Unit) {
@@ -170,6 +173,7 @@ fun MainScreen(
     }
 
     val isTracksScreen = currentRoute == Screen.Tracks.route
+    val isRadioScreen = currentRoute == Screen.Radio.route
     val shouldShowSort = remember(currentRoute) {
         currentRoute == Screen.Tracks.route ||
         currentRoute == Screen.LibraryAlbums.route ||
@@ -182,6 +186,8 @@ fun MainScreen(
     val isCollapsed by remember {
         derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f }
     }
+
+    val isRadioMode by playerViewModel.isRadioMode.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -363,6 +369,15 @@ fun MainScreen(
                         ) {
                             Icon(Icons.Rounded.Add, "Add tracks")
                         }
+                    } else if (isRadioScreen) {
+                        FloatingActionButton(
+                            onClick = { showAddRadioDialog = true },
+                            modifier = Modifier.padding(bottom = 140.dp),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(Icons.Rounded.Add, "Add station")
+                        }
                     }
                 }
             }
@@ -373,17 +388,21 @@ fun MainScreen(
                     trackViewModel = trackViewModel,
                     playerViewModel = playerViewModel,
                     onNavigateToPlayer = { isPlayerExpanded = true },
+                    onNavigateToRadioPlayer = { isRadioPlayerExpanded = true },
                     selectedTracks = selectedTracks,
                     onToggleTrackSelection = { track ->
                         selectedTracks = if (selectedTracks.contains(track)) selectedTracks - track else selectedTracks + track
                     },
                     onAddTracksToPlaylist = { showTrackPickerDialog = true },
+                    showAddRadioDialog = showAddRadioDialog,
+                    onDismissRadioDialog = { showAddRadioDialog = false },
                     modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
                 )
                 
-                // ПОМЕЩАЕМ BACKHANDLER ЗДЕСЬ (ПОСЛЕ NAVHOST ДЛЯ ПРИОРИТЕТА)
-                BackHandler(enabled = isInSelectionMode || isPlayerExpanded || isSearching || canPop) {
+                BackHandler(enabled = isInSelectionMode || isPlayerExpanded || isRadioPlayerExpanded || isSearching || canPop || showAddRadioDialog) {
                     when {
+                        showAddRadioDialog -> showAddRadioDialog = false
+                        isRadioPlayerExpanded -> isRadioPlayerExpanded = false
                         isInSelectionMode -> selectedTracks = emptySet()
                         isPlayerExpanded -> isPlayerExpanded = false
                         isSearching -> {
@@ -424,7 +443,9 @@ fun MainScreen(
             ) {
                 MiniPlayer(
                     viewModel = playerViewModel,
-                    onClick = { isPlayerExpanded = true },
+                    onClick = { 
+                        if (isRadioMode) isRadioPlayerExpanded = true else isPlayerExpanded = true 
+                    },
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 JasmineBottomBar(navController = navController)
@@ -441,6 +462,26 @@ fun MainScreen(
                 trackViewModel = trackViewModel,
                 onClose = { isPlayerExpanded = false }
             )
+        }
+
+        AnimatedVisibility(
+            visible = isRadioPlayerExpanded,
+            enter = fadeIn(animationSpec = tween(300)),
+            exit = ExitTransition.None
+        ) {
+            val currentStation by playerViewModel.currentRadioStation.collectAsState()
+            val isPlaying by playerViewModel.isPlaying.collectAsState()
+            
+            currentStation?.let { station ->
+                RadioPlayerScreen(
+                    station = station,
+                    isPlaying = isPlaying,
+                    onTogglePlay = { playerViewModel.togglePlayPause() },
+                    onSkipNext = { playerViewModel.skipToNext() },
+                    onSkipPrevious = { playerViewModel.skipToPrevious() },
+                    onClose = { isRadioPlayerExpanded = false }
+                )
+            }
         }
     }
 
@@ -581,24 +622,17 @@ fun MainScreen(
     }
 
     if (showAddToPlaylistDialog) {
+        val currentTrack by playerViewModel.currentTrack.collectAsState()
         AddToPlaylistDialog(
             onDismissRequest = { showAddToPlaylistDialog = false },
             onPlaylistSelected = { pid ->
-                selectedTracks.forEach { track ->
+                currentTrack?.let { track ->
                     trackViewModel.addTrackToPlaylist(pid, track.id)
+                    showAddToPlaylistDialog = false
+                    Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
                 }
-                selectedTracks = emptySet()
-                showAddToPlaylistDialog = false
-                Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
             },
             trackViewModel = trackViewModel
-        )
-    }
-
-    if (showTrackInfoForSelection != null) {
-        TrackInfoBottomSheet(
-            track = showTrackInfoForSelection!!,
-            onDismissRequest = { showTrackInfoForSelection = null }
         )
     }
 }

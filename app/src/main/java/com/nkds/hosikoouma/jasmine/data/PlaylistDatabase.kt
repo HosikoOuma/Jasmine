@@ -4,12 +4,13 @@ import android.content.Context
 import androidx.room.*
 
 @Database(
-    entities = [PlaylistEntity::class, PlaylistTrackEntity::class],
-    version = 1,
+    entities = [PlaylistEntity::class, PlaylistTrackEntity::class, RadioStation::class],
+    version = 2,
     exportSchema = false
 )
 abstract class PlaylistDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
+    abstract fun radioDao(): RadioDao
 
     companion object {
         @Volatile
@@ -21,7 +22,9 @@ abstract class PlaylistDatabase : RoomDatabase() {
                     context.applicationContext,
                     PlaylistDatabase::class.java,
                     "playlist_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

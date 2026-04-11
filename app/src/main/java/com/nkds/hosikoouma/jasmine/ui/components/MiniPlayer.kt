@@ -16,17 +16,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat.getSystemService
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import kotlinx.coroutines.launch
 
@@ -37,19 +38,23 @@ fun MiniPlayer(
     modifier: Modifier = Modifier
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
+    val currentStation by viewModel.currentRadioStation.collectAsState()
+    val isRadioMode by viewModel.isRadioMode.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val progress by viewModel.progress.collectAsState()
     val duration by viewModel.duration.collectAsState()
 
-    if (currentTrack == null) return
+    // Если ничего не играет - не показываем
+    if (currentTrack == null && currentStation == null) return
 
     val context = LocalContext.current
     val vibrator = remember { context.getSystemService(Vibrator::class.java) }
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
 
+    // Прогресс (только для треков)
     val progressFactor by animateFloatAsState(
-        targetValue = if (duration > 0) progress.toFloat() / duration.toFloat() else 0f,
+        targetValue = if (!isRadioMode && duration > 0) progress.toFloat() / duration.toFloat() else 0f,
         label = "progress"
     )
 
@@ -80,6 +85,7 @@ fun MiniPlayer(
             .height(64.dp)
             .fillMaxWidth()
             .draggable(
+                enabled = !isRadioMode, // Свайпы только для треков
                 orientation = Orientation.Horizontal,
                 state = rememberDraggableState { delta ->
                     scope.launch {
@@ -115,12 +121,30 @@ fun MiniPlayer(
         tonalElevation = 8.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(progressFactor)
-                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-            )
+            if (!isRadioMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(progressFactor)
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                )
+            } else if (isPlaying) {
+                // Пульсирующий фон для радио
+                val alpha by infiniteTransition.animateFloat(
+                    initialValue = 0.1f,
+                    targetValue = 0.3f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1500, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "radioPulse"
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha))
+                )
+            }
 
             Row(
                 modifier = Modifier
@@ -128,11 +152,27 @@ fun MiniPlayer(
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AlbumArt(
-                    albumArtUri = currentTrack?.albumArtUri,
-                    modifier = Modifier.size(48.dp),
-                    shape = RoundedCornerShape(8.dp)
-                )
+                if (isRadioMode) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.Radio,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                } else {
+                    AlbumArt(
+                        albumArtUri = currentTrack?.albumArtUri,
+                        modifier = Modifier.size(48.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -140,20 +180,38 @@ fun MiniPlayer(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = currentTrack?.title ?: "",
+                        text = if (isRadioMode) currentStation?.name ?: "" else currentTrack?.title ?: "",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = currentTrack?.artist ?: "",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isRadioMode) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    "LIVE",
+                                    modifier = Modifier.padding(horizontal = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Text(
+                            text = if (isRadioMode) "Radio Station" else currentTrack?.artist ?: "",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 IconButton(

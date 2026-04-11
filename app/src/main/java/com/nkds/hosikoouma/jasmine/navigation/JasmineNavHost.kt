@@ -2,13 +2,11 @@ package com.nkds.hosikoouma.jasmine.navigation
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -18,6 +16,7 @@ import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.screens.*
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -28,11 +27,16 @@ fun JasmineNavHost(
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     onNavigateToPlayer: () -> Unit,
+    onNavigateToRadioPlayer: () -> Unit,
     selectedTracks: Set<Track>,
     onToggleTrackSelection: (Track) -> Unit,
     onAddTracksToPlaylist: () -> Unit,
+    showAddRadioDialog: Boolean,
+    onDismissRadioDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val radioViewModel: RadioViewModel = viewModel()
+
     NavHost(
         navController = navController,
         startDestination = Screen.Tracks.route,
@@ -59,7 +63,17 @@ fun JasmineNavHost(
                 onToggleTrackSelection = onToggleTrackSelection
             ) 
         }
-        composable(Screen.Radio.route) { PlaceholderScreen(Screen.Radio.icon) }
+        composable(Screen.Radio.route) { 
+            RadioScreen(
+                viewModel = radioViewModel,
+                showAddDialog = showAddRadioDialog,
+                onDismissDialog = onDismissRadioDialog,
+                onStationClick = { station ->
+                    playerViewModel.playRadio(station)
+                    onNavigateToRadioPlayer()
+                }
+            ) 
+        }
         composable(Screen.Library.route) { 
             LibraryScreen(navController = navController, trackViewModel = trackViewModel) 
         }
