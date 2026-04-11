@@ -43,6 +43,10 @@ fun MiniPlayer(
     val isPlaying by viewModel.isPlaying.collectAsState()
     val progress by viewModel.progress.collectAsState()
     val duration by viewModel.duration.collectAsState()
+    
+    // Динамические метаданные радио
+    val radioTrackTitle by viewModel.radioTrackTitle.collectAsState()
+    val radioTrackArtist by viewModel.radioTrackArtist.collectAsState()
 
     // Если ничего не играет - не показываем
     if (currentTrack == null && currentStation == null) return
@@ -180,7 +184,11 @@ fun MiniPlayer(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = if (isRadioMode) currentStation?.name ?: "" else currentTrack?.title ?: "",
+                        text = if (isRadioMode) {
+                            radioTrackTitle ?: currentStation?.name ?: ""
+                        } else {
+                            currentTrack?.title ?: ""
+                        },
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
@@ -205,7 +213,11 @@ fun MiniPlayer(
                             Spacer(modifier = Modifier.width(4.dp))
                         }
                         Text(
-                            text = if (isRadioMode) "Radio Station" else currentTrack?.artist ?: "",
+                            text = if (isRadioMode) {
+                                radioTrackArtist ?: "Radio Stream"
+                            } else {
+                                currentTrack?.artist ?: ""
+                            },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             maxLines = 1,

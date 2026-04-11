@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -210,11 +211,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val title = metadata.title?.toString()
         val artist = metadata.artist?.toString()
 
-        if (title != null && title.contains(" - ")) {
+        Log.d("PlayerViewModel", "Parsing radio metadata: Artist=$artist, Title=$title")
+
+        // Если артист "Radio Stream" и в заголовке есть дефис, пробуем разделить
+        if (artist == "Radio Stream" && title != null && title.contains(" - ")) {
             val parts = title.split(" - ", limit = 2)
             _radioTrackArtist.value = parts[0].trim()
             _radioTrackTitle.value = parts[1].trim()
         } else {
+            // Если данные уже разделены сервисом (или не содержат дефис)
             _radioTrackTitle.value = title ?: _currentRadioStation.value?.name
             _radioTrackArtist.value = if (!artist.isNullOrBlank()) artist else "Radio Stream"
         }
@@ -238,7 +243,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (isRadio) {
             val station = RadioStation(
                 id = mediaIdToLong(mediaItem.mediaId),
-                name = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
+                name = mediaItem.mediaMetadata.station?.toString() ?: mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
                 url = mediaItem.localConfiguration?.uri?.toString() ?: ""
             )
             _currentRadioStation.value = station

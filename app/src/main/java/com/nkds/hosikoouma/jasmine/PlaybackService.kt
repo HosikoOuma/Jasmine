@@ -5,13 +5,17 @@ import android.content.Intent
 import android.media.AudioAttributes as AndroidAudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -20,6 +24,8 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import java.nio.charset.Charset
+import androidx.media3.extractor.metadata.icy.IcyInfo
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -49,10 +55,10 @@ class PlaybackService : MediaSessionService() {
         setupAudioFocus()
         
         processorA = CrossfadeAudioProcessor()
-        playerA = createPlayer(processorA)
+        playerA = createPlayer(processorA, "PlayerA")
         
         processorB = CrossfadeAudioProcessor()
-        playerB = createPlayer(processorB)
+        playerB = createPlayer(processorB, "PlayerB")
 
         currentPlayer = playerA
         
@@ -66,7 +72,6 @@ class PlaybackService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // Принудительная установка иконки через DefaultMediaNotificationProvider
         val notificationProvider = DefaultMediaNotificationProvider(this)
         notificationProvider.setSmallIcon(R.drawable.ison_vec)
         setMediaNotificationProvider(notificationProvider)
@@ -89,16 +94,27 @@ class PlaybackService : MediaSessionService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo
         ): MediaSession.ConnectionResult {
+            val availableSessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().build()
             val availablePlayerCommands = session.player.availableCommands.buildUpon()
                 .add(Player.COMMAND_PLAY_PAUSE)
-                .add(Player.COMMAND_SEEK_TO_NEXT)
-                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .add(Player.COMMAND_PREPARE)
                 .add(Player.COMMAND_STOP)
                 .add(Player.COMMAND_SET_MEDIA_ITEM)
+                .add(Player.COMMAND_CHANGE_MEDIA_ITEMS)
+                .add(Player.COMMAND_GET_TIMELINE)
+                .add(Player.COMMAND_GET_METADATA)
+                .add(Player.COMMAND_SEEK_TO_NEXT)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
                 .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_TO_MEDIA_ITEM)
+                .add(Player.COMMAND_SET_REPEAT_MODE)
+                .add(Player.COMMAND_SET_SHUFFLE_MODE)
                 .build()
-            
+
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(availableSessionCommands)
                 .setAvailablePlayerCommands(availablePlayerCommands)
                 .build()
         }
@@ -117,7 +133,7 @@ class PlaybackService : MediaSessionService() {
                     )
                 )
             }
-            return Futures.immediateFailedFuture(UnsupportedOperationException())
+            return Futures.immediateFailedFuture(UnsupportedOperationException("No items to resume"))
         }
 
         override fun onPlayerCommandRequest(
@@ -125,13 +141,17 @@ class PlaybackService : MediaSessionService() {
             controller: MediaSession.ControllerInfo,
             playerCommand: Int
         ): Int {
+            // Убрали COMMAND_PLAY_PAUSE из этого списка.
+            // Теперь пауза во время кроссфейда не отменяет его, а просто останавливает оба плеера.
             if (playerCommand == Player.COMMAND_SEEK_TO_NEXT || 
                 playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS ||
+                playerCommand == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
+                playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM ||
                 playerCommand == Player.COMMAND_SET_MEDIA_ITEM ||
+                playerCommand == Player.COMMAND_CHANGE_MEDIA_ITEMS ||
                 playerCommand == Player.COMMAND_STOP ||
                 playerCommand == Player.COMMAND_SEEK_TO_MEDIA_ITEM ||
-                playerCommand == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM ||
-                playerCommand == Player.COMMAND_PLAY_PAUSE) {
+                playerCommand == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) {
                 cancelActiveCrossfade()
             }
             return super.onPlayerCommandRequest(session, controller, playerCommand)
@@ -195,15 +215,24 @@ class PlaybackService : MediaSessionService() {
         return audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
-    private fun createPlayer(processor: CrossfadeAudioProcessor): ExoPlayer {
+    private fun createPlayer(processor: CrossfadeAudioProcessor, name: String): ExoPlayer {
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent("JasminePlayer/1.1")
+            .setDefaultRequestProperties(mapOf("Icy-MetaData" to "1"))
+            .setAllowCrossProtocolRedirects(true)
+
+        val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+
         val renderersFactory = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: android.content.Context, enableFloat: Boolean, enableAudioTrack: Boolean): AudioSink {
                 return DefaultAudioSink.Builder(context).setAudioProcessors(arrayOf(processor)).build()
             }
         }
+        
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(AudioAttributes.DEFAULT, false)
             .setHandleAudioBecomingNoisy(true)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory))
             .build()
 
         player.addListener(object : Player.Listener {
@@ -212,6 +241,7 @@ class PlaybackService : MediaSessionService() {
                     requestManualAudioFocus()
                 }
                 
+                // Если идет кроссфейд, синхронизируем состояние паузы/воспроизведения между игроками
                 if (isCrossfading && player == currentPlayer) {
                     val otherPlayer = if (player == playerA) playerB else playerA
                     if (otherPlayer.playWhenReady != playWhenReady) {
@@ -229,21 +259,112 @@ class PlaybackService : MediaSessionService() {
                     }
                 }
             }
+
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e("JasminePlayer", "[$name] Error: ${error.errorCodeName} (${error.errorCode})", error)
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                Log.d("JasminePlayer", "[$name] State: $state")
+            }
+
+            override fun onMetadata(metadata: Metadata) {
+                try {
+                    val streamTitle = extractStreamTitleFromMetadata(metadata)
+                    if (!streamTitle.isNullOrBlank()) {
+                        val fixed = fixEncodingIfNeeded(streamTitle)
+                        Log.d("JasminePlayer", "Parsed metadata: $fixed")
+                        updateCurrentMediaItemMetadata(player, fixed)
+                    }
+                } catch (e: Exception) {
+                    Log.e("JasminePlayer", "Metadata parsing error", e)
+                }
+            }
         })
         
         return player
+    }
+
+    private fun updateCurrentMediaItemMetadata(player: Player, streamTitle: String) {
+        val currentItem = player.currentMediaItem ?: return
+        val extras = currentItem.mediaMetadata.extras ?: android.os.Bundle()
+        val isRadio = extras.getBoolean("isRadio", false)
+        if (!isRadio) return
+
+        val metadataBuilder = currentItem.mediaMetadata.buildUpon()
+        if (streamTitle.contains(" - ")) {
+            val parts = streamTitle.split(" - ", limit = 2)
+            metadataBuilder.setArtist(parts[0].trim())
+            metadataBuilder.setTitle(parts[1].trim())
+        } else {
+            metadataBuilder.setTitle(streamTitle)
+            metadataBuilder.setArtist("Radio Stream")
+        }
+        
+        val updatedMetadata = metadataBuilder.build()
+        
+        if (updatedMetadata.title != currentItem.mediaMetadata.title || 
+            updatedMetadata.artist != currentItem.mediaMetadata.artist) {
+            
+            val updatedItem = currentItem.buildUpon()
+                .setMediaMetadata(updatedMetadata)
+                .build()
+            
+            Log.d("JasminePlayer", "Updating MediaItem with: ${updatedMetadata.artist} - ${updatedMetadata.title}")
+            player.replaceMediaItem(player.currentMediaItemIndex, updatedItem)
+        }
+    }
+
+    private fun extractStreamTitleFromMetadata(metadata: Metadata): String? {
+        for (i in 0 until metadata.length()) {
+            val entry = metadata[i]
+            
+            if (entry is IcyInfo) {
+                return entry.title
+            }
+            
+            val cls = entry?.javaClass ?: continue
+            val methodNames = listOf("getStreamTitle", "getTitle", "getText")
+            for (m in methodNames) {
+                try {
+                    val method = cls.getMethod(m)
+                    val res = method.invoke(entry)?.toString()
+                    if (!res.isNullOrBlank()) return res.trim()
+                } catch (_: Throwable) {}
+            }
+            
+            val s = entry.toString()
+            val p1 = Regex("""StreamTitle\s*=\s*'([^']*)'""", RegexOption.IGNORE_CASE)
+            p1.find(s)?.let { return it.groupValues[1].trim() }
+        }
+        return null
+    }
+
+    private fun fixEncodingIfNeeded(s: String): String {
+        val containsCyrillic = s.any { it in '\u0400'..'\u04FF' }
+        if (containsCyrillic) return s
+        return try {
+            val decoded = String(s.toByteArray(Charsets.ISO_8859_1), Charset.forName("CP1251"))
+            if (decoded.any { it in '\u0400'..'\u04FF' }) decoded else s
+        } catch (e: Throwable) { s }
     }
 
     private suspend fun checkCrossfadeCondition() {
         val current = currentPlayer ?: return
         if (!current.isPlaying || isCrossfading) return
 
+        val isRadio = current.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio") ?: false
+        if (isRadio) return
+
         val isEnabled = settingsRepository.isCrossfadeEnabled.first()
         val fadeDuration = settingsRepository.crossfadeDuration.first()
         
         if (!isEnabled) return
 
-        val remaining = current.duration - current.currentPosition
+        val duration = current.duration
+        if (duration == C.TIME_UNSET || duration <= 0) return
+
+        val remaining = duration - current.currentPosition
         val isRepeatOne = current.repeatMode == Player.REPEAT_MODE_ONE
         val isRepeatAll = current.repeatMode == Player.REPEAT_MODE_ALL
         val hasNext = current.nextMediaItemIndex != C.INDEX_UNSET || isRepeatOne || isRepeatAll
