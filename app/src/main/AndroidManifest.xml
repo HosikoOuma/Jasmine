@@ -42,6 +42,24 @@
             android:theme="@style/Theme.Jasmine"
             tools:ignore="LockedOrientationActivity" />
 
+        <activity
+            android:name=".ExternalPlayerActivity"
+            android:exported="true"
+            android:label="Jasmine Player"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Jasmine.Transparent"
+            tools:ignore="LockedOrientationActivity">
+            <intent-filter android:label="Play with Jasmine">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="application/ogg" />
+                <data android:mimeType="application/x-flac" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".PlaybackService"
             android:foregroundServiceType="mediaPlayback"

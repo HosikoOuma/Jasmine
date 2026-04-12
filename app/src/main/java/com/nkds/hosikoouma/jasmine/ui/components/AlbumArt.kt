@@ -20,7 +20,7 @@ import com.nkds.hosikoouma.jasmine.R
 
 @Composable
 fun AlbumArt(
-    albumArtUri: android.net.Uri?,
+    albumArtUri: Any?, // Изменено на Any? для поддержки ByteArray
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.medium,
     contentScale: ContentScale = ContentScale.Crop

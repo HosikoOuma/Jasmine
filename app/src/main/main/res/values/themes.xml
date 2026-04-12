@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Основная тема приложения -->
     <style name="Theme.Jasmine" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
-    <!-- Прозрачная тема для ЭВВ (внешнего плеера) -->
     <style name="Theme.Jasmine.Transparent" parent="Theme.Jasmine">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>

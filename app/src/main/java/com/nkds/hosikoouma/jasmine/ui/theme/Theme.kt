@@ -37,6 +37,7 @@ fun JasmineTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     
     val style = try {
         PaletteStyle.valueOf(paletteStyle)
@@ -44,17 +45,38 @@ fun JasmineTheme(
         PaletteStyle.TonalSpot
     }
 
-    // Если включен системный динамический цвет (Material You) и версия Android позволяет
+    // Настройка статус-бара и навигации для всех режимов темы
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val controller = WindowCompat.getInsetsController(window, view)
+            
+            // Прозрачный фон статус-бара (чтобы контент заезжал под него)
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            
+            // Настройка цвета иконок: темные для светлой темы, светлые для темной
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
+        }
+    }
+
     val isSystemDynamic = useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     if (isSystemDynamic) {
         val colorScheme = if (darkTheme) {
-            dynamicDarkColorScheme(context).let { if (amoledMode) it.copy(surface = Color.Black, background = Color.Black) else it }
+            dynamicDarkColorScheme(context).let { 
+                if (amoledMode) it.copy(surface = Color.Black, background = Color.Black) else it 
+            }
         } else {
             dynamicLightColorScheme(context)
         }
         
-        ApplyTheme(colorScheme, typography, darkTheme, content)
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = typography,
+            content = content
+        )
     } else {
         DynamicMaterialTheme(
             seedColor = seedColor,
@@ -66,30 +88,4 @@ fun JasmineTheme(
             content = content
         )
     }
-}
-
-@Composable
-private fun ApplyTheme(
-    colorScheme: ColorScheme,
-    typography: Typography,
-    darkTheme: Boolean,
-    content: @Composable () -> Unit
-) {
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.surface.toArgb()
-            window.navigationBarColor = colorScheme.surface.toArgb()
-            val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !darkTheme
-            controller.isAppearanceLightNavigationBars = !darkTheme
-        }
-    }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = typography,
-        content = content
-    )
 }
