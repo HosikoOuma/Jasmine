@@ -17,6 +17,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -96,6 +98,9 @@ fun PlayerScreen(
     var showTrackInfo by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    
+    var showSpeedSheet by remember { mutableStateOf(false) }
+    var showPitchSheet by remember { mutableStateOf(false) }
 
     val deleteLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -128,21 +133,19 @@ fun PlayerScreen(
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackingPlayer by remember { mutableStateOf(false) }
 
-    PredictiveBackHandler(enabled = showQueue) { progressFlow ->
+    PredictiveBackHandler(enabled = showQueue || showLyrics || showMoreActions || showTrackInfo || showSpeedSheet || showPitchSheet) { progressFlow ->
         try {
             progressFlow.collect { }
             showQueue = false
-        } catch (e: Exception) { }
-    }
-
-    PredictiveBackHandler(enabled = showLyrics) { progressFlow ->
-        try {
-            progressFlow.collect { }
             showLyrics = false
+            showMoreActions = false
+            showTrackInfo = false
+            showSpeedSheet = false
+            showPitchSheet = false
         } catch (e: Exception) { }
     }
 
-    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions && !showTrackInfo) { progressFlow ->
+    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet) { progressFlow ->
         try {
             isBackingPlayer = true
             progressFlow.collect { backEvent -> playerBackProgress = backEvent.progress }
@@ -197,7 +200,7 @@ fun PlayerScreen(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        if (!showQueue && !showLyrics && !showMoreActions && !showTrackInfo) {
+                        if (!showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet) {
                             change.consume()
                             scope.launch { animatedOffset.snapTo(animatedOffset.value + dragAmount) }
                         }
@@ -385,14 +388,20 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.Speed,
                                 label = "Speed",
-                                onClick = { /* TODO */ }
+                                onClick = { 
+                                    showMoreActions = false
+                                    showSpeedSheet = true
+                                }
                             )
                         }
                         item {
                             ActionCard(
                                 icon = Icons.Rounded.GraphicEq,
                                 label = "Pitch",
-                                onClick = { /* TODO */ }
+                                onClick = { 
+                                    showMoreActions = false
+                                    showPitchSheet = true
+                                }
                             )
                         }
                         item {
@@ -492,6 +501,38 @@ fun PlayerScreen(
             }
         }
 
+        // Шторка настроек скорости
+        if (showSpeedSheet) {
+            val speed by viewModel.playbackSpeed.collectAsState()
+            ParameterAdjustmentSheet(
+                title = "Playback Speed",
+                value = speed,
+                valueRange = 0.25f..2.0f,
+                steps = 6, // 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 (7 интервалов)
+                icon = Icons.Rounded.Speed,
+                onValueChange = { viewModel.setPlaybackSpeed(it) },
+                onReset = { viewModel.setPlaybackSpeed(1.0f) },
+                onDismiss = { showSpeedSheet = false },
+                valueFormatter = { "%.2fx".format(it) }
+            )
+        }
+
+        // Шторка настроек питча
+        if (showPitchSheet) {
+            val pitch by viewModel.playbackPitch.collectAsState()
+            ParameterAdjustmentSheet(
+                title = "Playback Pitch",
+                value = pitch,
+                valueRange = 0.5f..2.0f,
+                steps = 5, // 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 (6 интервалов)
+                icon = Icons.Rounded.GraphicEq,
+                onValueChange = { viewModel.setPlaybackPitch(it) },
+                onReset = { viewModel.setPlaybackPitch(1.0f) },
+                onDismiss = { showPitchSheet = false },
+                valueFormatter = { "%.2f".format(it) }
+            )
+        }
+
         if (showAddToPlaylistDialog && currentTrack != null) {
             AddToPlaylistDialog(
                 onDismissRequest = { showAddToPlaylistDialog = false },
@@ -531,6 +572,115 @@ fun PlayerScreen(
 
         if (showTrackInfo && currentTrack != null) {
             TrackInfoBottomSheet(track = currentTrack!!, onDismissRequest = { showTrackInfo = false })
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ParameterAdjustmentSheet(
+    title: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    icon: ImageVector,
+    onValueChange: (Float) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+    valueFormatter: (Float) -> String
+) {
+    val haptic = LocalHapticFeedback.current
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = valueFormatter(value),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.ExtraBold
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // Слайдер с точками
+            Slider(
+                value = value,
+                onValueChange = { 
+                    if (it != value) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onValueChange(it) 
+                    }
+                },
+                valueRange = valueRange,
+                steps = steps,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Быстрый выбор значений
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val presets = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
+                presets.forEach { preset ->
+                    if (preset in valueRange) {
+                        FilterChip(
+                            selected = value == preset,
+                            onClick = { 
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onValueChange(preset) 
+                            },
+                            label = { Text(valueFormatter(preset)) },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Button(
+                onClick = onReset,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            ) {
+                Text("Reset to Default", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

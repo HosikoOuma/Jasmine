@@ -14,6 +14,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
@@ -79,6 +80,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _systemVolume = MutableStateFlow(0f)
     val systemVolume = _systemVolume.asStateFlow()
+
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed = _playbackSpeed.asStateFlow()
+
+    private val _playbackPitch = MutableStateFlow(1.0f)
+    val playbackPitch = _playbackPitch.asStateFlow()
 
     private val _toastEvent = MutableSharedFlow<String>()
     val toastEvent = _toastEvent.asSharedFlow()
@@ -161,6 +168,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         
         _repeatMode.value = controller.repeatMode
+        _playbackSpeed.value = controller.playbackParameters.speed
+        _playbackPitch.value = controller.playbackParameters.pitch
+        
         updateCurrentTrack(controller.currentMediaItem)
         updatePlaylist()
         
@@ -196,6 +206,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (_isRadioMode.value) {
                     parseRadioMetadata(mediaMetadata)
                 }
+            }
+
+            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+                _playbackSpeed.value = playbackParameters.speed
+                _playbackPitch.value = playbackParameters.pitch
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -522,6 +537,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val target = (vol * max).toInt()
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
         _systemVolume.value = vol
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        controller?.let {
+            val params = PlaybackParameters(speed, it.playbackParameters.pitch)
+            it.playbackParameters = params
+            _playbackSpeed.value = speed
+        }
+    }
+
+    fun setPlaybackPitch(pitch: Float) {
+        controller?.let {
+            val params = PlaybackParameters(it.playbackParameters.speed, pitch)
+            it.playbackParameters = params
+            _playbackPitch.value = pitch
+        }
     }
 
     fun skipToNext() { controller?.seekToNext() }
