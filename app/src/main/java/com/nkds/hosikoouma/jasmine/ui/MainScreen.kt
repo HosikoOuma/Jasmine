@@ -465,6 +465,7 @@ fun MainScreen(
             PlayerScreen(
                 viewModel = playerViewModel,
                 trackViewModel = trackViewModel,
+                navController = navController,
                 onClose = { isPlayerExpanded = false }
             )
         }

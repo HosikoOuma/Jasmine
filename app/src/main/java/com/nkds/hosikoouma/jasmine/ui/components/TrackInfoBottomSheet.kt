@@ -56,7 +56,7 @@ fun TrackInfoBottomSheet(
                 retriever.setDataSource(context, track.contentUri)
                 val bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)
                 val mimeType = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
-                val sampleRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE) // API 29+
+                val sampleRateStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)
                 
                 if (details["Bitrate"] == null && bitrate != null) {
                     details["Bitrate"] = "${bitrate.toInt() / 1000} kbps"
@@ -64,8 +64,8 @@ fun TrackInfoBottomSheet(
                 if (details["Format"] == null || details["Format"] == "Unknown") {
                     details["Format"] = mimeType?.substringAfter("/")?.uppercase() ?: "Unknown"
                 }
-                if (details["Sample Rate"] == null && sampleRate != null) {
-                    details["Sample Rate"] = "$sampleRate Hz"
+                if (details["Sample Rate"] == null && sampleRateStr != null) {
+                    details["Sample Rate"] = "$sampleRateStr Hz"
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -88,7 +88,7 @@ fun TrackInfoBottomSheet(
                 .padding(bottom = 32.dp)
         ) {
             Text(
-                text = "Track Technical Details",
+                text = "Track Information",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 24.dp)
@@ -96,7 +96,21 @@ fun TrackInfoBottomSheet(
 
             InfoItem(label = "Title", value = track.title)
             InfoItem(label = "Artist", value = track.artist)
+            InfoItem(label = "Album", value = track.album)
             InfoItem(label = "Duration", value = formatTime(track.duration))
+            
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 16.dp),
+                thickness = 6.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            
+            Text(
+                text = "Technical Details",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
             
             InfoItem(label = "Format / Codec", value = trackDetails["Format"] ?: "Unknown")
             InfoItem(label = "Sample Rate", value = trackDetails["Sample Rate"] ?: "Unknown")
@@ -109,7 +123,6 @@ fun TrackInfoBottomSheet(
                 InfoItem(label = "File Size", value = trackDetails["Size"]!!)
             }
             
-            // Показываем полный физический путь
             InfoItem(label = "File Location", value = track.path.ifEmpty { "System Media Store (URI: ${track.contentUri})" })
         }
     }
@@ -129,7 +142,6 @@ private fun InfoItem(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurface,
             lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified
         )
-        HorizontalDivider(modifier = Modifier.padding(top = 8.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

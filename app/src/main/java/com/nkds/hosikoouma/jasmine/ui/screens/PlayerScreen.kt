@@ -15,6 +15,8 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,16 +33,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
+import androidx.navigation.NavController
 import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
@@ -52,6 +57,8 @@ import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +66,7 @@ import java.util.Locale
 fun PlayerScreen(
     viewModel: PlayerViewModel,
     trackViewModel: TrackViewModel,
+    navController: NavController,
     onClose: () -> Unit
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
@@ -339,84 +347,147 @@ fun PlayerScreen(
                 onDismissRequest = { showMoreActions = false },
                 sheetState = rememberModalBottomSheetState(),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                dragHandle = { BottomSheetDefaults.DragHandle() }
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 32.dp)
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 24.dp)
                 ) {
-                    Text(
-                        text = currentTrack?.title ?: "Track Actions",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                    
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Slider(
-                            value = systemVolume,
-                            onValueChange = { viewModel.setSystemVolume(it) },
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant)
-                        )
-                        Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, modifier = Modifier.size(20.dp))
+                            Slider(
+                                value = systemVolume,
+                                onValueChange = { viewModel.setSystemVolume(it) },
+                                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                            )
+                            Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.size(20.dp))
+                        }
                     }
-                    
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
-                    ListItem(
-                        headlineContent = { Text("Details") },
-                        leadingContent = { Icon(Icons.Rounded.Info, null) },
-                        modifier = Modifier.clickable { 
-                            showMoreActions = false
-                            showTrackInfo = true
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.heightIn(max = 400.dp)
+                    ) {
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.Speed,
+                                label = "Speed",
+                                onClick = { /* TODO */ }
+                            )
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Add to Playlist") },
-                        leadingContent = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
-                        modifier = Modifier.clickable { 
-                            showMoreActions = false
-                            showAddToPlaylistDialog = true
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.GraphicEq,
+                                label = "Pitch",
+                                onClick = { /* TODO */ }
+                            )
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("View Artist") },
-                        leadingContent = { Icon(Icons.Rounded.Person, null) },
-                        modifier = Modifier.clickable { /* TODO */ }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Share Track") },
-                        leadingContent = { Icon(Icons.Rounded.Share, null) },
-                        modifier = Modifier.clickable { 
-                            val track = currentTrack ?: return@clickable
-                            ShareHelper.shareTrack(context, track)
-                            showMoreActions = false
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.Album,
+                                label = "Album",
+                                onClick = { 
+                                    currentTrack?.let { track ->
+                                        val encoded = URLEncoder.encode(track.album, StandardCharsets.UTF_8.toString())
+                                        navController.navigate("album_detail/$encoded")
+                                        showMoreActions = false
+                                        onClose()
+                                    }
+                                }
+                            )
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Sleep Timer") },
-                        leadingContent = { Icon(Icons.Rounded.Timer, null) },
-                        modifier = Modifier.clickable { /* TODO */ }
-                    )
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.Person,
+                                label = "Artist",
+                                onClick = { 
+                                    currentTrack?.let { track ->
+                                        val encoded = URLEncoder.encode(track.artist, StandardCharsets.UTF_8.toString())
+                                        navController.navigate("artist_detail/$encoded")
+                                        showMoreActions = false
+                                        onClose()
+                                    }
+                                }
+                            )
+                        }
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.Queue,
+                                label = "Add to Queue",
+                                onClick = { 
+                                    currentTrack?.let { viewModel.addToQueue(it, showToast = true) }
+                                    showMoreActions = false
+                                }
+                            )
+                        }
+                        item {
+                            ActionCard(
+                                icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                                label = "Playlist",
+                                onClick = { 
+                                    showMoreActions = false
+                                    showAddToPlaylistDialog = true
+                                }
+                            )
+                        }
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.Info,
+                                label = "Details",
+                                onClick = { 
+                                    showMoreActions = false
+                                    showTrackInfo = true
+                                }
+                            )
+                        }
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.Share,
+                                label = "Share",
+                                onClick = { 
+                                    val track = currentTrack ?: return@ActionCard
+                                    ShareHelper.shareTrack(context, track)
+                                    showMoreActions = false
+                                }
+                            )
+                        }
+                    }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                    ListItem(
-                        headlineContent = { Text("Delete from device", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
-                        leadingContent = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                        modifier = Modifier.clickable { 
+                    Surface(
+                        onClick = { 
                             showMoreActions = false
                             showDeleteDialog = true
+                        },
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.Delete, null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("Delete from Device", fontWeight = FontWeight.Bold)
                         }
-                    )
+                    }
                 }
             }
         }
@@ -460,6 +531,40 @@ fun PlayerScreen(
 
         if (showTrackInfo && currentTrack != null) {
             TrackInfoBottomSheet(track = currentTrack!!, onDismissRequest = { showTrackInfo = false })
+        }
+    }
+}
+
+@Composable
+fun ActionCard(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

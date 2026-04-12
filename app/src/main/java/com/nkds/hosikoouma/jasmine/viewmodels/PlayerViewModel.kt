@@ -213,13 +213,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         Log.d("PlayerViewModel", "Parsing radio metadata: Artist=$artist, Title=$title")
 
-        // Если артист "Radio Stream" и в заголовке есть дефис, пробуем разделить
         if (artist == "Radio Stream" && title != null && title.contains(" - ")) {
             val parts = title.split(" - ", limit = 2)
             _radioTrackArtist.value = parts[0].trim()
             _radioTrackTitle.value = parts[1].trim()
         } else {
-            // Если данные уже разделены сервисом (или не содержат дефис)
             _radioTrackTitle.value = title ?: _currentRadioStation.value?.name
             _radioTrackArtist.value = if (!artist.isNullOrBlank()) artist else "Radio Stream"
         }
@@ -297,11 +295,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val path = extras?.getString("path") ?: ""
         val isManual = extras?.getBoolean("isManual") ?: false
         val duration = extras?.getLong("duration") ?: 0L
+        val album = mediaItem.mediaMetadata.albumTitle?.toString() ?: "Unknown Album"
 
         return Track(
             id = mediaIdToLong(mediaItem.mediaId),
             title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
             artist = mediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
+            album = album,
             duration = duration,
             contentUri = mediaItem.localConfiguration?.uri ?: Uri.EMPTY,
             albumArtUri = mediaItem.mediaMetadata.artworkUri,
@@ -365,7 +365,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         
         controller.setMediaItems(mediaItems, startIndex, 0L)
         controller.shuffleModeEnabled = false
-        controller.repeatMode = Player.REPEAT_MODE_ALL // Чтобы можно было листать по кругу
+        controller.repeatMode = Player.REPEAT_MODE_ALL
         controller.prepare()
         controller.play()
     }
@@ -399,6 +399,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 MediaMetadata.Builder()
                     .setTitle(track.title)
                     .setArtist(track.artist)
+                    .setAlbumTitle(track.album)
                     .setArtworkUri(track.albumArtUri)
                     .setExtras(extras)
                     .build()
