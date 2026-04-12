@@ -28,14 +28,17 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.datamodels.Track
@@ -48,6 +51,7 @@ import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.ui.screens.PlayerScreen
 import com.nkds.hosikoouma.jasmine.ui.screens.RadioPlayerScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SortType
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.flow.first
@@ -66,6 +70,7 @@ fun MainScreen(
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    val clipboardManager = LocalClipboardManager.current
     
     var isPlayerExpanded by rememberSaveable { mutableStateOf(false) }
     var isRadioPlayerExpanded by rememberSaveable { mutableStateOf(false) }
@@ -77,11 +82,19 @@ fun MainScreen(
     var showDeletePlaylistDialog by remember { mutableStateOf(false) }
     var showAddRadioDialog by remember { mutableStateOf(false) }
 
-    // Общее состояние выделения треков
+    // Состояние выделения треков
     var selectedTracks by remember { mutableStateOf(setOf<Track>()) }
-    val isInSelectionMode by remember { derivedStateOf { selectedTracks.isNotEmpty() } }
+    val isInTrackSelectionMode by remember { derivedStateOf { selectedTracks.isNotEmpty() } }
+    
+    // Состояние выделения радиостанций
+    var selectedStations by remember { mutableStateOf(setOf<RadioStation>()) }
+    val isInRadioSelectionMode by remember { derivedStateOf { selectedStations.isNotEmpty() } }
+    
+    val isInSelectionMode by remember { derivedStateOf { isInTrackSelectionMode || isInRadioSelectionMode } }
+
     var showMoreMenu by remember { mutableStateOf(false) }
     var showDeleteTracksDialog by remember { mutableStateOf(false) }
+    var showDeleteStationsDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
     var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
 
@@ -91,6 +104,7 @@ fun MainScreen(
     // Снимаем выделение при смене экрана
     LaunchedEffect(currentRoute) {
         selectedTracks = emptySet()
+        selectedStations = emptySet()
     }
 
     val playlistId = navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L
@@ -116,9 +130,10 @@ fun MainScreen(
         }
     }
 
-    val dynamicTitle = remember(currentRoute, navBackStackEntry, currentPlaylistName, selectedTracks.size) {
+    val dynamicTitle = remember(currentRoute, navBackStackEntry, currentPlaylistName, selectedTracks.size, selectedStations.size) {
         if (isInSelectionMode) {
-            "${selectedTracks.size} selected"
+            val count = if (isInTrackSelectionMode) selectedTracks.size else selectedStations.size
+            "$count selected"
         } else {
             when {
                 currentRoute?.startsWith("album_detail") == true -> {
@@ -169,7 +184,6 @@ fun MainScreen(
         val activity = context as? Activity
         val intent = activity?.intent
         if (intent?.getBooleanExtra("OPEN_PLAYER", false) == true) {
-            // Проверяем режим радио при открытии из уведомления
             if (playerViewModel.isRadioMode.value) {
                 isRadioPlayerExpanded = true
             } else {
@@ -225,7 +239,10 @@ fun MainScreen(
                     },
                     navigationIcon = {
                         if (isInSelectionMode) {
-                            IconButton(onClick = { selectedTracks = emptySet() }) {
+                            IconButton(onClick = { 
+                                selectedTracks = emptySet()
+                                selectedStations = emptySet()
+                            }) {
                                 Icon(Icons.Rounded.Close, "Clear selection")
                             }
                         } else if (canPop && !isSearching) {
@@ -237,53 +254,68 @@ fun MainScreen(
                     actions = {
                         if (isInSelectionMode) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (selectedTracks.size == 1) {
-                                    IconButton(onClick = { showTrackInfoForSelection = selectedTracks.first() }) {
-                                        Icon(Icons.Rounded.Info, null)
+                                if (isInTrackSelectionMode) {
+                                    if (selectedTracks.size == 1) {
+                                        IconButton(onClick = { showTrackInfoForSelection = selectedTracks.first() }) {
+                                            Icon(Icons.Rounded.Info, null)
+                                        }
                                     }
-                                }
-                                IconButton(onClick = {
-                                    playerViewModel.addTracksToQueue(selectedTracks.toList())
-                                    selectedTracks = emptySet()
-                                }) {
-                                    Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null)
-                                }
-                                Box {
-                                    IconButton(onClick = { showMoreMenu = true }) {
-                                        Icon(Icons.Rounded.MoreVert, null)
+                                    IconButton(onClick = {
+                                        playerViewModel.addTracksToQueue(selectedTracks.toList())
+                                        selectedTracks = emptySet()
+                                    }) {
+                                        Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null)
                                     }
-                                    DropdownMenu(
-                                        expanded = showMoreMenu,
-                                        onDismissRequest = { showMoreMenu = false },
-                                        shape = RoundedCornerShape(24.dp),
-                                        modifier = Modifier.width(220.dp)
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Share") },
-                                            leadingIcon = { Icon(Icons.Rounded.Share, null) },
-                                            onClick = {
-                                                showMoreMenu = false
-                                                ShareHelper.shareTracks(context, selectedTracks.toList())
-                                                selectedTracks = emptySet()
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Add to playlist") },
-                                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
-                                            onClick = {
-                                                showMoreMenu = false
-                                                showAddToPlaylistDialog = true
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Delete from device", fontWeight = FontWeight.Bold) },
-                                            leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                                            onClick = {
-                                                showMoreMenu = false
-                                                showDeleteTracksDialog = true
-                                            },
-                                            colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
-                                        )
+                                    Box {
+                                        IconButton(onClick = { showMoreMenu = true }) {
+                                            Icon(Icons.Rounded.MoreVert, null)
+                                        }
+                                        DropdownMenu(
+                                            expanded = showMoreMenu,
+                                            onDismissRequest = { showMoreMenu = false },
+                                            shape = RoundedCornerShape(24.dp),
+                                            modifier = Modifier.width(220.dp)
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Share") },
+                                                leadingIcon = { Icon(Icons.Rounded.Share, null) },
+                                                onClick = {
+                                                    showMoreMenu = false
+                                                    ShareHelper.shareTracks(context, selectedTracks.toList())
+                                                    selectedTracks = emptySet()
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Add to playlist") },
+                                                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
+                                                onClick = {
+                                                    showMoreMenu = false
+                                                    showAddToPlaylistDialog = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete from device", fontWeight = FontWeight.Bold) },
+                                                leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                                onClick = {
+                                                    showMoreMenu = false
+                                                    showDeleteTracksDialog = true
+                                                },
+                                                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
+                                            )
+                                        }
+                                    }
+                                } else if (isInRadioSelectionMode) {
+                                    if (selectedStations.size == 1) {
+                                        IconButton(onClick = {
+                                            clipboardManager.setText(AnnotatedString(selectedStations.first().url))
+                                            Toast.makeText(context, "URL copied", Toast.LENGTH_SHORT).show()
+                                            selectedStations = emptySet()
+                                        }) {
+                                            Icon(Icons.Rounded.ContentCopy, "Copy URL")
+                                        }
+                                    }
+                                    IconButton(onClick = { showDeleteStationsDialog = true }) {
+                                        Icon(Icons.Rounded.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
@@ -398,6 +430,10 @@ fun MainScreen(
                     onToggleTrackSelection = { track ->
                         selectedTracks = if (selectedTracks.contains(track)) selectedTracks - track else selectedTracks + track
                     },
+                    selectedStations = selectedStations,
+                    onToggleStationSelection = { station ->
+                        selectedStations = if (selectedStations.contains(station)) selectedStations - station else selectedStations + station
+                    },
                     onAddTracksToPlaylist = { showTrackPickerDialog = true },
                     showAddRadioDialog = showAddRadioDialog,
                     onDismissRadioDialog = { showAddRadioDialog = false },
@@ -408,7 +444,10 @@ fun MainScreen(
                     when {
                         showAddRadioDialog -> showAddRadioDialog = false
                         isRadioPlayerExpanded -> isRadioPlayerExpanded = false
-                        isInSelectionMode -> selectedTracks = emptySet()
+                        isInSelectionMode -> {
+                            selectedTracks = emptySet()
+                            selectedStations = emptySet()
+                        }
                         isPlayerExpanded -> isPlayerExpanded = false
                         isSearching -> {
                             isSearching = false
@@ -618,6 +657,29 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteTracksDialog = false }) { Text("Cancel") }
+            },
+            shape = RoundedCornerShape(28.dp)
+        )
+    }
+
+    if (showDeleteStationsDialog) {
+        val radioViewModel: RadioViewModel = viewModel()
+        AlertDialog(
+            onDismissRequest = { showDeleteStationsDialog = false },
+            title = { Text("Delete Stations") },
+            text = { Text("Are you sure you want to delete ${selectedStations.size} radio stations? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedStations.forEach { radioViewModel.deleteStation(it) }
+                        selectedStations = emptySet()
+                        showDeleteStationsDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteStationsDialog = false }) { Text("Cancel") }
             },
             shape = RoundedCornerShape(28.dp)
         )

@@ -1,6 +1,9 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.app.Activity
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -74,6 +77,7 @@ fun TracksScreen(
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
     
     val tracks by if (isFavoritesMode) {
         trackViewModel.favoriteTracks.collectAsState()
@@ -131,7 +135,7 @@ fun TracksScreen(
                             isPlaying = isPlaying,
                             isSelected = isSelected,
                             isManualMarkingEnabled = true,
-                            enabled = selectedTracks.isEmpty(), // Отключаем свайпы, если начато выделение
+                            enabled = selectedTracks.isEmpty(), 
                             onSwipeAction = { 
                                 if (track.isManual) {
                                     playerViewModel.removeFromQueue(track)
@@ -141,6 +145,7 @@ fun TracksScreen(
                             },
                             onClick = {
                                 if (selectedTracks.isNotEmpty()) {
+                                    selectionVibrate(vibrator)
                                     onToggleTrackSelection(track)
                                 } else {
                                     playerViewModel.playTracks(tracks, index)
@@ -148,7 +153,7 @@ fun TracksScreen(
                                 }
                             },
                             onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                selectionVibrate(vibrator)
                                 onToggleTrackSelection(track)
                             }
                         )
@@ -217,6 +222,16 @@ fun TracksScreen(
                 }
             }
         }
+    }
+}
+
+private fun selectionVibrate(vibrator: Vibrator?) {
+    if (vibrator == null) return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator.vibrate(VibrationEffect.createOneShot(15, 120))
+    } else {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(15)
     }
 }
 

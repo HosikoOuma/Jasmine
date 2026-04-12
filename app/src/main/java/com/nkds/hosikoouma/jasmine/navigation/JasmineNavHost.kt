@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.screens.*
@@ -30,6 +31,8 @@ fun JasmineNavHost(
     onNavigateToRadioPlayer: () -> Unit,
     selectedTracks: Set<Track>,
     onToggleTrackSelection: (Track) -> Unit,
+    selectedStations: Set<RadioStation>,
+    onToggleStationSelection: (RadioStation) -> Unit,
     onAddTracksToPlaylist: () -> Unit,
     showAddRadioDialog: Boolean,
     onDismissRadioDialog: () -> Unit,
@@ -64,15 +67,18 @@ fun JasmineNavHost(
             ) 
         }
         composable(Screen.Radio.route) {
-            val stations by radioViewModel.stations.collectAsState()
             RadioScreen(
                 viewModel = radioViewModel,
+                playerViewModel = playerViewModel, // Передаем viewModel
                 showAddDialog = showAddRadioDialog,
                 onDismissDialog = onDismissRadioDialog,
                 onStationClick = { station ->
-                    playerViewModel.playRadio(station,stations)
+                    val stations = radioViewModel.stations.value
+                    playerViewModel.playRadio(station, stations)
                     onNavigateToRadioPlayer()
-                }
+                },
+                selectedStations = selectedStations,
+                onToggleSelection = onToggleStationSelection
             ) 
         }
         composable(Screen.Library.route) { 
@@ -82,7 +88,6 @@ fun JasmineNavHost(
             SettingsScreen(trackViewModel = trackViewModel) 
         }
         
-        // Вложенные экраны библиотеки
         composable(Screen.LibraryAlbums.route) { 
             AlbumListScreen(navController = navController, trackViewModel = trackViewModel) 
         }
@@ -96,7 +101,6 @@ fun JasmineNavHost(
             PlaylistListScreen(navController = navController, trackViewModel = trackViewModel) 
         }
 
-        // Детальные экраны
         composable(
             route = Screen.AlbumDetail.route,
             arguments = listOf(navArgument("albumName") { type = NavType.StringType })

@@ -1,6 +1,9 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.app.Activity
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -508,7 +511,7 @@ fun PlayerScreen(
                 title = "Playback Speed",
                 value = speed,
                 valueRange = 0.25f..2.0f,
-                steps = 6, // 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 (7 интервалов)
+                steps = 6, 
                 icon = Icons.Rounded.Speed,
                 onValueChange = { viewModel.setPlaybackSpeed(it) },
                 onReset = { viewModel.setPlaybackSpeed(1.0f) },
@@ -524,7 +527,7 @@ fun PlayerScreen(
                 title = "Playback Pitch",
                 value = pitch,
                 valueRange = 0.5f..2.0f,
-                steps = 5, // 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 (6 интервалов)
+                steps = 5,
                 icon = Icons.Rounded.GraphicEq,
                 onValueChange = { viewModel.setPlaybackPitch(it) },
                 onReset = { viewModel.setPlaybackPitch(1.0f) },
@@ -589,7 +592,8 @@ fun ParameterAdjustmentSheet(
     onDismiss: () -> Unit,
     valueFormatter: (Float) -> String
 ) {
-    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -629,12 +633,12 @@ fun ParameterAdjustmentSheet(
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            // Слайдер с точками
             Slider(
                 value = value,
                 onValueChange = { 
                     if (it != value) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        // Вибрируем при каждом "перескоке" на новый шаг
+                        tickVibrate(vibrator)
                         onValueChange(it) 
                     }
                 },
@@ -645,7 +649,6 @@ fun ParameterAdjustmentSheet(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Быстрый выбор значений
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -658,8 +661,10 @@ fun ParameterAdjustmentSheet(
                         FilterChip(
                             selected = value == preset,
                             onClick = { 
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onValueChange(preset) 
+                                if (value != preset) {
+                                    tickVibrate(vibrator)
+                                    onValueChange(preset) 
+                                }
                             },
                             label = { Text(valueFormatter(preset)) },
                             shape = RoundedCornerShape(12.dp)
@@ -671,7 +676,10 @@ fun ParameterAdjustmentSheet(
             Spacer(modifier = Modifier.height(24.dp))
             
             Button(
-                onClick = onReset,
+                onClick = {
+                    tickVibrate(vibrator)
+                    onReset()
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -682,6 +690,17 @@ fun ParameterAdjustmentSheet(
                 Text("Reset to Default", fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+private fun tickVibrate(vibrator: Vibrator?) {
+    if (vibrator == null) return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // Очень короткий и легкий "тик" (10 мс)
+        vibrator.vibrate(VibrationEffect.createOneShot(10, 100))
+    } else {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(10)
     }
 }
 
