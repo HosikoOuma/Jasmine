@@ -193,11 +193,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         controller.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // ПРИ ПЕРЕКЛЮЧЕНИИ ТРЕКА: Обновляем только текущий трек. 
+                // Playlist не меняется, поэтому пересчитывать его не нужно (это дорого).
                 updateCurrentTrack(mediaItem)
-                updatePlaylist()
             }
 
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                // Список меняется только здесь (добавление, удаление, перемещение).
                 updatePlaylist()
                 updateCurrentTrack(controller.currentMediaItem)
             }
@@ -285,37 +287,38 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private var updatePlaylistJob: Job? = null
     private fun updatePlaylist() {
         val controller = controller ?: return
         
-        // КРИТИЧЕСКИ ВАЖНО: Получаем данные из Timeline СТРОГО на Main Thread
-        val mediaItems = mutableListOf<MediaItem>()
-        val uids = mutableListOf<String>()
+        val mediaItemsWithUids = mutableListOf<Pair<MediaItem, String>>()
         val timeline = controller.currentTimeline
         
         if (timeline.isEmpty) {
             for (i in 0 until controller.mediaItemCount) {
                 val item = controller.getMediaItemAt(i)
-                mediaItems.add(item)
-                uids.add("fallback_${mediaIdToLong(item.mediaId)}_$i")
+                mediaItemsWithUids.add(item to "fallback_${mediaIdToLong(item.mediaId)}_$i")
             }
         } else {
             val window = Timeline.Window()
             for (i in 0 until timeline.windowCount) {
                 timeline.getWindow(i, window)
                 window.mediaItem?.let {
-                    mediaItems.add(it)
-                    uids.add(window.uid.toString())
+                    mediaItemsWithUids.add(it to window.uid.toString())
                 }
             }
         }
 
-        // Выполняем маппинг в фоне, не трогая контроллер
-        viewModelScope.launch(Dispatchers.Default) {
-            val items = mediaItems.indices.map { index ->
-                mediaToTrack(mediaItems[index]).copy(uid = uids[index])
+        // Отменяем предыдущее обновление, если оно еще идет
+        updatePlaylistJob?.cancel()
+        updatePlaylistJob = viewModelScope.launch(Dispatchers.Default) {
+            val items = mediaItemsWithUids.map { (item, uid) ->
+                mediaToTrack(item).copy(uid = uid)
             }
-            _playlist.value = items
+            // Сравниваем списки, чтобы избежать лишних триггеров UI
+            if (_playlist.value != items) {
+                _playlist.value = items
+            }
         }
     }
 

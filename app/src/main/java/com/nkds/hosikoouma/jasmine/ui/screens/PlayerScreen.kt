@@ -88,12 +88,14 @@ fun PlayerScreen(
     val settingsViewModel: SettingsViewModel = viewModel()
     val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
     
-    val progressStyle = try {
-        ProgressBarStyle.valueOf(settings.progressBarStyle)
-    } catch (e: Exception) {
-        ProgressBarStyle.STANDARD
+    val progressStyle = remember(settings.progressBarStyle) {
+        try {
+            ProgressBarStyle.valueOf(settings.progressBarStyle)
+        } catch (e: Exception) {
+            ProgressBarStyle.STANDARD
+        }
     }
-    
+
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -104,7 +106,7 @@ fun PlayerScreen(
     var showTrackInfo by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
-    
+
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showPitchSheet by remember { mutableStateOf(false) }
 
@@ -124,7 +126,7 @@ fun PlayerScreen(
     }
 
     var isAlbumArtMinimized by remember { mutableStateOf(!isPlaying) }
-    
+
     LaunchedEffect(isPlaying) {
         if (isPlaying) isAlbumArtMinimized = false
     }
@@ -169,16 +171,6 @@ fun PlayerScreen(
             targetValue = 0f,
             animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
         )
-    }
-
-    var sliderValue by remember { mutableFloatStateOf(0f) }
-    var lastSeekTime by remember { mutableLongStateOf(0L) }
-
-    LaunchedEffect(progress) {
-        val now = System.currentTimeMillis()
-        if (now - lastSeekTime > 1000L) {
-            sliderValue = progress.toFloat()
-        }
     }
 
     Box(
@@ -252,97 +244,47 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.weight(0.3f))
 
-            Column(modifier = Modifier.fillMaxWidth().height(72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(currentTrack?.title ?: "Unknown Title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(currentTrack?.artist ?: "Unknown Artist", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
-            }
+            TrackInfoSection(title = currentTrack?.title, artist = currentTrack?.artist)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Column(modifier = Modifier.fillMaxWidth().height(84.dp)) {
-                if (progressStyle == ProgressBarStyle.STANDARD) {
-                    Slider(
-                        value = sliderValue,
-                        onValueChange = { 
-                            sliderValue = it
-                            lastSeekTime = System.currentTimeMillis()
-                        },
-                        onValueChangeFinished = {
-                            viewModel.seekTo(sliderValue.toLong())
-                            lastSeekTime = System.currentTimeMillis()
-                        },
-                        interactionSource = remember { MutableInteractionSource() },
-                        valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                        colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    )
-                } else {
-                    JasmineProgressBar(
-                        value = sliderValue,
-                        onValueChange = { 
-                            sliderValue = it
-                            lastSeekTime = System.currentTimeMillis()
-                        },
-                        onValueChangeFinished = {
-                            viewModel.seekTo(sliderValue.toLong())
-                            lastSeekTime = System.currentTimeMillis()
-                        },
-                        valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                        style = progressStyle,
-                        isPlaying = isPlaying
-                    )
-                }
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text(formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-            }
+            PlaybackProgressSection(
+                progress = progress,
+                duration = duration,
+                progressStyle = progressStyle,
+                isPlaying = isPlaying,
+                onSeek = { viewModel.seekTo(it) }
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleRepeatMode() })
-                AnimatedControlIcon(icon = Icons.Rounded.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleShuffle() } )
-                AnimatedControlIcon(icon = Icons.Rounded.SkipPrevious, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToPrevious() })
-                AnimatedControlIcon(icon = Icons.Rounded.SkipNext, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.skipToNext() })
-
-                val playPauseInteractionSource = remember { MutableInteractionSource() }
-                val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
-                val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.9f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
-                val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
-
-                Surface(
-                    onClick = { 
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val willPause = isPlaying
-                        viewModel.togglePlayPause()
-                        isAlbumArtMinimized = willPause
-                    },
-                    interactionSource = playPauseInteractionSource,
-                    modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = scaleX },
-                    shape = RoundedCornerShape(cornerPercent),
-                    color = MaterialTheme.colorScheme.primary
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
-                    }
+            PlaybackControlsSection(
+                isPlaying = isPlaying,
+                repeatMode = repeatMode,
+                shuffleEnabled = shuffleEnabled,
+                onToggleRepeat = { viewModel.toggleRepeatMode() },
+                onToggleShuffle = { viewModel.toggleShuffle() },
+                onPrevious = { viewModel.skipToPrevious() },
+                onNext = { viewModel.skipToNext() },
+                onTogglePlayPause = {
+                    val willPause = isPlaying
+                    viewModel.togglePlayPause()
+                    isAlbumArtMinimized = willPause
                 }
-            }
+            )
 
             Spacer(modifier = Modifier.weight(0.5f))
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), 
-                horizontalArrangement = Arrangement.SpaceAround, 
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AnimatedControlIcon(Icons.AutoMirrored.Rounded.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showQueue = true })
-                AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.toggleFavoriteCurrent() })
-                AnimatedControlIcon(Icons.Rounded.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showLyrics = true })
-                AnimatedControlIcon(Icons.Rounded.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showMoreActions = true })
-            }
+            BottomActionsSection(
+                isFavorite = isFavorite,
+                onShowQueue = { showQueue = true },
+                onToggleFavorite = { viewModel.toggleFavoriteCurrent() },
+                onShowLyrics = { showLyrics = true },
+                onShowMore = { showMoreActions = true }
+            )
         }
 
+        // ... остальное (AnimatedVisibility, Dialogs) остается прежним, так как они не рекомпозируются часто
         AnimatedVisibility(visible = showQueue, enter = slideInHorizontally(initialOffsetX = { -it }), exit = slideOutHorizontally(targetOffsetX = { -it })) {
             QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
         }
@@ -394,7 +336,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.Speed,
                                 label = "Speed",
-                                onClick = { 
+                                onClick = {
                                     showMoreActions = false
                                     showSpeedSheet = true
                                 }
@@ -404,7 +346,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.GraphicEq,
                                 label = "Pitch",
-                                onClick = { 
+                                onClick = {
                                     showMoreActions = false
                                     showPitchSheet = true
                                 }
@@ -414,7 +356,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.Album,
                                 label = "Album",
-                                onClick = { 
+                                onClick = {
                                     currentTrack?.let { track ->
                                         val encoded = URLEncoder.encode(track.album, StandardCharsets.UTF_8.toString())
                                         navController.navigate("album_detail/$encoded")
@@ -428,7 +370,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.Person,
                                 label = "Artist",
-                                onClick = { 
+                                onClick = {
                                     currentTrack?.let { track ->
                                         val encoded = URLEncoder.encode(track.artist, StandardCharsets.UTF_8.toString())
                                         navController.navigate("artist_detail/$encoded")
@@ -442,7 +384,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.Queue,
                                 label = "Add to Queue",
-                                onClick = { 
+                                onClick = {
                                     currentTrack?.let { viewModel.addToQueue(it, showToast = true) }
                                     showMoreActions = false
                                 }
@@ -452,7 +394,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                                 label = "Playlist",
-                                onClick = { 
+                                onClick = {
                                     showMoreActions = false
                                     showAddToPlaylistDialog = true
                                 }
@@ -462,7 +404,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.Info,
                                 label = "Details",
-                                onClick = { 
+                                onClick = {
                                     showMoreActions = false
                                     showTrackInfo = true
                                 }
@@ -472,7 +414,7 @@ fun PlayerScreen(
                             ActionCard(
                                 icon = Icons.Rounded.Share,
                                 label = "Share",
-                                onClick = { 
+                                onClick = {
                                     val track = currentTrack ?: return@ActionCard
                                     ShareHelper.shareTrack(context, track)
                                     showMoreActions = false
@@ -486,7 +428,7 @@ fun PlayerScreen(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .bouncingClickable { 
+                            .bouncingClickable {
                                 showMoreActions = false
                                 showDeleteDialog = true
                             },
@@ -508,14 +450,13 @@ fun PlayerScreen(
             }
         }
 
-        // Шторка настроек скорости
         if (showSpeedSheet) {
             val speed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
             ParameterAdjustmentSheet(
                 title = "Playback Speed",
                 value = speed,
                 valueRange = 0.25f..2.0f,
-                steps = 6, 
+                steps = 6,
                 icon = Icons.Rounded.Speed,
                 onValueChange = { viewModel.setPlaybackSpeed(it) },
                 onReset = { viewModel.setPlaybackSpeed(1.0f) },
@@ -524,7 +465,6 @@ fun PlayerScreen(
             )
         }
 
-        // Шторка настроек питча
         if (showPitchSheet) {
             val pitch by viewModel.playbackPitch.collectAsStateWithLifecycle()
             ParameterAdjustmentSheet(
@@ -583,6 +523,133 @@ fun PlayerScreen(
     }
 }
 
+@Composable
+fun TrackInfoSection(title: String?, artist: String?) {
+    Column(modifier = Modifier.fillMaxWidth().height(72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(title ?: "Unknown Title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(artist ?: "Unknown Artist", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
+    }
+}
+
+@Composable
+fun PlaybackProgressSection(
+    progress: Long,
+    duration: Long,
+    progressStyle: ProgressBarStyle,
+    isPlaying: Boolean,
+    onSeek: (Long) -> Unit
+) {
+    var sliderValue by remember { mutableFloatStateOf(0f) }
+    var lastSeekTime by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(progress) {
+        val now = System.currentTimeMillis()
+        if (now - lastSeekTime > 1000L) {
+            sliderValue = progress.toFloat()
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().height(84.dp)) {
+        if (progressStyle == ProgressBarStyle.STANDARD) {
+            Slider(
+                value = sliderValue,
+                onValueChange = {
+                    sliderValue = it
+                    lastSeekTime = System.currentTimeMillis()
+                },
+                onValueChangeFinished = {
+                    onSeek(sliderValue.toLong())
+                    lastSeekTime = System.currentTimeMillis()
+                },
+                interactionSource = remember { MutableInteractionSource() },
+                valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            )
+        } else {
+            JasmineProgressBar(
+                value = sliderValue,
+                onValueChange = {
+                    sliderValue = it
+                    lastSeekTime = System.currentTimeMillis()
+                },
+                onValueChangeFinished = {
+                    onSeek(sliderValue.toLong())
+                    lastSeekTime = System.currentTimeMillis()
+                },
+                valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                style = progressStyle,
+                isPlaying = isPlaying
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+fun PlaybackControlsSection(
+    isPlaying: Boolean,
+    repeatMode: Int,
+    shuffleEnabled: Boolean,
+    onToggleRepeat: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onTogglePlayPause: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleRepeat() })
+        AnimatedControlIcon(icon = Icons.Rounded.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleShuffle() } )
+        AnimatedControlIcon(icon = Icons.Rounded.SkipPrevious, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onPrevious() })
+        AnimatedControlIcon(icon = Icons.Rounded.SkipNext, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onNext() })
+
+        val playPauseInteractionSource = remember { MutableInteractionSource() }
+        val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
+        val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.9f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
+        val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
+
+        Surface(
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onTogglePlayPause()
+            },
+            interactionSource = playPauseInteractionSource,
+            modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = scaleX },
+            shape = RoundedCornerShape(cornerPercent),
+            color = MaterialTheme.colorScheme.primary
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun BottomActionsSection(
+    isFavorite: Boolean,
+    onShowQueue: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onShowLyrics: () -> Unit,
+    onShowMore: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+        horizontalArrangement = Arrangement.SpaceAround,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AnimatedControlIcon(Icons.AutoMirrored.Rounded.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onShowQueue() })
+        AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleFavorite() })
+        AnimatedControlIcon(Icons.Rounded.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onShowLyrics() })
+        AnimatedControlIcon(Icons.Rounded.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onShowMore() })
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParameterAdjustmentSheet(
@@ -617,41 +684,41 @@ fun ParameterAdjustmentSheet(
                 modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Text(
                 text = valueFormatter(value),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.ExtraBold
             )
-            
+
             Spacer(modifier = Modifier.height(32.dp))
-            
+
             Slider(
                 value = value,
-                onValueChange = { 
+                onValueChange = {
                     if (it != value) {
                         tickVibrate(vibrator)
-                        onValueChange(it) 
+                        onValueChange(it)
                     }
                 },
                 valueRange = valueRange,
                 steps = steps,
                 modifier = Modifier.fillMaxWidth()
             )
-            
+
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -663,10 +730,10 @@ fun ParameterAdjustmentSheet(
                     if (preset in valueRange) {
                         FilterChip(
                             selected = value == preset,
-                            onClick = { 
+                            onClick = {
                                 if (value != preset) {
                                     tickVibrate(vibrator)
-                                    onValueChange(preset) 
+                                    onValueChange(preset)
                                 }
                             },
                             label = { Text(valueFormatter(preset)) },
@@ -677,9 +744,9 @@ fun ParameterAdjustmentSheet(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             Button(
                 onClick = {
                     tickVibrate(vibrator)

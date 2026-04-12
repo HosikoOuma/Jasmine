@@ -128,11 +128,18 @@ fun TracksScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 70.dp, bottom = 160.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                    itemsIndexed(
+                        items = tracks, 
+                        key = { _, track -> track.id },
+                        contentType = { _, _ -> "track" } // Добавление contentType помогает LazyColumn переиспользовать ячейки
+                    ) { index, track ->
                         val isSelected = selectedTracks.contains(track)
+                        val isCurrent = currentTrack?.id == track.id
+                        
+                        // Используем key внутри SwipeableTrackCard если это нужно, но здесь главное - стабильность стейтов
                         SwipeableTrackCard(
                             track = track,
-                            isCurrent = currentTrack?.id == track.id,
+                            isCurrent = isCurrent,
                             isPlaying = isPlaying,
                             isSelected = isSelected,
                             isManualMarkingEnabled = true,
@@ -163,71 +170,84 @@ fun TracksScreen(
             }
 
             if (selectedTracks.isEmpty()) {
-                // Shuffle Button
-                Surface(
+                // Выносим кнопки в отдельные компоненты для уменьшения области рекомпозиции
+                ShuffleButton(
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-                    tonalElevation = 8.dp,
-                    shadowElevation = 6.dp
-                ) {
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    val scale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.92f else 1f,
-                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                        label = "scale"
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .padding(4.dp).height(40.dp).width(80.dp)
-                            .graphicsLayer { scaleX = scale; scaleY = scale }
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
-                            .clickable(interactionSource = interactionSource, indication = null) {
-                                vibrateClick(context)
-                                if (tracks.isNotEmpty()) {
-                                    playerViewModel.shuffleAndPlay(tracks)
-                                    onNavigateToPlayer()
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.Shuffle, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
+                    onShuffle = {
+                        vibrateClick(context)
+                        if (tracks.isNotEmpty()) {
+                            playerViewModel.shuffleAndPlay(tracks)
+                            onNavigateToPlayer()
+                        }
                     }
-                }
+                )
 
-                // Mode Selector
-                Surface(
+                ModeSelector(
                     modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-                    tonalElevation = 8.dp,
-                    shadowElevation = 6.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        ModeToggleButton(
-                            selected = !isFavoritesMode,
-                            icon = Icons.Rounded.MusicNote,
-                            onClick = {
-                                vibrateClick(context)
-                                isFavoritesMode = false
-                            }
-                        )
-                        ModeToggleButton(
-                            selected = isFavoritesMode,
-                            icon = Icons.Rounded.Favorite,
-                            onClick = {
-                                vibrateClick(context)
-                                isFavoritesMode = true
-                            }
-                        )
+                    isFavoritesMode = isFavoritesMode,
+                    onModeChange = {
+                        vibrateClick(context)
+                        isFavoritesMode = it
                     }
-                }
+                )
             }
+        }
+    }
+}
+
+@Composable
+fun ShuffleButton(modifier: Modifier, onShuffle: () -> Unit) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+        tonalElevation = 8.dp,
+        shadowElevation = 6.dp
+    ) {
+        val interactionSource = remember { MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val scale by animateFloatAsState(
+            targetValue = if (isPressed) 0.92f else 1f,
+            animationSpec = spring(stiffness = Spring.StiffnessMedium),
+            label = "scale"
+        )
+
+        Box(
+            modifier = Modifier
+                .padding(4.dp).height(40.dp).width(80.dp)
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                .clickable(interactionSource = interactionSource, indication = null, onClick = onShuffle),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Rounded.Shuffle, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+fun ModeSelector(modifier: Modifier, isFavoritesMode: Boolean, onModeChange: (Boolean) -> Unit) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+        tonalElevation = 8.dp,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ModeToggleButton(
+                selected = !isFavoritesMode,
+                icon = Icons.Rounded.MusicNote,
+                onClick = { onModeChange(false) }
+            )
+            ModeToggleButton(
+                selected = isFavoritesMode,
+                icon = Icons.Rounded.Favorite,
+                onClick = { onModeChange(true) }
+            )
         }
     }
 }

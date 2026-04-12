@@ -1,21 +1,63 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# --- Агрессивная обфускация и оптимизация ---
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Включаем максимальную оптимизацию
+-optimizationpasses 5
+-allowaccessmodification
+-mergeinterfacesaggressively
+-overloadaggressively
+-repackageclasses ''
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- Android & Compose ---
+-keep class androidx.compose.ui.platform.** { *; }
+-keep @androidx.compose.runtime.Composable class * { *; }
+-keepclassmembers class * {
+    @androidx.compose.runtime.Composable *;
+    @androidx.compose.runtime.ReadOnlyComposable *;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Room Database ---
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao class * { *; }
+-keep @androidx.room.Database class * { *; }
+
+# --- Retrofit & Gson (Network) ---
+# Сохраняем всё, что связано с сетевыми запросами и маппингом данных
+-keepattributes Signature, InnerClasses, EnclosingMethod, RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keep class retrofit2.** { *; }
+-keep @retrofit2.http.** class * { *; }
+-keepclassmembers class * {
+    @retrofit2.http.** *;
+}
+
+# Gson
+-keep class com.google.gson.** { *; }
+-keep @com.google.gson.annotations.SerializedName class * { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
+# Сохраняем ваши Data-модели (entities), иначе Gson не сможет их заполнить
+-keep class com.nkds.hosikoouma.jasmine.datamodels.** { *; }
+-keep class com.nkds.hosikoouma.jasmine.data.** { *; }
+
+# --- Media3 / ExoPlayer ---
+-keep class androidx.media3.** { *; }
+
+# --- Jaudiotagger (Чтение тегов) ---
+-keep class net.jthink.jaudiotagger.** { *; }
+
+# --- Coil (Загрузка картинок) ---
+-keep class coil.** { *; }
+
+# --- Удаляем логи и неиспользуемый код ---
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
+    public static *** v(...);
+    public static *** i(...);
+}
+
+# Игнорируем предупреждения от сторонних библиотек, которые мешают сборке
+-dontwarn net.jthink.jaudiotagger.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn org.checkerframework.**

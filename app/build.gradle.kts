@@ -20,11 +20,18 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Включаем R8 (minify) для обфускации и удаления мертвого кода
+            isMinifyEnabled = true
+            // Включаем оптимизацию ресурсов
+            isShrinkResources = true
+            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            
+            // Добавляем флаг для более агрессивной оптимизации R8
+            signingConfig = signingConfigs.getByName("debug") // Временно используем debug ключ для тестов, если нет release
         }
     }
     compileOptions {

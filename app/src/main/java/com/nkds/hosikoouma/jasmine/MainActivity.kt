@@ -1,5 +1,6 @@
 package com.nkds.hosikoouma.jasmine
 
+import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.os.Build
 import android.os.Bundle
@@ -74,10 +75,25 @@ class MainActivity : ComponentActivity() {
                     try {
                         val bitmap = withContext(Dispatchers.IO) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, currentTrack!!.albumArtUri!!))
+                                val source = ImageDecoder.createSource(context.contentResolver, currentTrack!!.albumArtUri!!)
+                                ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                                    // Оптимизация: для извлечения цвета нам не нужно полное разрешение.
+                                    // Уменьшаем размер до ~100px по меньшей стороне.
+                                    val sampleSize = (info.size.width / 128).coerceAtLeast(1).coerceAtMost(info.size.height / 128)
+                                    if (sampleSize > 1) {
+                                        decoder.setTargetSampleSize(sampleSize)
+                                    }
+                                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE // Важно для корректной работы с палитрой
+                                }
                             } else {
                                 @Suppress("DEPRECATION")
-                                MediaStore.Images.Media.getBitmap(context.contentResolver, currentTrack!!.albumArtUri)
+                                val original = MediaStore.Images.Media.getBitmap(context.contentResolver, currentTrack!!.albumArtUri)
+                                // Ручное сжатие для старых версий
+                                if (original.width > 200) {
+                                    Bitmap.createScaledBitmap(original, 128, 128, true)
+                                } else {
+                                    original
+                                }
                             }
                         }
                         dominantColorState.updateFrom(bitmap.asImageBitmap())
