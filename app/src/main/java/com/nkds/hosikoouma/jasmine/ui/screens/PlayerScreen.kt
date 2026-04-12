@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
 import androidx.navigation.NavController
@@ -57,6 +58,7 @@ import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
 import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
+import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
@@ -74,19 +76,20 @@ fun PlayerScreen(
     navController: NavController,
     onClose: () -> Unit
 ) {
-    val currentTrack by viewModel.currentTrack.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val progress by viewModel.progress.collectAsState()
-    val duration by viewModel.duration.collectAsState()
-    val shuffleEnabled by viewModel.shuffleModeEnabled.collectAsState()
-    val repeatMode by viewModel.repeatMode.collectAsState()
-    val isFavorite by viewModel.isCurrentFavorite.collectAsState()
-    val systemVolume by viewModel.systemVolume.collectAsState()
+    val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
+    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val duration by viewModel.duration.collectAsStateWithLifecycle()
+    val shuffleEnabled by viewModel.shuffleModeEnabled.collectAsStateWithLifecycle()
+    val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
+    val isFavorite by viewModel.isCurrentFavorite.collectAsStateWithLifecycle()
+    val systemVolume by viewModel.systemVolume.collectAsStateWithLifecycle()
     
     val settingsViewModel: SettingsViewModel = viewModel()
-    val progressStyleStr by settingsViewModel.progressBarStyle.collectAsState()
+    val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
+    
     val progressStyle = try {
-        ProgressBarStyle.valueOf(progressStyleStr)
+        ProgressBarStyle.valueOf(settings.progressBarStyle)
     } catch (e: Exception) {
         ProgressBarStyle.STANDARD
     }
@@ -481,14 +484,15 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Surface(
-                        onClick = { 
-                            showMoreActions = false
-                            showDeleteDialog = true
-                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bouncingClickable { 
+                                showMoreActions = false
+                                showDeleteDialog = true
+                            },
                         color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
                         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(20.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -506,7 +510,7 @@ fun PlayerScreen(
 
         // Шторка настроек скорости
         if (showSpeedSheet) {
-            val speed by viewModel.playbackSpeed.collectAsState()
+            val speed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
             ParameterAdjustmentSheet(
                 title = "Playback Speed",
                 value = speed,
@@ -522,7 +526,7 @@ fun PlayerScreen(
 
         // Шторка настроек питча
         if (showPitchSheet) {
-            val pitch by viewModel.playbackPitch.collectAsState()
+            val pitch by viewModel.playbackPitch.collectAsStateWithLifecycle()
             ParameterAdjustmentSheet(
                 title = "Playback Pitch",
                 value = pitch,
@@ -555,15 +559,15 @@ fun PlayerScreen(
                 text = { Text("Are you sure you want to delete \"${currentTrack?.title}\" from your device?") },
                 confirmButton = {
                     TextButton(
-                        onClick = {
+                        modifier = Modifier.bouncingClickable {
                             showDeleteDialog = false
                             currentTrack?.let { track ->
                                 viewModel.prepareForDeletion(listOf(track))
                                 trackViewModel.deleteTracks(listOf(track))
                             }
                         },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Delete") }
+                        onClick = { }
+                    ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
@@ -637,7 +641,6 @@ fun ParameterAdjustmentSheet(
                 value = value,
                 onValueChange = { 
                     if (it != value) {
-                        // Вибрируем при каждом "перескоке" на новый шаг
                         tickVibrate(vibrator)
                         onValueChange(it) 
                     }
@@ -667,7 +670,9 @@ fun ParameterAdjustmentSheet(
                                 }
                             },
                             label = { Text(valueFormatter(preset)) },
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.graphicsLayer {
+                            }
                         )
                     }
                 }
@@ -680,7 +685,7 @@ fun ParameterAdjustmentSheet(
                     tickVibrate(vibrator)
                     onReset()
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(56.dp).bouncingClickable { onReset() },
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -696,7 +701,6 @@ fun ParameterAdjustmentSheet(
 private fun tickVibrate(vibrator: Vibrator?) {
     if (vibrator == null) return
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        // Очень короткий и легкий "тик" (10 мс)
         vibrator.vibrate(VibrationEffect.createOneShot(10, 100))
     } else {
         @Suppress("DEPRECATION")
@@ -711,10 +715,11 @@ fun ActionCard(
     onClick: () -> Unit
 ) {
     Surface(
-        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .bouncingClickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(20.dp),
-        modifier = Modifier.fillMaxWidth()
+        shape = RoundedCornerShape(20.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),

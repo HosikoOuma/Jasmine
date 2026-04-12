@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
@@ -43,17 +44,17 @@ fun RadioPlayerScreen(
     playerViewModel: PlayerViewModel,
     onClose: () -> Unit
 ) {
-    val isPlaying by playerViewModel.isPlaying.collectAsState()
-    val radioTrackTitle by playerViewModel.radioTrackTitle.collectAsState()
-    val radioTrackArtist by playerViewModel.radioTrackArtist.collectAsState()
+    val isPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
+    val radioTrackTitle by playerViewModel.radioTrackTitle.collectAsStateWithLifecycle()
+    val radioTrackArtist by playerViewModel.radioTrackArtist.collectAsStateWithLifecycle()
     
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val settingsViewModel: SettingsViewModel = viewModel()
     
-    val progressStyleStr by settingsViewModel.progressBarStyle.collectAsState()
+    val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
     val progressStyle = try {
-        ProgressBarStyle.valueOf(progressStyleStr)
+        ProgressBarStyle.valueOf(settings.progressBarStyle)
     } catch (e: Exception) {
         ProgressBarStyle.STANDARD
     }

@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
+import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
 @Composable
@@ -77,12 +78,12 @@ fun LibraryCard(
     onClick: () -> Unit
 ) {
     Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1.1f)
+            .bouncingClickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),

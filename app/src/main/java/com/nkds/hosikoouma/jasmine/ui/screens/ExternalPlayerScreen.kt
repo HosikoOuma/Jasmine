@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
@@ -48,7 +49,7 @@ fun ExternalPlayerScreen(
     player: Player,
     title: String,
     artist: String,
-    artwork: ByteArray?, // Изменено на ByteArray?
+    artwork: ByteArray?,
     onClose: () -> Unit
 ) {
     var isPlaying by remember { mutableStateOf(player.isPlaying) }
@@ -59,8 +60,13 @@ fun ExternalPlayerScreen(
     var pitch by remember { mutableFloatStateOf(player.playbackParameters.pitch) }
 
     val settingsViewModel: SettingsViewModel = viewModel()
-    val progressStyleStr by settingsViewModel.progressBarStyle.collectAsState()
-    val progressStyle = try { ProgressBarStyle.valueOf(progressStyleStr) } catch (e: Exception) { ProgressBarStyle.STANDARD }
+    val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
+    
+    val progressStyle = try { 
+        ProgressBarStyle.valueOf(settings.progressBarStyle) 
+    } catch (e: Exception) { 
+        ProgressBarStyle.STANDARD 
+    }
 
     val scope = rememberCoroutineScope()
 
@@ -135,8 +141,6 @@ fun ExternalPlayerScreen(
                 )
             }
     ) {
-        // Здесь мы передаем null в PlayerBackground, так как Uri больше нет.
-        // Если вы захотите размытый фон из байтов, его нужно будет доработать в PlayerBackground.kt
         PlayerBackground(albumArtUri = null)
 
         Column(
@@ -154,7 +158,7 @@ fun ExternalPlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 AlbumArt(
-                    albumArtUri = artwork, // Теперь передаем байты
+                    albumArtUri = artwork,
                     modifier = Modifier.fillMaxWidth(albumArtScale / 0.9f).aspectRatio(1f),
                     shape = RoundedCornerShape(24.dp)
                 )

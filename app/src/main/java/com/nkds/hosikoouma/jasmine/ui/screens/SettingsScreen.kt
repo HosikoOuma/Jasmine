@@ -14,12 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.nkds.hosikoouma.jasmine.viewmodels.AppFontFamily
-import com.nkds.hosikoouma.jasmine.viewmodels.DarkMode
-import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
-import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
-import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.*
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -29,19 +26,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
     trackViewModel: TrackViewModel
 ) {
-    val isCrossfadeEnabled by viewModel.isCrossfadeEnabled.collectAsState()
-    val crossfadeDuration by viewModel.crossfadeDuration.collectAsState()
-    val minTrackDuration by viewModel.minTrackDuration.collectAsState()
-    val defaultSortType by viewModel.defaultSortType.collectAsState()
-    val isDefaultSortReversed by viewModel.isDefaultSortReversed.collectAsState()
-    val progressBarStyle by viewModel.progressBarStyle.collectAsState()
-    val appFontFamily by viewModel.appFontFamily.collectAsState()
-    val darkMode by viewModel.darkMode.collectAsState()
-    
-    val paletteStyle by viewModel.paletteStyle.collectAsState()
-    val amoledDarkMode by viewModel.amoledDarkMode.collectAsState()
-    val useDynamicColor by viewModel.useDynamicColor.collectAsState()
-    val useAlbumArtColor by viewModel.useAlbumArtColor.collectAsState()
+    val settings by viewModel.settingsState.collectAsStateWithLifecycle()
 
     var showSortDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf(false) }
@@ -69,23 +54,23 @@ fun SettingsScreen(
             supportingContent = { Text("Smoothly transition between tracks") },
             trailingContent = {
                 Switch(
-                    checked = isCrossfadeEnabled,
+                    checked = settings.isCrossfadeEnabled,
                     onCheckedChange = { viewModel.setCrossfadeEnabled(it) }
                 )
             }
         )
 
-        if (isCrossfadeEnabled) {
+        if (settings.isCrossfadeEnabled) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Duration", style = MaterialTheme.typography.bodyMedium)
-                    Text("${(crossfadeDuration / 1000f)}s", style = MaterialTheme.typography.bodyMedium)
+                    Text("${(settings.crossfadeDuration / 1000f)}s", style = MaterialTheme.typography.bodyMedium)
                 }
                 Slider(
-                    value = crossfadeDuration.toFloat(),
+                    value = settings.crossfadeDuration.toFloat(),
                     onValueChange = { viewModel.setCrossfadeDuration(it.roundToLong()) },
                     valueRange = 1000f..10000f,
                     steps = 8
@@ -96,7 +81,7 @@ fun SettingsScreen(
         ListItem(
             headlineContent = { Text("Player Progress Style") },
             supportingContent = { 
-                val styleLabel = when(progressBarStyle) {
+                val styleLabel = when(settings.progressBarStyle) {
                     "WAVE" -> "Wave Visualizer"
                     "NEON" -> "Neon Glow"
                     "DOTTED" -> "Dotted Line"
@@ -121,7 +106,7 @@ fun SettingsScreen(
         ListItem(
             headlineContent = { Text("Theme Mode") },
             supportingContent = { 
-                val themeLabel = when(darkMode) {
+                val themeLabel = when(settings.darkMode) {
                     "DARK" -> "Dark"
                     "LIGHT" -> "Light"
                     else -> "Follow System"
@@ -136,7 +121,7 @@ fun SettingsScreen(
             supportingContent = { Text("Pure black background in dark theme") },
             trailingContent = {
                 Switch(
-                    checked = amoledDarkMode,
+                    checked = settings.amoledDarkMode,
                     onCheckedChange = { viewModel.setAmoledDarkMode(it) }
                 )
             }
@@ -148,7 +133,7 @@ fun SettingsScreen(
                 supportingContent = { Text("Use system accent colors") },
                 trailingContent = {
                     Switch(
-                        checked = useDynamicColor,
+                        checked = settings.useDynamicColor,
                         onCheckedChange = { viewModel.setUseDynamicColor(it) }
                     )
                 }
@@ -160,16 +145,16 @@ fun SettingsScreen(
             supportingContent = { Text("Generate theme from current track cover") },
             trailingContent = {
                 Switch(
-                    checked = useAlbumArtColor,
+                    checked = settings.useAlbumArtColor,
                     onCheckedChange = { viewModel.setUseAlbumArtColor(it) }
                 )
             }
         )
 
-        if (!useDynamicColor || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+        if (!settings.useDynamicColor || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             ListItem(
                 headlineContent = { Text("Palette Style") },
-                supportingContent = { Text(paletteStyle) },
+                supportingContent = { Text(settings.paletteStyle) },
                 modifier = Modifier.clickable { showPaletteDialog = true }
             )
         }
@@ -177,7 +162,7 @@ fun SettingsScreen(
         ListItem(
             headlineContent = { Text("App Font") },
             supportingContent = { 
-                val fontLabel = when(appFontFamily) {
+                val fontLabel = when(settings.appFontFamily) {
                     "GOOGLE_SANS" -> "Google Sans"
                     "JETBRAINS_MONO" -> "JetBrains Mono Nerd"
                     "NUNITO" -> "Nunito"
@@ -200,12 +185,12 @@ fun SettingsScreen(
 
         ListItem(
             headlineContent = { Text("Filter short tracks") },
-            supportingContent = { Text("Hide tracks shorter than ${minTrackDuration}s") }
+            supportingContent = { Text("Hide tracks shorter than ${settings.minTrackDuration}s") }
         )
 
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Slider(
-                value = minTrackDuration.toFloat(),
+                value = settings.minTrackDuration.toFloat(),
                 onValueChange = { viewModel.setMinTrackDuration(it.roundToInt()) },
                 valueRange = 0f..30f,
                 steps = 29
@@ -215,13 +200,13 @@ fun SettingsScreen(
         ListItem(
             headlineContent = { Text("Default Sorting") },
             supportingContent = { 
-                val sortLabel = when(defaultSortType) {
+                val sortLabel = when(settings.defaultSortType) {
                     "BY_NAME" -> "Name"
                     "BY_ARTIST" -> "Artist"
                     "BY_DURATION" -> "Duration"
                     else -> "Date Added"
                 }
-                Text("Currently sorted by $sortLabel ${if(isDefaultSortReversed) "(Reversed)" else ""}")
+                Text("Currently sorted by $sortLabel ${if(settings.isDefaultSortReversed) "(Reversed)" else ""}")
             },
             modifier = Modifier.clickable { showSortDialog = true }
         )
@@ -250,8 +235,8 @@ fun SettingsScreen(
     }
 
     if (showBlacklistDialog) {
-        val allFolders by trackViewModel.folders.collectAsState()
-        val blacklistedFolders by trackViewModel.blacklistedFolders.collectAsState()
+        val allFolders by trackViewModel.folders.collectAsStateWithLifecycle()
+        val blacklistedFolders by trackViewModel.blacklistedFolders.collectAsStateWithLifecycle()
 
         AlertDialog(
             onDismissRequest = { showBlacklistDialog = false },
@@ -310,17 +295,16 @@ fun SettingsScreen(
         )
     }
 
-    // ... (остальные диалоги без изменений)
     if (showSortDialog) {
         AlertDialog(
             onDismissRequest = { showSortDialog = false },
             title = { Text("Default Sorting") },
             text = {
                 Column {
-                    SortOption("By Name", "BY_NAME", defaultSortType) { viewModel.setDefaultSortType(it) }
-                    SortOption("By Artist", "BY_ARTIST", defaultSortType) { viewModel.setDefaultSortType(it) }
-                    SortOption("By Date Added", "BY_DATE", defaultSortType) { viewModel.setDefaultSortType(it) }
-                    SortOption("By Duration", "BY_DURATION", defaultSortType) { viewModel.setDefaultSortType(it) }
+                    SortOption("By Name", "BY_NAME", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
+                    SortOption("By Artist", "BY_ARTIST", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
+                    SortOption("By Date Added", "BY_DATE", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
+                    SortOption("By Duration", "BY_DURATION", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
                     
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
@@ -328,10 +312,10 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { viewModel.setDefaultSortReversed(!isDefaultSortReversed) }
+                            .clickable { viewModel.setDefaultSortReversed(!settings.isDefaultSortReversed) }
                             .padding(vertical = 8.dp)
                     ) {
-                        Checkbox(checked = isDefaultSortReversed, onCheckedChange = null)
+                        Checkbox(checked = settings.isDefaultSortReversed, onCheckedChange = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Reverse order by default")
                     }
@@ -349,13 +333,13 @@ fun SettingsScreen(
             title = { Text("Theme Mode") },
             text = {
                 Column {
-                    ThemeOption("Follow System", DarkMode.FOLLOW_SYSTEM, darkMode) { 
+                    ThemeOption("Follow System", DarkMode.FOLLOW_SYSTEM, settings.darkMode) { 
                         viewModel.setDarkMode(it) 
                     }
-                    ThemeOption("Light", DarkMode.LIGHT, darkMode) { 
+                    ThemeOption("Light", DarkMode.LIGHT, settings.darkMode) { 
                         viewModel.setDarkMode(it) 
                     }
-                    ThemeOption("Dark", DarkMode.DARK, darkMode) { 
+                    ThemeOption("Dark", DarkMode.DARK, settings.darkMode) { 
                         viewModel.setDarkMode(it) 
                     }
                 }
@@ -372,19 +356,19 @@ fun SettingsScreen(
             title = { Text("Progress Bar Style") },
             text = {
                 Column {
-                    StyleOption("Standard Slider", ProgressBarStyle.STANDARD, progressBarStyle) { 
+                    StyleOption("Standard Slider", ProgressBarStyle.STANDARD, settings.progressBarStyle) { 
                         viewModel.setProgressBarStyle(it) 
                     }
-                    StyleOption("Solid Thick", ProgressBarStyle.SOLID, progressBarStyle) { 
+                    StyleOption("Solid Thick", ProgressBarStyle.SOLID, settings.progressBarStyle) { 
                         viewModel.setProgressBarStyle(it) 
                     }
-                    StyleOption("Dotted Line", ProgressBarStyle.DOTTED, progressBarStyle) { 
+                    StyleOption("Dotted Line", ProgressBarStyle.DOTTED, settings.progressBarStyle) { 
                         viewModel.setProgressBarStyle(it) 
                     }
-                    StyleOption("Wave Visualizer", ProgressBarStyle.WAVE, progressBarStyle) { 
+                    StyleOption("Wave Visualizer", ProgressBarStyle.WAVE, settings.progressBarStyle) { 
                         viewModel.setProgressBarStyle(it) 
                     }
-                    StyleOption("Neon Glow", ProgressBarStyle.NEON, progressBarStyle) { 
+                    StyleOption("Neon Glow", ProgressBarStyle.NEON, settings.progressBarStyle) { 
                         viewModel.setProgressBarStyle(it) 
                     }
                 }
@@ -401,16 +385,16 @@ fun SettingsScreen(
             title = { Text("App Font") },
             text = {
                 Column {
-                    FontOption("System Default", AppFontFamily.DEFAULT, appFontFamily) { 
+                    FontOption("System Default", AppFontFamily.DEFAULT, settings.appFontFamily) { 
                         viewModel.setAppFontFamily(it) 
                     }
-                    FontOption("Google Sans", AppFontFamily.GOOGLE_SANS, appFontFamily) { 
+                    FontOption("Google Sans", AppFontFamily.GOOGLE_SANS, settings.appFontFamily) { 
                         viewModel.setAppFontFamily(it) 
                     }
-                    FontOption("JetBrains Mono Nerd", AppFontFamily.JETBRAINS_MONO, appFontFamily) { 
+                    FontOption("JetBrains Mono Nerd", AppFontFamily.JETBRAINS_MONO, settings.appFontFamily) { 
                         viewModel.setAppFontFamily(it) 
                     }
-                    FontOption("Nunito", AppFontFamily.NUNITO, appFontFamily) {
+                    FontOption("Nunito", AppFontFamily.NUNITO, settings.appFontFamily) {
                         viewModel.setAppFontFamily(it)
                     }
                 }
@@ -439,7 +423,7 @@ fun SettingsScreen(
                                 .clickable { viewModel.setPaletteStyle(style) }
                                 .padding(vertical = 8.dp)
                         ) {
-                            RadioButton(selected = style == paletteStyle, onClick = null)
+                            RadioButton(selected = style == settings.paletteStyle, onClick = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(style)
                         }

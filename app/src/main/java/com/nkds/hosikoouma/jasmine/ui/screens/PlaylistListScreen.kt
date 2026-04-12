@@ -9,9 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.NoteAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.PostAdd
 import androidx.compose.material3.*
@@ -19,10 +17,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.nkds.hosikoouma.jasmine.ui.components.LibraryItemCard
+import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
 @Composable
@@ -54,46 +52,51 @@ fun PlaylistListScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            // Секция с кнопками управления плейлистами
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Кнопка: Добавить из памяти (Прямоугольник)
-                    Button(
-                        onClick = { filePickerLauncher.launch("*/*") },
+                    Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .height(56.dp),
+                            .height(56.dp)
+                            .bouncingClickable { filePickerLauncher.launch("*/*") },
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        ),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     ) {
-                        Icon(Icons.Rounded.PostAdd, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("From Device", style = MaterialTheme.typography.labelLarge)
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.PostAdd, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("From Device", style = MaterialTheme.typography.labelLarge)
+                        }
                     }
 
                     // Кнопка: Создать в приложении (Овал)
-                    Button(
-                        onClick = { showCreateDialog = true },
+                    Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .height(56.dp),
+                            .height(56.dp)
+                            .bouncingClickable { showCreateDialog = true },
                         shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ) {
-                        Icon(Icons.Rounded.CreateNewFolder, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Create New", style = MaterialTheme.typography.labelLarge)
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.CreateNewFolder, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Create New", style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
             }
@@ -139,16 +142,20 @@ fun PlaylistListScreen(
                 },
                 confirmButton = {
                     TextButton(
-                        onClick = {
+                        modifier = Modifier.bouncingClickable {
                             if (playlistName.isNotBlank()) {
                                 trackViewModel.createPlaylist(playlistName)
                                 showCreateDialog = false
                             }
-                        }
+                        },
+                        onClick = { }
                     ) { Text("Create") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showCreateDialog = false }) { Text("Cancel") }
+                    TextButton(
+                        modifier = Modifier.bouncingClickable { showCreateDialog = false },
+                        onClick = { }
+                    ) { Text("Cancel") }
                 },
                 shape = RoundedCornerShape(28.dp)
             )

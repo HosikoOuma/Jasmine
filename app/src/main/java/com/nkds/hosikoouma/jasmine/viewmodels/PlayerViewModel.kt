@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -29,10 +30,12 @@ import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.datamodels.Lyrics
 import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -50,7 +53,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentRadioStation = MutableStateFlow<RadioStation?>(null)
     val currentRadioStation = _currentRadioStation.asStateFlow()
 
-    // Динамические метаданные радио
     private val _radioTrackTitle = MutableStateFlow<String?>(null)
     val radioTrackTitle = _radioTrackTitle.asStateFlow()
 
@@ -102,11 +104,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val isLoadingLyrics = _isLoadingLyrics.asStateFlow()
 
     val syncedLocalLyrics: StateFlow<List<LyricsLine>?> = _localLyrics
-        .map { LyricsHelper.parseLrc(it) }
+        .map { withContext(Dispatchers.Default) { LyricsHelper.parseLrc(it) } }
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     val syncedRemoteLyrics: StateFlow<List<LyricsLine>?> = _remoteLyrics
-        .map { LyricsHelper.parseLrc(it?.syncedLyrics) }
+        .map { withContext(Dispatchers.Default) { LyricsHelper.parseLrc(it?.syncedLyrics) } }
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     val isCurrentFavorite: StateFlow<Boolean> = combine(
@@ -136,7 +138,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             currentTrack.collect { track ->
                 if (track != null) {
-                    delay(500)
+                    delay(300)
                     loadLyrics(track, _duration.value)
                 } else {
                     _localLyrics.value = null
@@ -146,21 +148,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         updateVolumeState()
-        application.registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"))
+        val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            application.registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            application.registerReceiver(volumeReceiver, filter)
+        }
     }
 
     private fun updateVolumeState() {
         val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
         _systemVolume.value = current.toFloat() / max.toFloat()
     }
 
     private fun loadLyrics(track: Track, actualDuration: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _isLoadingLyrics.value = true
-            _localLyrics.value = lyricsRepository.getLocalLyrics(track)
-            _remoteLyrics.value = lyricsRepository.getRemoteLyrics(track, actualDuration)
-            _isLoadingLyrics.value = false
+            val local = lyricsRepository.getLocalLyrics(track)
+            val remote = lyricsRepository.getRemoteLyrics(track, actualDuration)
+            withContext(Dispatchers.Main) {
+                _localLyrics.value = local
+                _remoteLyrics.value = remote
+                _isLoadingLyrics.value = false
+            }
         }
     }
 
@@ -213,20 +224,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 _playbackPitch.value = playbackParameters.pitch
             }
 
-            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            }
-
-            override fun onRepeatModeChanged(repeatMode: Int) {
-                _repeatMode.value = repeatMode
-            }
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {}
+            override fun onRepeatModeChanged(repeatMode: Int) { _repeatMode.value = repeatMode }
         })
     }
 
-    private fun parseRadioMetadata(metadata: MediaMetadata) {
-        val title = metadata.title?.toString()
-        val artist = metadata.artist?.toString()
-
-        Log.d("PlayerViewModel", "Parsing radio metadata: Artist=$artist, Title=$title")
+    private fun parseRadioMetadata(mediaMetadata: MediaMetadata) {
+        val title = mediaMetadata.title?.toString()
+        val artist = mediaMetadata.artist?.toString()
 
         if (artist == "Radio Stream" && title != null && title.contains(" - ")) {
             val parts = title.split(" - ", limit = 2)
@@ -270,7 +275,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val uid = if (!timeline.isEmpty && currentIndex != -1 && currentIndex < timeline.windowCount) {
                 timeline.getWindow(currentIndex, window).uid.toString()
             } else {
-                "fallback_${mediaItem.mediaId}_$currentIndex"
+                "fallback_${mediaIdToLong(mediaItem.mediaId)}_$currentIndex"
             }
             
             _currentTrack.value = mediaToTrack(mediaItem).copy(uid = uid)
@@ -282,27 +287,36 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun updatePlaylist() {
         val controller = controller ?: return
+        
+        // КРИТИЧЕСКИ ВАЖНО: Получаем данные из Timeline СТРОГО на Main Thread
+        val mediaItems = mutableListOf<MediaItem>()
+        val uids = mutableListOf<String>()
         val timeline = controller.currentTimeline
-        val items = mutableListOf<Track>()
-        val window = Timeline.Window()
         
         if (timeline.isEmpty) {
             for (i in 0 until controller.mediaItemCount) {
-                val mediaItem = controller.getMediaItemAt(i)
-                if (mediaItem.mediaMetadata.extras?.getBoolean("isRadio") != true) {
-                    items.add(mediaToTrack(mediaItem).copy(uid = "fallback_${mediaItem.mediaId}_$i"))
-                }
+                val item = controller.getMediaItemAt(i)
+                mediaItems.add(item)
+                uids.add("fallback_${mediaIdToLong(item.mediaId)}_$i")
             }
         } else {
+            val window = Timeline.Window()
             for (i in 0 until timeline.windowCount) {
                 timeline.getWindow(i, window)
-                val mediaItem = window.mediaItem ?: continue
-                if (mediaItem.mediaMetadata.extras?.getBoolean("isRadio") != true) {
-                    items.add(mediaToTrack(mediaItem).copy(uid = window.uid.toString()))
+                window.mediaItem?.let {
+                    mediaItems.add(it)
+                    uids.add(window.uid.toString())
                 }
             }
         }
-        _playlist.value = items
+
+        // Выполняем маппинг в фоне, не трогая контроллер
+        viewModelScope.launch(Dispatchers.Default) {
+            val items = mediaItems.indices.map { index ->
+                mediaToTrack(mediaItems[index]).copy(uid = uids[index])
+            }
+            _playlist.value = items
+        }
     }
 
     private fun mediaToTrack(mediaItem: MediaItem): Track {
@@ -344,15 +358,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun playTracks(tracks: List<Track>, startIndex: Int) {
         val controller = controller ?: return
         originalPlaylist = tracks 
-        _shuffleModeEnabled.value = false
         _isRadioMode.value = false
         
-        val mediaItems = tracks.map { track -> createMediaItem(track) }
-        
-        controller.setMediaItems(mediaItems, startIndex, 0L)
-        controller.shuffleModeEnabled = false
-        controller.prepare()
-        controller.play()
+        viewModelScope.launch(Dispatchers.Default) {
+            val mediaItems = tracks.map { track -> createMediaItem(track) }
+            withContext(Dispatchers.Main) {
+                controller.setMediaItems(mediaItems, startIndex, 0L)
+                controller.shuffleModeEnabled = false
+                _shuffleModeEnabled.value = false
+                controller.prepare()
+                controller.play()
+            }
+        }
     }
 
     fun playRadio(targetStation: RadioStation, allStations: List<RadioStation>) {
@@ -361,28 +378,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _currentRadioStation.value = targetStation
         _currentTrack.value = null
         
-        val mediaItems = allStations.map { station ->
-            val extras = Bundle().apply { putBoolean("isRadio", true) }
-            MediaItem.Builder()
-                .setMediaId("radio_${station.id}")
-                .setUri(station.url)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(station.name)
-                        .setArtist("Radio Stream")
-                        .setExtras(extras)
-                        .build()
-                )
-                .build()
-        }
+        viewModelScope.launch(Dispatchers.Default) {
+            val mediaItems = allStations.map { station ->
+                val extras = Bundle().apply { putBoolean("isRadio", true) }
+                MediaItem.Builder()
+                    .setMediaId("radio_${station.id}")
+                    .setUri(station.url)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(station.name)
+                            .setArtist("Radio Stream")
+                            .setExtras(extras)
+                            .build()
+                    )
+                    .build()
+            }
 
-        val startIndex = allStations.indexOfFirst { it.id == targetStation.id }.coerceAtLeast(0)
-        
-        controller.setMediaItems(mediaItems, startIndex, 0L)
-        controller.shuffleModeEnabled = false
-        controller.repeatMode = Player.REPEAT_MODE_ALL
-        controller.prepare()
-        controller.play()
+            val startIndex = allStations.indexOfFirst { it.id == targetStation.id }.coerceAtLeast(0)
+            
+            withContext(Dispatchers.Main) {
+                controller.setMediaItems(mediaItems, startIndex, 0L)
+                controller.shuffleModeEnabled = false
+                controller.repeatMode = Player.REPEAT_MODE_ALL
+                controller.prepare()
+                controller.play()
+            }
+        }
     }
 
     fun shuffleAndPlay(tracks: List<Track>) {
@@ -390,14 +411,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         originalPlaylist = tracks
         _isRadioMode.value = false
         
-        val shuffled = tracks.shuffled()
-        val mediaItems = shuffled.map { track -> createMediaItem(track) }
-        
-        controller.setMediaItems(mediaItems, 0, 0L)
-        controller.shuffleModeEnabled = false
-        _shuffleModeEnabled.value = true
-        controller.prepare()
-        controller.play()
+        viewModelScope.launch(Dispatchers.Default) {
+            val shuffled = tracks.shuffled()
+            val mediaItems = shuffled.map { track -> createMediaItem(track) }
+            
+            withContext(Dispatchers.Main) {
+                controller.setMediaItems(mediaItems, 0, 0L)
+                controller.shuffleModeEnabled = false
+                _shuffleModeEnabled.value = true
+                controller.prepare()
+                controller.play()
+            }
+        }
     }
 
     private fun createMediaItem(track: Track, isManual: Boolean = false): MediaItem {
@@ -436,10 +461,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             insertPos++
         }
 
-        controller.addMediaItem(insertPos, createMediaItem(track, isManual = true))
-        
-        if (showToast) {
-            viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
+            val mediaItem = createMediaItem(track, isManual = true)
+            withContext(Dispatchers.Main) {
+                controller.addMediaItem(insertPos, mediaItem)
+            }
+            if (showToast) {
                 _toastEvent.emit("Added to queue: ${track.title}")
             }
         }
@@ -459,10 +486,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             insertPos++
         }
 
-        val mediaItems = tracks.map { createMediaItem(it, isManual = true) }
-        controller.addMediaItems(insertPos, mediaItems)
-
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
+            val mediaItems = tracks.map { createMediaItem(it, isManual = true) }
+            withContext(Dispatchers.Main) {
+                controller.addMediaItems(insertPos, mediaItems)
+            }
             _toastEvent.emit("Added ${tracks.size} tracks to queue")
         }
     }
@@ -513,9 +541,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun moveTrack(fromIndex: Int, toIndex: Int) {
-        controller?.let {
-            it.moveMediaItem(fromIndex, toIndex)
-        }
+        controller?.moveMediaItem(fromIndex, toIndex)
     }
 
     fun skipToQueueItem(index: Int) {
@@ -533,10 +559,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setSystemVolume(vol: Float) {
-        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val target = (vol * max).toInt()
-        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
-        _systemVolume.value = vol
+        viewModelScope.launch(Dispatchers.IO) {
+            val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val target = (vol * max).toInt()
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+            withContext(Dispatchers.Main) {
+                _systemVolume.value = vol
+            }
+        }
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -574,33 +604,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val wasEnabled = _shuffleModeEnabled.value
         val willEnable = !wasEnabled
         
-        if (willEnable) {
-            val currentItems = _playlist.value.toMutableList()
-            if (currentItems.isEmpty()) return
-            
-            val curTrack = _currentTrack.value
-            val currentIndex = currentItems.indexOfFirst { it.uid == curTrack?.uid }.coerceAtLeast(0)
-            
-            val currentPos = controller.currentPosition
-            val playingItem = currentItems.removeAt(currentIndex)
-            currentItems.shuffle()
-            currentItems.add(0, playingItem)
-            
-            val mediaItems = currentItems.map { createMediaItem(it, isManual = it.isManual) }
-            controller.setMediaItems(mediaItems, 0, currentPos)
-        } else {
-            if (originalPlaylist.isNotEmpty()) {
-                val curTrack = _currentTrack.value
-                val indexInOriginal = originalPlaylist.indexOfFirst { it.id == curTrack?.id }.coerceAtLeast(0)
-                val currentPos = controller.currentPosition
+        val currentPlaylistCopy = _playlist.value.toList()
+        val currentUid = _currentTrack.value?.uid
+        val currentPos = controller.currentPosition
+
+        viewModelScope.launch(Dispatchers.Default) {
+            if (willEnable) {
+                if (currentPlaylistCopy.isEmpty()) return@launch
                 
-                val mediaItems = originalPlaylist.map { createMediaItem(it, isManual = false) }
-                controller.setMediaItems(mediaItems, indexInOriginal, currentPos)
+                val mutableItems = currentPlaylistCopy.toMutableList()
+                val currentIndex = mutableItems.indexOfFirst { it.uid == currentUid }.coerceAtLeast(0)
+                
+                val playingItem = mutableItems.removeAt(currentIndex)
+                mutableItems.shuffle()
+                mutableItems.add(0, playingItem)
+                
+                val mediaItems = mutableItems.map { createMediaItem(it, isManual = it.isManual) }
+                withContext(Dispatchers.Main) {
+                    controller.setMediaItems(mediaItems, 0, currentPos)
+                }
+            } else {
+                if (originalPlaylist.isNotEmpty()) {
+                    val indexInOriginal = originalPlaylist.indexOfFirst { it.id == _currentTrack.value?.id }.coerceAtLeast(0)
+                    val mediaItems = originalPlaylist.map { createMediaItem(it, isManual = false) }
+                    withContext(Dispatchers.Main) {
+                        controller.setMediaItems(mediaItems, indexInOriginal, currentPos)
+                    }
+                }
+            }
+            
+            withContext(Dispatchers.Main) {
+                _shuffleModeEnabled.value = willEnable
+                controller.shuffleModeEnabled = false
             }
         }
-        
-        _shuffleModeEnabled.value = willEnable
-        controller.shuffleModeEnabled = false
     }
 
     fun toggleRepeatMode() {

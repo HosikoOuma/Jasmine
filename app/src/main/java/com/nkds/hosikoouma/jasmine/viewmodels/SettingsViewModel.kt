@@ -4,32 +4,69 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 enum class ProgressBarStyle { STANDARD, SOLID, DOTTED, WAVE, NEON }
 enum class AppFontFamily { DEFAULT, GOOGLE_SANS, JETBRAINS_MONO, NUNITO }
 enum class DarkMode { FOLLOW_SYSTEM, LIGHT, DARK }
 
+data class SettingsState(
+    val isCrossfadeEnabled: Boolean = true,
+    val crossfadeDuration: Long = 3000L,
+    val minTrackDuration: Int = 0,
+    val defaultSortType: String = "BY_DATE",
+    val isDefaultSortReversed: Boolean = false,
+    val progressBarStyle: String = "STANDARD",
+    val appFontFamily: String = "DEFAULT",
+    val darkMode: String = "FOLLOW_SYSTEM",
+    val paletteStyle: String = "TonalSpot",
+    val amoledDarkMode: Boolean = false,
+    val useDynamicColor: Boolean = true,
+    val useAlbumArtColor: Boolean = true,
+    val seedColor: Int = 0xFF6750A4.toInt()
+)
+
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SettingsRepository(application)
 
-    val isCrossfadeEnabled = repository.isCrossfadeEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
-    val crossfadeDuration = repository.crossfadeDuration.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 3000L)
-    val minTrackDuration = repository.minTrackDuration.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-    val defaultSortType = repository.defaultSortType.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "BY_DATE")
-    val isDefaultSortReversed = repository.isDefaultSortReversed.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val progressBarStyle = repository.progressBarStyle.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD")
-    val appFontFamily = repository.appFontFamily.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "DEFAULT")
-    val darkMode = repository.darkMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "FOLLOW_SYSTEM")
+    val settingsState: StateFlow<SettingsState> = combine(
+        repository.isCrossfadeEnabled,
+        repository.crossfadeDuration,
+        repository.minTrackDuration,
+        repository.defaultSortType,
+        repository.isDefaultSortReversed,
+        repository.progressBarStyle,
+        repository.appFontFamily,
+        repository.darkMode,
+        repository.paletteStyle,
+        repository.amoledDarkMode,
+        repository.useDynamicColor,
+        repository.useAlbumArtColor,
+        repository.seedColor
+    ) { args: Array<Any> ->
+        SettingsState(
+            isCrossfadeEnabled = args[0] as Boolean,
+            crossfadeDuration = args[1] as Long,
+            minTrackDuration = args[2] as Int,
+            defaultSortType = args[3] as String,
+            isDefaultSortReversed = args[4] as Boolean,
+            progressBarStyle = args[5] as String,
+            appFontFamily = args[6] as String,
+            darkMode = args[7] as String,
+            paletteStyle = args[8] as String,
+            amoledDarkMode = args[9] as Boolean,
+            useDynamicColor = args[10] as Boolean,
+            useAlbumArtColor = args[11] as Boolean,
+            seedColor = args[12] as Int
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = SettingsState()
+    )
 
-    val paletteStyle = repository.paletteStyle.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "TonalSpot")
-    val amoledDarkMode = repository.amoledDarkMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val useDynamicColor = repository.useDynamicColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
-    val useAlbumArtColor = repository.useAlbumArtColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
-    val seedColor = repository.seedColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0xFF6750A4.toInt())
-
+    // Individual setters
     fun setCrossfadeEnabled(enabled: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(enabled) }
     fun setCrossfadeDuration(duration: Long) = viewModelScope.launch { repository.setCrossfadeDuration(duration) }
     fun setMinTrackDuration(seconds: Int) = viewModelScope.launch { repository.setMinTrackDuration(seconds) }

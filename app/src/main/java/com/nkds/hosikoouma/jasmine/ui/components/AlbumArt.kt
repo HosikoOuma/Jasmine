@@ -15,17 +15,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
+import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Precision
 import com.nkds.hosikoouma.jasmine.R
 
 @Composable
 fun AlbumArt(
-    albumArtUri: Any?, // Изменено на Any? для поддержки ByteArray
+    albumArtUri: Any?,
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.medium,
-    contentScale: ContentScale = ContentScale.Crop
+    contentScale: ContentScale = ContentScale.Crop,
+    isLowRes: Boolean = false // Параметр для оптимизации в списках
 ) {
     var isSuccess by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Box(
         modifier = modifier
@@ -34,11 +38,20 @@ fun AlbumArt(
         contentAlignment = Alignment.Center
     ) {
         AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
+            model = ImageRequest.Builder(context)
                 .data(albumArtUri)
                 .error(R.drawable.ison_vec)
                 .fallback(R.drawable.ison_vec)
                 .crossfade(true)
+                // Если это список, запрашиваем картинку по размеру контейнера
+                .apply {
+                    if (isLowRes) {
+                        precision(Precision.INEXACT)
+                        size(200, 200) // Ограничиваем размер для экономии памяти
+                    }
+                }
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .memoryCachePolicy(CachePolicy.ENABLED)
                 .build(),
             contentDescription = null,
             onState = { state ->

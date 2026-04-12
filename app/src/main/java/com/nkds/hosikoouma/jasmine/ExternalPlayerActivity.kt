@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
@@ -45,16 +46,9 @@ class ExternalPlayerActivity : ComponentActivity() {
 
         setContent {
             val settingsViewModel: SettingsViewModel = viewModel()
-            
-            val fontStyle by settingsViewModel.appFontFamily.collectAsState()
-            val darkModeSetting by settingsViewModel.darkMode.collectAsState()
-            val amoledMode by settingsViewModel.amoledDarkMode.collectAsState()
-            val useDynamicColor by settingsViewModel.useDynamicColor.collectAsState()
-            val paletteStyle by settingsViewModel.paletteStyle.collectAsState()
-            val useAlbumArtColor by settingsViewModel.useAlbumArtColor.collectAsState()
-            val savedSeedColorInt by settingsViewModel.seedColor.collectAsState()
+            val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
 
-            val darkTheme = when (darkModeSetting) {
+            val darkTheme = when (settings.darkMode) {
                 DarkMode.DARK.name -> true
                 DarkMode.LIGHT.name -> false
                 else -> isSystemInDarkTheme()
@@ -65,8 +59,8 @@ class ExternalPlayerActivity : ComponentActivity() {
             
             val dominantColorState = rememberDominantColorState()
 
-            LaunchedEffect(meta.artwork, useAlbumArtColor) {
-                if (useAlbumArtColor && meta.artwork != null) {
+            LaunchedEffect(meta.artwork, settings.useAlbumArtColor) {
+                if (settings.useAlbumArtColor && meta.artwork != null) {
                     try {
                         val bitmap = BitmapFactory.decodeByteArray(meta.artwork, 0, meta.artwork.size)
                         if (bitmap != null) {
@@ -78,13 +72,13 @@ class ExternalPlayerActivity : ComponentActivity() {
                 }
             }
 
-            val seedColor = if (useAlbumArtColor && meta.artwork != null && dominantColorState.color != Color.Unspecified) {
+            val seedColor = if (settings.useAlbumArtColor && meta.artwork != null && dominantColorState.color != Color.Unspecified) {
                 dominantColorState.color
             } else {
-                Color(savedSeedColorInt)
+                Color(settings.seedColor)
             }
 
-            val currentFontFamily = when(fontStyle) {
+            val currentFontFamily = when(settings.appFontFamily) {
                 "GOOGLE_SANS" -> GoogleSans
                 "JETBRAINS_MONO" -> JetBrainsMonoNerd
                 "NUNITO" -> Nunito
@@ -95,10 +89,10 @@ class ExternalPlayerActivity : ComponentActivity() {
 
             JasmineTheme(
                 darkTheme = darkTheme,
-                amoledMode = amoledMode,
-                useDynamicColor = useDynamicColor,
+                amoledMode = settings.amoledDarkMode,
+                useDynamicColor = settings.useDynamicColor,
                 seedColor = seedColor,
-                paletteStyle = paletteStyle,
+                paletteStyle = settings.paletteStyle,
                 typography = currentTypography
             ) {
                 ExternalPlayerScreen(

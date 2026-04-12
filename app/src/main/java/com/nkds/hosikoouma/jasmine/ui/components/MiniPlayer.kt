@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import kotlinx.coroutines.launch
 
@@ -37,44 +38,20 @@ fun MiniPlayer(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val currentTrack by viewModel.currentTrack.collectAsState()
-    val currentStation by viewModel.currentRadioStation.collectAsState()
-    val isRadioMode by viewModel.isRadioMode.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val progress by viewModel.progress.collectAsState()
-    val duration by viewModel.duration.collectAsState()
+    val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
+    val currentStation by viewModel.currentRadioStation.collectAsStateWithLifecycle()
+    val isRadioMode by viewModel.isRadioMode.collectAsStateWithLifecycle()
+    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     
-    // Динамические метаданные радио
-    val radioTrackTitle by viewModel.radioTrackTitle.collectAsState()
-    val radioTrackArtist by viewModel.radioTrackArtist.collectAsState()
+    val radioTrackTitle by viewModel.radioTrackTitle.collectAsStateWithLifecycle()
+    val radioTrackArtist by viewModel.radioTrackArtist.collectAsStateWithLifecycle()
 
-    // Если ничего не играет - не показываем
     if (currentTrack == null && currentStation == null) return
 
     val context = LocalContext.current
-    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
 
-    // Прогресс (только для треков)
-    val progressFactor by animateFloatAsState(
-        targetValue = if (!isRadioMode && duration > 0) progress.toFloat() / duration.toFloat() else 0f,
-        label = "progress"
-    )
-
-    // АНИМАЦИЯ "ЖИВОГО" ПЛЕЕРА
-    val infiniteTransition = rememberInfiniteTransition(label = "living_player")
-    val floatingOffset by infiniteTransition.animateFloat(
-        initialValue = -3f,
-        targetValue = 3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "floating"
-    )
-
-    // ЭФФЕКТ НАЖАТИЯ
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -89,20 +66,18 @@ fun MiniPlayer(
             .height(64.dp)
             .fillMaxWidth()
             .draggable(
-                enabled = !isRadioMode, // Свайпы только для треков
+                enabled = !isRadioMode,
                 orientation = Orientation.Horizontal,
                 state = rememberDraggableState { delta ->
-                    scope.launch {
-                        offsetX.snapTo(offsetX.value + delta)
-                    }
+                    scope.launch { offsetX.snapTo(offsetX.value + delta) }
                 },
                 onDragStopped = {
                     if (offsetX.value > 160) {
                         viewModel.skipToNext()
-                        vibrate(vibrator)
+                        vibrateClick(context)
                     } else if (offsetX.value < -160) {
                         viewModel.skipToPrevious()
-                        vibrate(vibrator)
+                        vibrateClick(context)
                     }
                     scope.launch {
                         offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
@@ -110,44 +85,21 @@ fun MiniPlayer(
                 }
             )
             .graphicsLayer {
-                translationY = floatingOffset
                 translationX = offsetX.value
                 scaleX = scale
                 scaleY = scale
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
+            .clip(RoundedCornerShape(16.dp))
+            .bouncingClickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 8.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (!isRadioMode) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(progressFactor)
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-                )
+                MiniPlayerProgress(viewModel)
             } else if (isPlaying) {
-                // Пульсирующий фон для радио
-                val alpha by infiniteTransition.animateFloat(
-                    initialValue = 0.1f,
-                    targetValue = 0.3f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1500, easing = LinearEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "radioPulse"
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha))
-                )
+                RadioPulseBackground()
             }
 
             Row(
@@ -227,7 +179,10 @@ fun MiniPlayer(
                 }
 
                 IconButton(
-                    onClick = { viewModel.togglePlayPause() }
+                    onClick = { 
+                        vibrateClick(context)
+                        viewModel.togglePlayPause() 
+                    }
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -241,11 +196,38 @@ fun MiniPlayer(
     }
 }
 
-private fun vibrate(vibrator: Vibrator?) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        vibrator?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-    } else {
-        @Suppress("DEPRECATION")
-        vibrator?.vibrate(50)
+@Composable
+private fun MiniPlayerProgress(viewModel: PlayerViewModel) {
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val duration by viewModel.duration.collectAsStateWithLifecycle()
+    
+    val progressFactor = remember(progress, duration) {
+        if (duration > 0) progress.toFloat() / duration.toFloat() else 0f
     }
+
+    Box(
+        modifier = Modifier
+            .fillMaxHeight()
+            .fillMaxWidth(progressFactor)
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+    )
+}
+
+@Composable
+private fun RadioPulseBackground() {
+    val infiniteTransition = rememberInfiniteTransition(label = "radioPulse")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "radioPulse"
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha))
+    )
 }

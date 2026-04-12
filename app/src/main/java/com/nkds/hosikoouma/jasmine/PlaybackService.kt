@@ -25,13 +25,14 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import java.nio.charset.Charset
 import androidx.media3.extractor.metadata.icy.IcyInfo
 import androidx.compose.ui.graphics.asImageBitmap
 import com.kmpalette.palette.graphics.Palette
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import java.io.FileNotFoundException
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -53,6 +54,9 @@ class PlaybackService : MediaSessionService() {
     private var playOnFocusGain = false
     private lateinit var focusRequest: AudioFocusRequest
 
+    private var isCrossfadeEnabled = true
+    private var crossfadeDurationMs = 3000L
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             "ACTION_WIDGET_PLAY_PAUSE" -> {
@@ -71,6 +75,7 @@ class PlaybackService : MediaSessionService() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         
         setupAudioFocus()
+        observeSettings()
         
         processorA = CrossfadeAudioProcessor()
         playerA = createPlayer(processorA, "PlayerA")
@@ -101,9 +106,18 @@ class PlaybackService : MediaSessionService() {
 
         serviceScope.launch {
             while (isActive) {
-                delay(300)
+                delay(500)
                 checkCrossfadeCondition()
             }
+        }
+    }
+
+    private fun observeSettings() {
+        serviceScope.launch {
+            settingsRepository.isCrossfadeEnabled.collectLatest { isCrossfadeEnabled = it }
+        }
+        serviceScope.launch {
+            settingsRepository.crossfadeDuration.collectLatest { crossfadeDurationMs = it }
         }
     }
 
@@ -338,19 +352,27 @@ class PlaybackService : MediaSessionService() {
         val title = item.mediaMetadata.title?.toString() ?: "Unknown"
         val artist = item.mediaMetadata.artist?.toString() ?: "Jasmine"
         val isPlaying = player.isPlaying
+        val artworkUri = item.mediaMetadata.artworkUri
         
-        serviceScope.launch {
+        serviceScope.launch(Dispatchers.Default) {
             var albumArt: Bitmap? = null
             var seedColor: Int? = null
             
             try {
-                val artworkUri = item.mediaMetadata.artworkUri
                 if (artworkUri != null) {
-                    albumArt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, artworkUri))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        MediaStore.Images.Media.getBitmap(contentResolver, artworkUri)
+                    albumArt = withContext(Dispatchers.IO) {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, artworkUri))
+                            } else {
+                                @Suppress("DEPRECATION")
+                                MediaStore.Images.Media.getBitmap(contentResolver, artworkUri)
+                            }
+                        } catch (e: FileNotFoundException) {
+                            null
+                        } catch (e: Exception) {
+                            null
+                        }
                     }
                     
                     albumArt?.let { bitmap ->
@@ -358,16 +380,20 @@ class PlaybackService : MediaSessionService() {
                         seedColor = palette.dominantSwatch?.rgb
                     }
                 }
-            } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) { 
+                // Ignore widget update errors
+            }
 
-            PlayerWidget.updateWidget(
-                context = this@PlaybackService,
-                title = title,
-                artist = artist,
-                isPlaying = isPlaying,
-                albumArt = albumArt,
-                backgroundColor = seedColor
-            )
+            withContext(Dispatchers.Main) {
+                PlayerWidget.updateWidget(
+                    context = this@PlaybackService,
+                    title = title,
+                    artist = artist,
+                    isPlaying = isPlaying,
+                    albumArt = albumArt,
+                    backgroundColor = seedColor
+                )
+            }
         }
     }
 
@@ -412,10 +438,7 @@ class PlaybackService : MediaSessionService() {
         val isRadio = current.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio") ?: false
         if (isRadio) return
 
-        val isEnabled = settingsRepository.isCrossfadeEnabled.first()
-        val fadeDuration = settingsRepository.crossfadeDuration.first()
-        
-        if (!isEnabled) return
+        if (!isCrossfadeEnabled) return
 
         val duration = current.duration
         if (duration == C.TIME_UNSET || duration <= 0) return
@@ -425,8 +448,8 @@ class PlaybackService : MediaSessionService() {
         val isRepeatAll = current.repeatMode == Player.REPEAT_MODE_ALL
         val hasNext = current.nextMediaItemIndex != C.INDEX_UNSET || isRepeatOne || isRepeatAll
 
-        if (remaining in 200..fadeDuration && hasNext) {
-            startOverlappingCrossfade(fadeDuration)
+        if (remaining in 200..crossfadeDurationMs && hasNext) {
+            startOverlappingCrossfade(crossfadeDurationMs)
         }
     }
 
@@ -475,9 +498,9 @@ class PlaybackService : MediaSessionService() {
         mediaSession?.setPlayer(nextPlayer)
 
         fadeJob?.cancel()
-        fadeJob = serviceScope.launch {
-            val steps = 40
-            val interval = (fadeDuration / steps).coerceAtLeast(10)
+        fadeJob = serviceScope.launch(Dispatchers.Default) {
+            val steps = 30 
+            val interval = (fadeDuration / steps).coerceAtLeast(16)
             for (i in 1..steps) {
                 if (!isActive) break
                 val progress = i.toFloat() / steps
@@ -485,10 +508,12 @@ class PlaybackService : MediaSessionService() {
                 oldProcessor.setVolumeScale(1f - progress)
                 delay(interval)
             }
-            oldPlayer.pause()
-            oldPlayer.stop()
-            oldProcessor.setVolumeScale(1.0f)
-            isCrossfading = false
+            withContext(Dispatchers.Main) {
+                oldPlayer.pause()
+                oldPlayer.stop()
+                oldProcessor.setVolumeScale(1.0f)
+                isCrossfading = false
+            }
             fadeJob = null
         }
     }

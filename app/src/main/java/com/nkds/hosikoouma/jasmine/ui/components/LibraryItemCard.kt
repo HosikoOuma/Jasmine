@@ -3,9 +3,7 @@ package com.nkds.hosikoouma.jasmine.ui.components
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -30,7 +28,7 @@ fun LibraryItemCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
+            .bouncingClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),

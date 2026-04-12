@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
@@ -27,7 +28,10 @@ fun AddToPlaylistDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+            TextButton(
+                modifier = Modifier.bouncingClickable { onDismissRequest() },
+                onClick = { }
+            ) { Text("Cancel") }
         },
         title = { Text("Add to playlist") },
         text = {
@@ -35,15 +39,18 @@ fun AddToPlaylistDialog(
                 Text("No playlists found. Create one in Library first.")
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(playlists) { playlist ->
                         ListItem(
                             headlineContent = { Text(playlist.name) },
                             leadingContent = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
-                            modifier = Modifier.clickable {
-                                onPlaylistSelected(playlist.id)
-                            }
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .bouncingClickable {
+                                    onPlaylistSelected(playlist.id)
+                                }
                         )
                     }
                 }

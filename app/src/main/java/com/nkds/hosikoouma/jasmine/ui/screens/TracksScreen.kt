@@ -60,6 +60,7 @@ import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
+import com.nkds.hosikoouma.jasmine.ui.components.vibrateClick
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.launch
@@ -78,7 +79,7 @@ fun TracksScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val vibrator = remember { context.getSystemService(Vibrator::class.java) }
-    
+
     val tracks by if (isFavoritesMode) {
         trackViewModel.favoriteTracks.collectAsState()
     } else {
@@ -135,12 +136,12 @@ fun TracksScreen(
                             isPlaying = isPlaying,
                             isSelected = isSelected,
                             isManualMarkingEnabled = true,
-                            enabled = selectedTracks.isEmpty(), 
-                            onSwipeAction = { 
+                            enabled = selectedTracks.isEmpty(),
+                            onSwipeAction = {
                                 if (track.isManual) {
                                     playerViewModel.removeFromQueue(track)
                                 } else {
-                                    playerViewModel.addToQueue(track, showToast = true) 
+                                    playerViewModel.addToQueue(track, showToast = true)
                                 }
                             },
                             onClick = {
@@ -184,7 +185,7 @@ fun TracksScreen(
                             .graphicsLayer { scaleX = scale; scaleY = scale }
                             .background(MaterialTheme.colorScheme.primary, CircleShape)
                             .clickable(interactionSource = interactionSource, indication = null) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                vibrateClick(context)
                                 if (tracks.isNotEmpty()) {
                                     playerViewModel.shuffleAndPlay(tracks)
                                     onNavigateToPlayer()
@@ -211,12 +212,18 @@ fun TracksScreen(
                         ModeToggleButton(
                             selected = !isFavoritesMode,
                             icon = Icons.Rounded.MusicNote,
-                            onClick = { isFavoritesMode = false }
+                            onClick = {
+                                vibrateClick(context)
+                                isFavoritesMode = false
+                            }
                         )
                         ModeToggleButton(
                             selected = isFavoritesMode,
                             icon = Icons.Rounded.Favorite,
-                            onClick = { isFavoritesMode = true }
+                            onClick = {
+                                vibrateClick(context)
+                                isFavoritesMode = true
+                            }
                         )
                     }
                 }
@@ -280,7 +287,7 @@ fun Modifier.simpleVerticalScrollbar(
             if (needDrawScrollbar && firstVisibleElementIndex != null) {
                 val elementCount = state.layoutInfo.totalItemsCount
                 val scrollbarFullHeight = size.height
-                
+
                 if (elementCount <= state.layoutInfo.visibleItemsInfo.size) return@drawWithContent
 
                 val scrollbarHeight = (scrollbarFullHeight / elementCount) * state.layoutInfo.visibleItemsInfo.size
@@ -310,7 +317,7 @@ fun ModeToggleButton(
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
         label = "scale"
     )
-    
+
     val backgroundColor by animateColorAsState(
         targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
         animationSpec = tween(400, easing = FastOutSlowInEasing),
