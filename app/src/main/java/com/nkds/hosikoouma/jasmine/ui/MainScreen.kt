@@ -77,7 +77,6 @@ fun MainScreen(
     var isSearching by remember { mutableStateOf(false) }
     val searchQuery by trackViewModel.searchQuery.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
-    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showTrackPickerDialog by remember { mutableStateOf(false) }
     var showDeletePlaylistDialog by remember { mutableStateOf(false) }
     var showAddRadioDialog by remember { mutableStateOf(false) }
@@ -95,6 +94,7 @@ fun MainScreen(
     var showMoreMenu by remember { mutableStateOf(false) }
     var showDeleteTracksDialog by remember { mutableStateOf(false) }
     var showDeleteStationsDialog by remember { mutableStateOf(false) }
+    var showRemoveFromPlaylistDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
     var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
 
@@ -112,6 +112,13 @@ fun MainScreen(
     val playlists by trackViewModel.playlists.collectAsState()
     val currentPlaylistName = remember(playlists, playlistId) {
         playlists.find { it.id == playlistId }?.name ?: "Playlist"
+    }
+
+    // Экспорт плейлиста
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri ->
+        uri?.let { trackViewModel.exportPlaylist(playlistId, it) }
     }
 
     val deleteLauncher = rememberLauncherForActivityResult(
@@ -195,13 +202,14 @@ fun MainScreen(
 
     val isTracksScreen = currentRoute == Screen.Tracks.route
     val isRadioScreen = currentRoute == Screen.Radio.route
+    val isPlaylistDetail = currentRoute?.startsWith("playlist_detail") == true
     val shouldShowSort = remember(currentRoute) {
         currentRoute == Screen.Tracks.route ||
         currentRoute == Screen.LibraryAlbums.route ||
         currentRoute == Screen.LibraryArtists.route ||
         currentRoute == Screen.LibraryFolders.route ||
         currentRoute == Screen.LibraryPlaylists.route ||
-        currentRoute?.startsWith("playlist_detail") == true
+        isPlaylistDetail
     }
 
     val isCollapsed by remember {
@@ -260,6 +268,14 @@ fun MainScreen(
                                             Icon(Icons.Rounded.Info, null)
                                         }
                                     }
+                                    
+                                    // Кнопка удаления из плейлиста (только на экране плейлиста)
+                                    if (isPlaylistDetail) {
+                                        IconButton(onClick = { showRemoveFromPlaylistDialog = true }) {
+                                            Icon(Icons.Rounded.PlaylistRemove, "Remove from playlist", tint = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+
                                     IconButton(onClick = {
                                         playerViewModel.addTracksToQueue(selectedTracks.toList())
                                         selectedTracks = emptySet()
@@ -326,7 +342,12 @@ fun MainScreen(
                                 exit = fadeOut() + shrinkHorizontally()
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (currentRoute?.startsWith("playlist_detail") == true && !isSearching) {
+                                    if (isPlaylistDetail && !isSearching) {
+                                        // Кнопка экспорта плейлиста
+                                        IconButton(onClick = { exportLauncher.launch("$currentPlaylistName.m3u") }) {
+                                            Icon(Icons.Rounded.FileUpload, "Export Playlist")
+                                        }
+                                        
                                         IconButton(onClick = { showDeletePlaylistDialog = true }) {
                                             Icon(Icons.Rounded.Delete, "Delete Playlist", tint = MaterialTheme.colorScheme.error)
                                         }
@@ -388,16 +409,7 @@ fun MainScreen(
             },
             floatingActionButton = {
                 if (!isInSelectionMode) {
-                    if (currentRoute == Screen.LibraryPlaylists.route) {
-                        FloatingActionButton(
-                            onClick = { showCreatePlaylistDialog = true },
-                            modifier = Modifier.padding(bottom = 140.dp),
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ) {
-                            Icon(Icons.Rounded.Add, "Create Playlist")
-                        }
-                    } else if (currentRoute?.startsWith("playlist_detail") == true && playlistTracks.isNotEmpty()) {
+                    if (isPlaylistDetail && playlistTracks.isNotEmpty()) {
                         FloatingActionButton(
                             onClick = { showTrackPickerDialog = true },
                             modifier = Modifier.padding(bottom = 140.dp),
@@ -526,36 +538,6 @@ fun MainScreen(
         }
     }
 
-    // Диалоги
-    if (showCreatePlaylistDialog) {
-        var playlistName by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showCreatePlaylistDialog = false },
-            title = { Text("New Playlist") },
-            text = {
-                TextField(
-                    value = playlistName,
-                    onValueChange = { playlistName = it },
-                    placeholder = { Text("Playlist name") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (playlistName.isNotBlank()) {
-                            trackViewModel.createPlaylist(playlistName)
-                            showCreatePlaylistDialog = false
-                        }
-                    }
-                ) { Text("Create") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreatePlaylistDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
     if (showTrackPickerDialog) {
         val allTracks by trackViewModel.allTracks.collectAsState()
         val pTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsState(initial = emptyList())
@@ -598,7 +580,9 @@ fun MainScreen(
                             },
                             trailingContent = {
                                 if (isAlreadyInPlaylist) {
-                                    Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                                    Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                } else {
+                                    Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.outline)
                                 }
                             },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -685,16 +669,35 @@ fun MainScreen(
         )
     }
 
+    if (showRemoveFromPlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveFromPlaylistDialog = false },
+            title = { Text("Remove Tracks") },
+            text = { Text("Remove ${selectedTracks.size} tracks from this playlist?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        trackViewModel.removeTracksFromPlaylist(playlistId, selectedTracks.toList())
+                        selectedTracks = emptySet()
+                        showRemoveFromPlaylistDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveFromPlaylistDialog = false }) { Text("Cancel") }
+            },
+            shape = RoundedCornerShape(28.dp)
+        )
+    }
+
     if (showAddToPlaylistDialog) {
-        val currentTrack by playerViewModel.currentTrack.collectAsState()
         AddToPlaylistDialog(
             onDismissRequest = { showAddToPlaylistDialog = false },
             onPlaylistSelected = { pid ->
-                currentTrack?.let { track ->
-                    trackViewModel.addTrackToPlaylist(pid, track.id)
-                    showAddToPlaylistDialog = false
-                    Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
-                }
+                trackViewModel.addTracksToPlaylist(pid, selectedTracks.toList())
+                selectedTracks = emptySet()
+                showAddToPlaylistDialog = false
             },
             trackViewModel = trackViewModel
         )

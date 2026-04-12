@@ -23,20 +23,37 @@ class PlaylistRepository(private val context: Context) {
         m3uManager.deletePlaylistFile(playlist.name)
     }
 
-    suspend fun addTrackToPlaylist(playlistId: Long, track: Track, allPlaylistTracks: List<Track>) {
+    suspend fun addTrackToPlaylist(playlistId: Long, track: Track): Boolean {
+        val currentIds = playlistDao.getTrackIdsForPlaylist(playlistId).first()
+        if (currentIds.contains(track.id)) return false
+        
         playlistDao.addTrackToPlaylist(PlaylistTrackEntity(playlistId, track.id))
-        updateM3UFile(playlistId, allPlaylistTracks + track)
+        
+        // Обновляем M3U файл
+        val updatedIds = playlistDao.getTrackIdsForPlaylist(playlistId).first()
+        // Примечание: Здесь нам нужны полные объекты Track, но репозиторий работает с ID.
+        // Эту часть лучше делегировать ViewModel, которая имеет доступ ко всем трекам.
+        return true
     }
 
-    suspend fun removeTrackFromPlaylist(playlistId: Long, trackId: Long, allPlaylistTracks: List<Track>) {
-        playlistDao.removeTrackFromPlaylist(playlistId, trackId)
-        val updatedTracks = allPlaylistTracks.filter { it.id != trackId }
-        updateM3UFile(playlistId, updatedTracks)
+    suspend fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>): Int {
+        val currentIds = playlistDao.getTrackIdsForPlaylist(playlistId).first()
+        val newTracks = tracks.filter { !currentIds.contains(it.id) }
+        
+        newTracks.forEach { 
+            playlistDao.addTrackToPlaylist(PlaylistTrackEntity(playlistId, it.id))
+        }
+        return newTracks.size
     }
 
-    private suspend fun updateM3UFile(playlistId: Long, tracks: List<Track>) {
-        val playlist = allPlaylists.first().find { it.id == playlistId } ?: return
-        m3uManager.savePlaylist(playlist.name, tracks)
+    suspend fun removeTracksFromPlaylist(playlistId: Long, trackIds: List<Long>) {
+        trackIds.forEach { trackId ->
+            playlistDao.removeTrackFromPlaylist(playlistId, trackId)
+        }
+    }
+
+    suspend fun updateM3UFile(playlistName: String, tracks: List<Track>) {
+        m3uManager.savePlaylist(playlistName, tracks)
     }
 
     fun getTrackIdsForPlaylist(playlistId: Long): Flow<List<Long>> {

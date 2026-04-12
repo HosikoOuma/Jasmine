@@ -1,12 +1,11 @@
 package com.nkds.hosikoouma.jasmine.viewmodels
 
 import android.app.Application
-import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.IntentSender
 import android.net.Uri
-import android.os.Build
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.TrackScanner
@@ -16,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 
 enum class SortType {
     BY_NAME,
@@ -218,8 +218,66 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
         val track = _tracks.value.find { it.id == trackId } ?: return@launch
-        val currentPlaylistTracks = getTracksForPlaylist(playlistId).first()
-        playlistRepository.addTrackToPlaylist(playlistId, track, currentPlaylistTracks)
+        val added = playlistRepository.addTrackToPlaylist(playlistId, track)
+        if (!added) {
+            Toast.makeText(getApplication(), "Track already in playlist", Toast.LENGTH_SHORT).show()
+        } else {
+            // Update M3U file
+            val pTracks = getTracksForPlaylist(playlistId).first()
+            val playlist = playlists.value.find { it.id == playlistId }
+            if (playlist != null) {
+                playlistRepository.updateM3UFile(playlist.name, pTracks)
+            }
+        }
+    }
+
+    fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>) = viewModelScope.launch {
+        val addedCount = playlistRepository.addTracksToPlaylist(playlistId, tracks)
+        val pTracks = getTracksForPlaylist(playlistId).first()
+        val playlist = playlists.value.find { it.id == playlistId }
+        if (playlist != null) {
+            playlistRepository.updateM3UFile(playlist.name, pTracks)
+        }
+        
+        if (addedCount < tracks.size) {
+            Toast.makeText(getApplication(), "Added $addedCount tracks (some already existed)", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(getApplication(), "Added $addedCount tracks", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun removeTracksFromPlaylist(playlistId: Long, tracks: List<Track>) = viewModelScope.launch {
+        playlistRepository.removeTracksFromPlaylist(playlistId, tracks.map { it.id })
+        val remainingTracks = getTracksForPlaylist(playlistId).first()
+        val playlist = playlists.value.find { it.id == playlistId }
+        if (playlist != null) {
+            playlistRepository.updateM3UFile(playlist.name, remainingTracks)
+        }
+    }
+
+    fun exportPlaylist(playlistId: Long, uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
+        val tracks = getTracksForPlaylist(playlistId).first()
+        val content = StringBuilder("#EXTM3U\n")
+        tracks.forEach { track ->
+            content.append("#EXTINF:${track.duration / 1000},${track.artist} - ${track.title}\n")
+            content.append("${track.path}\n")
+        }
+        
+        try {
+            getApplication<Application>().contentResolver.openFileDescriptor(uri, "w")?.use { fd ->
+                FileOutputStream(fd.fileDescriptor).use { os ->
+                    os.write(content.toString().toByteArray())
+                }
+            }
+            launch(Dispatchers.Main) {
+                Toast.makeText(getApplication(), "Exported successfully", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            launch(Dispatchers.Main) {
+                Toast.makeText(getApplication(), "Export failed", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun importPlaylists() = viewModelScope.launch {
