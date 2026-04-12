@@ -2,6 +2,10 @@ package com.nkds.hosikoouma.jasmine
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.os.Build
+import android.provider.MediaStore
 import android.media.AudioAttributes as AndroidAudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -19,13 +23,15 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import com.google.common.util.concurrent.Futures
-import com.google.common.util.concurrent.ListenableFuture
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import java.nio.charset.Charset
 import androidx.media3.extractor.metadata.icy.IcyInfo
+import androidx.compose.ui.graphics.asImageBitmap
+import com.kmpalette.palette.graphics.Palette
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -46,6 +52,18 @@ class PlaybackService : MediaSessionService() {
     
     private var playOnFocusGain = false
     private lateinit var focusRequest: AudioFocusRequest
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            "ACTION_WIDGET_PLAY_PAUSE" -> {
+                currentPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
+            }
+            "ACTION_WIDGET_NEXT" -> currentPlayer?.seekToNext()
+            "ACTION_WIDGET_PREV" -> currentPlayer?.seekToPrevious()
+            "ACTION_WIDGET_UPDATE_REQUEST" -> pushWidgetUpdate()
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -141,8 +159,6 @@ class PlaybackService : MediaSessionService() {
             controller: MediaSession.ControllerInfo,
             playerCommand: Int
         ): Int {
-            // Убрали COMMAND_PLAY_PAUSE из этого списка.
-            // Теперь пауза во время кроссфейда не отменяет его, а просто останавливает оба плеера.
             if (playerCommand == Player.COMMAND_SEEK_TO_NEXT || 
                 playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS ||
                 playerCommand == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
@@ -241,13 +257,13 @@ class PlaybackService : MediaSessionService() {
                     requestManualAudioFocus()
                 }
                 
-                // Если идет кроссфейд, синхронизируем состояние паузы/воспроизведения между игроками
                 if (isCrossfading && player == currentPlayer) {
                     val otherPlayer = if (player == playerA) playerB else playerA
                     if (otherPlayer.playWhenReady != playWhenReady) {
                         otherPlayer.playWhenReady = playWhenReady
                     }
                 }
+                pushWidgetUpdate()
             }
             
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -258,6 +274,7 @@ class PlaybackService : MediaSessionService() {
                         otherPlayer.stop()
                     }
                 }
+                pushWidgetUpdate()
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -265,7 +282,7 @@ class PlaybackService : MediaSessionService() {
             }
 
             override fun onPlaybackStateChanged(state: Int) {
-                Log.d("JasminePlayer", "[$name] State: $state")
+                pushWidgetUpdate()
             }
 
             override fun onMetadata(metadata: Metadata) {
@@ -273,7 +290,6 @@ class PlaybackService : MediaSessionService() {
                     val streamTitle = extractStreamTitleFromMetadata(metadata)
                     if (!streamTitle.isNullOrBlank()) {
                         val fixed = fixEncodingIfNeeded(streamTitle)
-                        Log.d("JasminePlayer", "Parsed metadata: $fixed")
                         updateCurrentMediaItemMetadata(player, fixed)
                     }
                 } catch (e: Exception) {
@@ -310,8 +326,48 @@ class PlaybackService : MediaSessionService() {
                 .setMediaMetadata(updatedMetadata)
                 .build()
             
-            Log.d("JasminePlayer", "Updating MediaItem with: ${updatedMetadata.artist} - ${updatedMetadata.title}")
             player.replaceMediaItem(player.currentMediaItemIndex, updatedItem)
+            pushWidgetUpdate()
+        }
+    }
+
+    private fun pushWidgetUpdate() {
+        val player = currentPlayer ?: return
+        val item = player.currentMediaItem ?: return
+        
+        val title = item.mediaMetadata.title?.toString() ?: "Unknown"
+        val artist = item.mediaMetadata.artist?.toString() ?: "Jasmine"
+        val isPlaying = player.isPlaying
+        
+        serviceScope.launch {
+            var albumArt: Bitmap? = null
+            var seedColor: Int? = null
+            
+            try {
+                val artworkUri = item.mediaMetadata.artworkUri
+                if (artworkUri != null) {
+                    albumArt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, artworkUri))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        MediaStore.Images.Media.getBitmap(contentResolver, artworkUri)
+                    }
+                    
+                    albumArt?.let { bitmap ->
+                        val palette = Palette.from(bitmap.asImageBitmap()).generate()
+                        seedColor = palette.dominantSwatch?.rgb
+                    }
+                }
+            } catch (e: Exception) { e.printStackTrace() }
+
+            PlayerWidget.updateWidget(
+                context = this@PlaybackService,
+                title = title,
+                artist = artist,
+                isPlaying = isPlaying,
+                albumArt = albumArt,
+                backgroundColor = seedColor
+            )
         }
     }
 
