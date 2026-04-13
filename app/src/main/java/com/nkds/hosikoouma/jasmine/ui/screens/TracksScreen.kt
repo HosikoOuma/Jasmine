@@ -1,17 +1,10 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
-import android.app.Activity
-import android.os.Build
-import android.os.VibrationEffect
 import android.os.Vibrator
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -23,17 +16,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -48,23 +33,35 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.nkds.hosikoouma.jasmine.data.ShareHelper
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.datamodels.Track
-import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
-import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.ui.components.vibrateClick
+import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.launch
 
+// --- UI State ---
+data class TracksUiState(
+    val tracks: List<Track> = emptyList(),
+    val currentTrack: Track? = null,
+    val isPlaying: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val isLoaded: Boolean = false,
+    val searchQuery: String = "",
+    val isFavoritesMode: Boolean = false,
+    val selectedTracks: Set<Track> = emptySet()
+)
+
+// --- Stateful Screen ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TracksScreen(
@@ -75,49 +72,101 @@ fun TracksScreen(
     onToggleTrackSelection: (Track) -> Unit
 ) {
     var isFavoritesMode by rememberSaveable { mutableStateOf(false) }
-    val listState = rememberLazyListState()
-    val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
-    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
-
+    
     val tracks by if (isFavoritesMode) {
-        trackViewModel.favoriteTracks.collectAsState()
+        trackViewModel.favoriteTracks.collectAsStateWithLifecycle()
     } else {
-        trackViewModel.filteredTracks.collectAsState()
+        trackViewModel.filteredTracks.collectAsStateWithLifecycle()
     }
     
-    val searchQuery by trackViewModel.searchQuery.collectAsState()
-    val currentTrack by playerViewModel.currentTrack.collectAsState()
-    val isPlaying by playerViewModel.isPlaying.collectAsState()
-    val isRefreshing by trackViewModel.isRefreshing.collectAsState()
-    val isLoaded by trackViewModel.isLoaded.collectAsState()
+    val currentTrack by playerViewModel.currentTrack.collectAsStateWithLifecycle()
+    val isPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
+    val isRefreshing by trackViewModel.isRefreshing.collectAsStateWithLifecycle()
+    val isLoaded by trackViewModel.isLoaded.collectAsStateWithLifecycle()
+    val searchQuery by trackViewModel.searchQuery.collectAsStateWithLifecycle()
 
-    LaunchedEffect(isFavoritesMode) { listState.scrollToItem(0) }
-    LaunchedEffect(searchQuery) { if (searchQuery.isNotEmpty()) listState.scrollToItem(0) }
-
+    val context = LocalContext.current
+    
     LaunchedEffect(Unit) {
         playerViewModel.toastEvent.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
-    PullToRefreshBox(
+    val uiState = TracksUiState(
+        tracks = tracks,
+        currentTrack = currentTrack,
+        isPlaying = isPlaying,
         isRefreshing = isRefreshing,
-        onRefresh = { trackViewModel.loadTracks() },
+        isLoaded = isLoaded,
+        searchQuery = searchQuery,
+        isFavoritesMode = isFavoritesMode,
+        selectedTracks = selectedTracks
+    )
+
+    TracksContent(
+        uiState = uiState,
+        onRefresh = trackViewModel::loadTracks,
+        onToggleFavoritesMode = { isFavoritesMode = it },
+        onTrackClick = { index ->
+            if (selectedTracks.isNotEmpty()) {
+                onToggleTrackSelection(uiState.tracks[index])
+            } else {
+                playerViewModel.playTracks(uiState.tracks, index)
+                onNavigateToPlayer()
+            }
+        },
+        onTrackLongClick = onToggleTrackSelection,
+        onSwipeAction = { track ->
+            if (track.isManual) {
+                playerViewModel.removeFromQueue(track)
+            } else {
+                playerViewModel.addToQueue(track, showToast = true)
+            }
+        },
+        onShufflePlay = {
+            if (uiState.tracks.isNotEmpty()) {
+                playerViewModel.shuffleAndPlay(uiState.tracks)
+                onNavigateToPlayer()
+            }
+        }
+    )
+}
+
+// --- Stateless Content ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TracksContent(
+    uiState: TracksUiState,
+    onRefresh: () -> Unit,
+    onToggleFavoritesMode: (Boolean) -> Unit,
+    onTrackClick: (Int) -> Unit,
+    onTrackLongClick: (Track) -> Unit,
+    onSwipeAction: (Track) -> Unit,
+    onShufflePlay: () -> Unit
+) {
+    val context = LocalContext.current
+    val listState = rememberLazyListState()
+    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
+
+    LaunchedEffect(uiState.isFavoritesMode) { listState.scrollToItem(0) }
+    LaunchedEffect(uiState.searchQuery) { if (uiState.searchQuery.isNotEmpty()) listState.scrollToItem(0) }
+
+    PullToRefreshBox(
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize()
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (!isLoaded && tracks.isEmpty()) {
+            if (!uiState.isLoaded && uiState.tracks.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-            } else if (tracks.isEmpty()) {
+            } else if (uiState.tracks.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    if (searchQuery.isEmpty()) {
-                        Text(if (isFavoritesMode) "No favorites yet" else "No tracks found")
-                    } else {
-                        Text("Nothing found")
-                    }
+                    Text(if (uiState.searchQuery.isEmpty()) {
+                        if (uiState.isFavoritesMode) "No favorites yet" else "No tracks found"
+                    } else "Nothing found")
                 }
             } else {
                 LazyColumn(
@@ -129,71 +178,57 @@ fun TracksScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     itemsIndexed(
-                        items = tracks, 
+                        items = uiState.tracks,
                         key = { _, track -> track.id },
-                        contentType = { _, _ -> "track" } // Добавление contentType помогает LazyColumn переиспользовать ячейки
+                        contentType = { _, _ -> "track" }
                     ) { index, track ->
-                        val isSelected = selectedTracks.contains(track)
-                        val isCurrent = currentTrack?.id == track.id
-                        
-                        // Используем key внутри SwipeableTrackCard если это нужно, но здесь главное - стабильность стейтов
+                        val isSelected = uiState.selectedTracks.contains(track)
                         SwipeableTrackCard(
                             track = track,
-                            isCurrent = isCurrent,
-                            isPlaying = isPlaying,
+                            isCurrent = uiState.currentTrack?.id == track.id,
+                            isPlaying = uiState.isPlaying,
                             isSelected = isSelected,
                             isManualMarkingEnabled = true,
-                            enabled = selectedTracks.isEmpty(),
-                            onSwipeAction = {
-                                if (track.isManual) {
-                                    playerViewModel.removeFromQueue(track)
-                                } else {
-                                    playerViewModel.addToQueue(track, showToast = true)
-                                }
-                            },
+                            enabled = uiState.selectedTracks.isEmpty(),
+                            onSwipeAction = { onSwipeAction(track) },
                             onClick = {
-                                if (selectedTracks.isNotEmpty()) {
-                                    selectionVibrate(vibrator)
-                                    onToggleTrackSelection(track)
-                                } else {
-                                    playerViewModel.playTracks(tracks, index)
-                                    onNavigateToPlayer()
+                                if (uiState.selectedTracks.isNotEmpty()) {
+                                    VibrationUtils.selectionVibrate(vibrator)
                                 }
+                                onTrackClick(index)
                             },
                             onLongClick = {
-                                selectionVibrate(vibrator)
-                                onToggleTrackSelection(track)
+                                VibrationUtils.selectionVibrate(vibrator)
+                                onTrackLongClick(track)
                             }
                         )
                     }
                 }
             }
 
-            if (selectedTracks.isEmpty()) {
-                // Выносим кнопки в отдельные компоненты для уменьшения области рекомпозиции
+            if (uiState.selectedTracks.isEmpty()) {
                 ShuffleButton(
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
                     onShuffle = {
                         vibrateClick(context)
-                        if (tracks.isNotEmpty()) {
-                            playerViewModel.shuffleAndPlay(tracks)
-                            onNavigateToPlayer()
-                        }
+                        onShufflePlay()
                     }
                 )
 
                 ModeSelector(
                     modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
-                    isFavoritesMode = isFavoritesMode,
+                    isFavoritesMode = uiState.isFavoritesMode,
                     onModeChange = {
                         vibrateClick(context)
-                        isFavoritesMode = it
+                        onToggleFavoritesMode(it)
                     }
                 )
             }
         }
     }
 }
+
+// --- Internal Components ---
 
 @Composable
 fun ShuffleButton(modifier: Modifier, onShuffle: () -> Unit) {
@@ -252,13 +287,41 @@ fun ModeSelector(modifier: Modifier, isFavoritesMode: Boolean, onModeChange: (Bo
     }
 }
 
-private fun selectionVibrate(vibrator: Vibrator?) {
-    if (vibrator == null) return
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        vibrator.vibrate(VibrationEffect.createOneShot(15, 120))
-    } else {
-        @Suppress("DEPRECATION")
-        vibrator.vibrate(15)
+@Composable
+fun ModeToggleButton(
+    selected: Boolean,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.88f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "scale"
+    )
+
+    val backgroundColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        animationSpec = tween(400, easing = FastOutSlowInEasing),
+        label = "bg"
+    )
+    val iconColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(400, easing = FastOutSlowInEasing),
+        label = "icon"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(CircleShape)
+            .background(backgroundColor)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -324,40 +387,24 @@ fun Modifier.simpleVerticalScrollbar(
         }
 }
 
+@Preview(showBackground = true)
 @Composable
-fun ModeToggleButton(
-    selected: Boolean,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.88f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        label = "scale"
-    )
-
-    val backgroundColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        animationSpec = tween(400, easing = FastOutSlowInEasing),
-        label = "bg"
-    )
-    val iconColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(400, easing = FastOutSlowInEasing),
-        label = "icon"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(CircleShape)
-            .background(backgroundColor)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+fun TracksPreview() {
+    JasmineTheme {
+        TracksContent(
+            uiState = TracksUiState(
+                tracks = listOf(
+                    Track(1, "Song 1", "Artist 1", "Album 1", 200000, android.net.Uri.EMPTY, null),
+                    Track(2, "Song 2", "Artist 2", "Album 2", 240000, android.net.Uri.EMPTY, null)
+                ),
+                isLoaded = true
+            ),
+            onRefresh = {},
+            onToggleFavoritesMode = {},
+            onTrackClick = {},
+            onTrackLongClick = {},
+            onSwipeAction = {},
+            onShufflePlay = {}
+        )
     }
 }

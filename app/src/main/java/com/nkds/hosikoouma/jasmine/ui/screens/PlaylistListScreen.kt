@@ -17,18 +17,35 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.data.PlaylistEntity
 import com.nkds.hosikoouma.jasmine.ui.components.LibraryItemCard
 import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
+import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
+// --- UI State ---
+data class PlaylistListUiState(
+    val playlists: List<PlaylistEntity> = emptyList(),
+    val isLoading: Boolean = false
+)
+
+// --- Stateful Screen ---
 @Composable
 fun PlaylistListScreen(
     navController: NavController,
     trackViewModel: TrackViewModel
 ) {
-    val playlists by trackViewModel.playlists.collectAsState()
+    val playlistsData by trackViewModel.playlists.collectAsStateWithLifecycle()
+    // Адаптируем нашу модель Playlist к Entity для UI если нужно, 
+    // но во ViewModel они уже маппятся. Используем PlaylistEntity для чистоты БД сущностей.
+    val playlists = remember(playlistsData) {
+        playlistsData.map { PlaylistEntity(it.id, it.name, it.createdAt) }
+    }
+    
     val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
 
@@ -46,6 +63,32 @@ fun PlaylistListScreen(
         }
     }
 
+    PlaylistListContent(
+        uiState = PlaylistListUiState(playlists = playlists),
+        onPlaylistClick = { id -> navController.navigate("playlist_detail/$id") },
+        onImportClick = { filePickerLauncher.launch("*/*") },
+        onCreateClick = { showCreateDialog = true }
+    )
+
+    if (showCreateDialog) {
+        NewPlaylistDialog(
+            onDismiss = { showCreateDialog = false },
+            onConfirm = { name ->
+                trackViewModel.createPlaylist(name)
+                showCreateDialog = false
+            }
+        )
+    }
+}
+
+// --- Stateless Content ---
+@Composable
+fun PlaylistListContent(
+    uiState: PlaylistListUiState,
+    onPlaylistClick: (Long) -> Unit,
+    onImportClick: () -> Unit,
+    onCreateClick: () -> Unit
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp),
@@ -53,112 +96,79 @@ fun PlaylistListScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Кнопка: Добавить из памяти (Прямоугольник)
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .bouncingClickable { filePickerLauncher.launch("*/*") },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Rounded.PostAdd, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("From Device", style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-
-                    // Кнопка: Создать в приложении (Овал)
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .bouncingClickable { showCreateDialog = true },
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Rounded.CreateNewFolder, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Create New", style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                }
+                PlaylistActionButtons(onImportClick, onCreateClick)
             }
 
-            if (playlists.isEmpty()) {
+            if (uiState.playlists.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillParentMaxHeight(0.7f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(top = 100.dp), contentAlignment = Alignment.Center) {
                         Text("No playlists found", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {
-                items(playlists) { playlist ->
+                items(uiState.playlists, key = { it.id }) { playlist ->
                     LibraryItemCard(
                         title = playlist.name,
                         subtitle = "Playlist",
                         icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
-                        onClick = {
-                            navController.navigate("playlist_detail/${playlist.id}")
-                        }
+                        onClick = { onPlaylistClick(playlist.id) }
                     )
                 }
             }
         }
+    }
+}
 
-        if (showCreateDialog) {
-            var playlistName by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { showCreateDialog = false },
-                title = { Text("New Playlist") },
-                text = {
-                    TextField(
-                        value = playlistName,
-                        onValueChange = { playlistName = it },
-                        placeholder = { Text("Playlist name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        modifier = Modifier.bouncingClickable {
-                            if (playlistName.isNotBlank()) {
-                                trackViewModel.createPlaylist(playlistName)
-                                showCreateDialog = false
-                            }
-                        },
-                        onClick = { }
-                    ) { Text("Create") }
-                },
-                dismissButton = {
-                    TextButton(
-                        modifier = Modifier.bouncingClickable { showCreateDialog = false },
-                        onClick = { }
-                    ) { Text("Cancel") }
-                },
-                shape = RoundedCornerShape(28.dp)
-            )
+@Composable
+private fun PlaylistActionButtons(onImportClick: () -> Unit, onCreateClick: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(
+            modifier = Modifier.weight(1f).height(56.dp).bouncingClickable(onClick = onImportClick),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.PostAdd, null)
+                Spacer(Modifier.width(8.dp)); Text("From Device", style = MaterialTheme.typography.labelLarge)
+            }
         }
+        Surface(
+            modifier = Modifier.weight(1f).height(56.dp).bouncingClickable(onClick = onCreateClick),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ) {
+            Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.CreateNewFolder, null)
+                Spacer(Modifier.width(8.dp)); Text("Create New", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewPlaylistDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var playlistName by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Playlist") },
+        text = { TextField(value = playlistName, onValueChange = { playlistName = it }, placeholder = { Text("Playlist name") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { TextButton(onClick = { if (playlistName.isNotBlank()) onConfirm(playlistName) }) { Text("Create") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        shape = RoundedCornerShape(28.dp)
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PlaylistListPreview() {
+    JasmineTheme {
+        PlaylistListContent(
+            uiState = PlaylistListUiState(
+                playlists = listOf(PlaylistEntity(id = 1, name = "Favorites"), PlaylistEntity(id = 2, name = "Gym"))
+            ),
+            onPlaylistClick = {}, onImportClick = {}, onCreateClick = {}
+        )
     }
 }

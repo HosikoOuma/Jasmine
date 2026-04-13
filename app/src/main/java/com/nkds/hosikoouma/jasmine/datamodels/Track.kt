@@ -14,3 +14,8 @@ data class Track(
     val uid: String = id.toString(),
     val isManual: Boolean = false
 )
+
+data class Album(val name: String, val artist: String, val tracks: List<Track>)
+data class Artist(val name: String, val tracks: List<Track>)
+data class Folder(val name: String, val path: String, val tracks: List<Track>)
+data class Playlist(val id: Long, val name: String, val tracks: List<Track>, val createdAt: Long = 0)

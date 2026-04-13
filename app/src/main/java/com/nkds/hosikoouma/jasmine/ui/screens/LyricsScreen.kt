@@ -22,33 +22,74 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
+import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.TrackCard
+import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+// --- UI State ---
+data class LyricsUiState(
+    val currentTrack: Track? = null,
+    val isPlaying: Boolean = false,
+    val progress: Long = 0,
+    val localLyrics: String? = null,
+    val remotePlainLyrics: String? = null,
+    val syncedLocal: List<LyricsLine>? = null,
+    val syncedRemote: List<LyricsLine>? = null,
+    val isLoading: Boolean = false
+)
+
+// --- Stateful Screen ---
 @Composable
 fun LyricsScreen(
     viewModel: PlayerViewModel,
     onClose: () -> Unit
 ) {
-    val currentTrack by viewModel.currentTrack.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val progress by viewModel.progress.collectAsState()
-    
-    val localLyrics by viewModel.localLyrics.collectAsState()
-    val remoteLyrics by viewModel.remoteLyrics.collectAsState()
-    
-    val syncedLocal by viewModel.syncedLocalLyrics.collectAsState()
-    val syncedRemote by viewModel.syncedRemoteLyrics.collectAsState()
-    
-    val isLoading by viewModel.isLoadingLyrics.collectAsState()
+    val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
+    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val localLyrics by viewModel.localLyrics.collectAsStateWithLifecycle()
+    val remoteLyrics by viewModel.remoteLyrics.collectAsStateWithLifecycle()
+    val syncedLocal by viewModel.syncedLocalLyrics.collectAsStateWithLifecycle()
+    val syncedRemote by viewModel.syncedRemoteLyrics.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoadingLyrics.collectAsStateWithLifecycle()
 
+    val uiState = LyricsUiState(
+        currentTrack = currentTrack,
+        isPlaying = isPlaying,
+        progress = progress,
+        localLyrics = localLyrics,
+        remotePlainLyrics = remoteLyrics?.plainLyrics,
+        syncedLocal = syncedLocal,
+        syncedRemote = syncedRemote,
+        isLoading = isLoading
+    )
+
+    LyricsContent(
+        uiState = uiState,
+        onClose = onClose,
+        onSeek = viewModel::seekTo
+    )
+}
+
+// --- Stateless Content ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LyricsContent(
+    uiState: LyricsUiState,
+    onClose: () -> Unit,
+    onSeek: (Long) -> Unit
+) {
     var isLrcLibMode by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
@@ -63,82 +104,41 @@ fun LyricsScreen(
                 .systemBarsPadding()
         ) {
             // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Lyrics",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                SingleChoiceSegmentedButtonRow {
-                    SegmentedButton(
-                        selected = !isLrcLibMode,
-                        onClick = { isLrcLibMode = false },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                    ) { Text("Local") }
-                    SegmentedButton(
-                        selected = isLrcLibMode,
-                        onClick = { isLrcLibMode = true },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                    ) { Text("LRCLIB") }
-                }
-            }
+            LyricsHeader(isLrcLibMode, onModeChange = { isLrcLibMode = it })
 
-            // Track Card
-            currentTrack?.let { track ->
+            // Track Section
+            uiState.currentTrack?.let { track ->
                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    TrackCard(
-                        track = track,
-                        isCurrent = true,
-                        isPlaying = isPlaying,
-                        onClick = {}
-                    )
+                    TrackCard(track = track, isCurrent = true, isPlaying = uiState.isPlaying, onClick = {})
                 }
             }
 
-            // Разделитель
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 24.dp, vertical = 20.dp)
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            )
+            // Divider
+            LyricsDivider()
 
-            // Область контента
+            // Lyrics Area
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 24.dp),
                 contentAlignment = Alignment.TopCenter
             ) {
-                if (isLoading) {
+                if (uiState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else {
-                    if (isLrcLibMode) {
-                        val lyricsObj = remoteLyrics
-                        if (syncedRemote != null) {
-                            SyncedLyricsView(syncedRemote!!, progress, haptic) { viewModel.seekTo(it) }
-                        } else if (lyricsObj?.plainLyrics != null) {
-                            PlainLyricsView(lyricsObj.plainLyrics)
-                        } else {
-                            Text("No lyrics found on LRCLIB.", color = Color.Gray, modifier = Modifier.align(Alignment.Center))
+                    val currentSynced = if (isLrcLibMode) uiState.syncedRemote else uiState.syncedLocal
+                    val currentPlain = if (isLrcLibMode) uiState.remotePlainLyrics else uiState.localLyrics
+                    
+                    when {
+                        currentSynced != null -> {
+                            SyncedLyricsView(currentSynced, uiState.progress, haptic, onSeek)
                         }
-                    } else {
-                        if (syncedLocal != null) {
-                            SyncedLyricsView(syncedLocal!!, progress, haptic) { viewModel.seekTo(it) }
-                        } else if (localLyrics != null) {
-                            PlainLyricsView(localLyrics!!)
-                        } else {
-                            Text("No local lyrics found.", color = Color.Gray, modifier = Modifier.align(Alignment.Center))
+                        currentPlain != null -> {
+                            PlainLyricsView(currentPlain)
+                        }
+                        else -> {
+                            val msg = if (isLrcLibMode) "No lyrics found on LRCLIB." else "No local lyrics found."
+                            Text(msg, color = Color.Gray, modifier = Modifier.align(Alignment.Center))
                         }
                     }
                 }
@@ -147,11 +147,57 @@ fun LyricsScreen(
     }
 }
 
+// --- Internal Components ---
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LyricsHeader(isLrcLibMode: Boolean, onModeChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Lyrics",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold
+        )
+        
+        SingleChoiceSegmentedButtonRow {
+            SegmentedButton(
+                selected = !isLrcLibMode,
+                onClick = { onModeChange(false) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+            ) { Text("Local") }
+            SegmentedButton(
+                selected = isLrcLibMode,
+                onClick = { onModeChange(true) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+            ) { Text("LRCLIB") }
+        }
+    }
+}
+
+@Composable
+private fun LyricsDivider() {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 24.dp, vertical = 20.dp)
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    )
+}
+
 @Composable
 fun SyncedLyricsView(
-    lines: List<com.nkds.hosikoouma.jasmine.datamodels.LyricsLine>,
+    lines: List<LyricsLine>,
     currentProgress: Long,
-    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    haptic: HapticFeedback,
     onSeek: (Long) -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -160,10 +206,7 @@ fun SyncedLyricsView(
     LaunchedEffect(currentLineIndex) {
         if (currentLineIndex >= 0) {
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            listState.animateScrollToItem(
-                index = currentLineIndex,
-                scrollOffset = -400
-            )
+            listState.animateScrollToItem(index = currentLineIndex, scrollOffset = -400)
         }
     }
 
@@ -174,79 +217,76 @@ fun SyncedLyricsView(
     ) {
         itemsIndexed(lines) { index, line ->
             val isCurrent = index == currentLineIndex
-            val color by animateColorAsState(
-                targetValue = if (isCurrent) MaterialTheme.colorScheme.primary 
-                              else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                animationSpec = tween(400),
-                label = "color"
-            )
-            val scale by animateFloatAsState(
-                targetValue = if (isCurrent) 1.0f else 0.9f,
-                animationSpec = tween(400),
-                label = "scale"
-            )
-            val alpha by animateFloatAsState(
-                targetValue = if (isCurrent) 1f else 0.4f,
-                animationSpec = tween(400),
-                label = "alpha"
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-                    .scale(scale)
-                    .alpha(alpha)
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSeek(line.timestamp)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                // Если строка пустая или содержит "инструментал" - показываем анимацию нот
-                if (line.text.isBlank() || line.text.contains("instrumental", ignoreCase = true) || line.text == "♪") {
-                    InstrumentalAnimation(isCurrent, color)
-                } else {
-                    Text(
-                        text = line.text,
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Black,
-                            fontSize = 28.sp,
-                            lineHeight = 38.sp
-                        ),
-                        color = color,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
+            LyricsLineItem(line, isCurrent, haptic, onSeek)
         }
         item { Spacer(modifier = Modifier.height(400.dp)) }
     }
 }
 
 @Composable
-fun InstrumentalAnimation(active: Boolean, color: Color) {
-    val infiniteTransition = rememberInfiniteTransition(label = "notes")
-    
-    // Нота 1: Вращается
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
+fun LyricsLineItem(
+    line: LyricsLine,
+    isCurrent: Boolean,
+    haptic: HapticFeedback,
+    onSeek: (Long) -> Unit
+) {
+    val color by animateColorAsState(
+        targetValue = if (isCurrent) MaterialTheme.colorScheme.primary 
+                      else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+        animationSpec = tween(400),
+        label = "color"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (isCurrent) 1.0f else 0.9f,
+        animationSpec = tween(400),
+        label = "scale"
+    )
+    val alpha by animateFloatAsState(
+        targetValue = if (isCurrent) 1f else 0.4f,
+        animationSpec = tween(400),
+        label = "alpha"
     )
 
-    // Нота 2: Пульсирует (меняет размер)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+            .scale(scale)
+            .alpha(alpha)
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSeek(line.timestamp)
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (line.text.isBlank() || line.text.contains("instrumental", ignoreCase = true) || line.text == "♪") {
+            InstrumentalAnimation(isCurrent, color)
+        } else {
+            Text(
+                text = line.text,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    fontSize = 28.sp,
+                    lineHeight = 38.sp
+                ),
+                color = color,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun InstrumentalAnimation(active: Boolean, color: Color) {
+    val infiniteTransition = rememberInfiniteTransition(label = "notes")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(3000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "rotation"
+    )
     val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 1.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
+        initialValue = 0.8f, targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(animation = tween(1000, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
         label = "pulse"
     )
 
@@ -255,22 +295,8 @@ fun InstrumentalAnimation(active: Boolean, color: Color) {
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         modifier = Modifier.padding(vertical = 8.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.MusicNote,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier
-                .size(32.dp)
-                .rotate(if (active) rotation else 0f)
-        )
-        Icon(
-            imageVector = Icons.Default.MusicNote,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier
-                .size(32.dp)
-                .scale(if (active) pulseScale else 1f)
-        )
+        Icon(Icons.Default.MusicNote, null, tint = color, modifier = Modifier.size(32.dp).rotate(if (active) rotation else 0f))
+        Icon(Icons.Default.MusicNote, null, tint = color, modifier = Modifier.size(32.dp).scale(if (active) pulseScale else 1f))
     }
 }
 
@@ -279,13 +305,32 @@ fun PlainLyricsView(lyrics: String) {
     Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text(
             text = lyrics,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                lineHeight = 32.sp,
-                letterSpacing = 0.5.sp
-            ),
+            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 32.sp, letterSpacing = 0.5.sp),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(bottom = 100.dp)
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LyricsPreview() {
+    val sampleTrack = Track(1, "Luminous", "Jasmine", "Garden", 180000, android.net.Uri.EMPTY, null)
+    JasmineTheme {
+        LyricsContent(
+            uiState = LyricsUiState(
+                currentTrack = sampleTrack,
+                isPlaying = true,
+                progress = 5000,
+                syncedLocal = listOf(
+                    LyricsLine(0, "Welcome to the garden"),
+                    LyricsLine(5000, "Where the flowers bloom"),
+                    LyricsLine(10000, "In the moonlight")
+                )
+            ),
+            onClose = {},
+            onSeek = {}
         )
     }
 }

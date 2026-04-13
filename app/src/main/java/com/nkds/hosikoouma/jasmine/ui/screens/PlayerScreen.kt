@@ -1,8 +1,6 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.app.Activity
-import android.os.Build
-import android.os.VibrationEffect
 import android.os.Vibrator
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
@@ -13,7 +11,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -39,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -46,28 +44,49 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
+import com.nkds.hosikoouma.jasmine.core.utils.FormatUtils
+import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.data.ShareHelper
+import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
 import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
+import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
-import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.util.Locale
 
+// --- UI State ---
+data class PlayerUiState(
+    val currentTrack: Track? = null,
+    val isPlaying: Boolean = false,
+    val progress: Long = 0,
+    val duration: Long = 0,
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val isFavorite: Boolean = false,
+    val systemVolume: Float = 0f,
+    val progressStyle: ProgressBarStyle = ProgressBarStyle.STANDARD,
+    val playbackSpeed: Float = 1f,
+    val playbackPitch: Float = 1f
+)
+
+// --- Stateful Screen ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
@@ -84,18 +103,79 @@ fun PlayerScreen(
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val isFavorite by viewModel.isCurrentFavorite.collectAsStateWithLifecycle()
     val systemVolume by viewModel.systemVolume.collectAsStateWithLifecycle()
-    
+    val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
+    val playbackPitch by viewModel.playbackPitch.collectAsStateWithLifecycle()
+
     val settingsViewModel: SettingsViewModel = viewModel()
     val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
-    
-    val progressStyle = remember(settings.progressBarStyle) {
-        try {
-            ProgressBarStyle.valueOf(settings.progressBarStyle)
-        } catch (e: Exception) {
-            ProgressBarStyle.STANDARD
-        }
-    }
 
+    val uiState = PlayerUiState(
+        currentTrack = currentTrack,
+        isPlaying = isPlaying,
+        progress = progress,
+        duration = duration,
+        shuffleEnabled = shuffleEnabled,
+        repeatMode = repeatMode,
+        isFavorite = isFavorite,
+        systemVolume = systemVolume,
+        progressStyle = settings.progressBarStyle,
+        playbackSpeed = playbackSpeed,
+        playbackPitch = playbackPitch
+    )
+
+    PlayerContent(
+        uiState = uiState,
+        onClose = onClose,
+        onTogglePlayPause = viewModel::togglePlayPause,
+        onSkipNext = viewModel::skipToNext,
+        onSkipPrevious = viewModel::skipToPrevious,
+        onSeek = viewModel::seekTo,
+        onToggleShuffle = viewModel::toggleShuffle,
+        onToggleRepeat = viewModel::toggleRepeatMode,
+        onToggleFavorite = viewModel::toggleFavoriteCurrent,
+        onSetSystemVolume = viewModel::setSystemVolume,
+        onSetPlaybackSpeed = viewModel::setPlaybackSpeed,
+        onSetPlaybackPitch = viewModel::setPlaybackPitch,
+        onAddToQueue = { viewModel.addToQueue(it, showToast = true) },
+        onPrepareForDeletion = viewModel::prepareForDeletion,
+        onDeleteTracks = trackViewModel::deleteTracks,
+        onLoadTracks = trackViewModel::loadTracks,
+        onAddTrackToPlaylist = trackViewModel::addTrackToPlaylist,
+        pendingDeleteIntent = trackViewModel.pendingDeleteIntent,
+        navController = navController,
+        queueScreen = { onCloseQueue -> QueueScreen(viewModel = viewModel, onClose = onCloseQueue) },
+        lyricsScreen = { onCloseLyrics -> LyricsScreen(viewModel = viewModel, onClose = onCloseLyrics) },
+        trackViewModel = trackViewModel
+    )
+}
+
+// --- Stateless Content ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlayerContent(
+    uiState: PlayerUiState,
+    onClose: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSkipNext: () -> Unit,
+    onSkipPrevious: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onSetSystemVolume: (Float) -> Unit,
+    onSetPlaybackSpeed: (Float) -> Unit,
+    onSetPlaybackPitch: (Float) -> Unit,
+    onAddToQueue: (Track) -> Unit,
+    onPrepareForDeletion: (List<Track>) -> Unit,
+    onDeleteTracks: (List<Track>) -> Unit,
+    onLoadTracks: () -> Unit,
+    onAddTrackToPlaylist: (Long, Long) -> Unit,
+    pendingDeleteIntent: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null,
+    navController: NavController = rememberNavController(),
+    queueScreen: @Composable (onClose: () -> Unit) -> Unit = {},
+    lyricsScreen: @Composable (onClose: () -> Unit) -> Unit = {},
+    trackViewModel: TrackViewModel? = null 
+) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -114,21 +194,20 @@ fun PlayerScreen(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            trackViewModel.loadTracks()
+            onLoadTracks()
             Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
         }
     }
 
     LaunchedEffect(Unit) {
-        trackViewModel.pendingDeleteIntent.collect { intentSender ->
+        pendingDeleteIntent?.collect { intentSender ->
             deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
         }
     }
 
-    var isAlbumArtMinimized by remember { mutableStateOf(!isPlaying) }
-
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) isAlbumArtMinimized = false
+    var isAlbumArtMinimized by remember { mutableStateOf(!uiState.isPlaying) }
+    LaunchedEffect(uiState.isPlaying) {
+        if (uiState.isPlaying) isAlbumArtMinimized = false
     }
 
     val albumArtScale by animateFloatAsState(
@@ -165,12 +244,8 @@ fun PlayerScreen(
     }
 
     val animatedOffset = remember { Animatable(1000f) }
-
     LaunchedEffect(Unit) {
-        animatedOffset.animateTo(
-            targetValue = 0f,
-            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-        )
+        animatedOffset.animateTo(0f, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
     }
 
     Box(
@@ -206,7 +281,7 @@ fun PlayerScreen(
                 )
             }
     ) {
-        PlayerBackground(albumArtUri = currentTrack?.albumArtUri)
+        PlayerBackground(albumArtUri = uiState.currentTrack?.albumArtUri)
 
         Column(
             modifier = Modifier
@@ -216,7 +291,7 @@ fun PlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                if (currentTrack?.isManual == true) {
+                if (uiState.currentTrack?.isManual == true) {
                     Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f), shape = CircleShape, modifier = Modifier.padding(top = 8.dp)) {
                         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
@@ -236,7 +311,7 @@ fun PlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 AlbumArt(
-                    albumArtUri = currentTrack?.albumArtUri,
+                    albumArtUri = uiState.currentTrack?.albumArtUri,
                     modifier = Modifier.fillMaxWidth(albumArtScale / 0.9f).aspectRatio(1f),
                     shape = RoundedCornerShape(24.dp)
                 )
@@ -244,53 +319,51 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.weight(0.3f))
 
-            TrackInfoSection(title = currentTrack?.title, artist = currentTrack?.artist)
+            TrackInfoSection(title = uiState.currentTrack?.title, artist = uiState.currentTrack?.artist)
 
             Spacer(modifier = Modifier.height(16.dp))
 
             PlaybackProgressSection(
-                progress = progress,
-                duration = duration,
-                progressStyle = progressStyle,
-                isPlaying = isPlaying,
-                onSeek = { viewModel.seekTo(it) }
+                progress = uiState.progress,
+                duration = uiState.duration,
+                progressStyle = uiState.progressStyle,
+                isPlaying = uiState.isPlaying,
+                onSeek = onSeek
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             PlaybackControlsSection(
-                isPlaying = isPlaying,
-                repeatMode = repeatMode,
-                shuffleEnabled = shuffleEnabled,
-                onToggleRepeat = { viewModel.toggleRepeatMode() },
-                onToggleShuffle = { viewModel.toggleShuffle() },
-                onPrevious = { viewModel.skipToPrevious() },
-                onNext = { viewModel.skipToNext() },
+                isPlaying = uiState.isPlaying,
+                repeatMode = uiState.repeatMode,
+                shuffleEnabled = uiState.shuffleEnabled,
+                onToggleRepeat = onToggleRepeat,
+                onToggleShuffle = onToggleShuffle,
+                onPrevious = onSkipPrevious,
+                onNext = onSkipNext,
                 onTogglePlayPause = {
-                    val willPause = isPlaying
-                    viewModel.togglePlayPause()
-                    isAlbumArtMinimized = willPause
+                    onTogglePlayPause()
+                    isAlbumArtMinimized = uiState.isPlaying
                 }
             )
 
             Spacer(modifier = Modifier.weight(0.5f))
 
             BottomActionsSection(
-                isFavorite = isFavorite,
+                isFavorite = uiState.isFavorite,
                 onShowQueue = { showQueue = true },
-                onToggleFavorite = { viewModel.toggleFavoriteCurrent() },
+                onToggleFavorite = onToggleFavorite,
                 onShowLyrics = { showLyrics = true },
                 onShowMore = { showMoreActions = true }
             )
         }
 
-        // ... остальное (AnimatedVisibility, Dialogs) остается прежним, так как они не рекомпозируются часто
         AnimatedVisibility(visible = showQueue, enter = slideInHorizontally(initialOffsetX = { -it }), exit = slideOutHorizontally(targetOffsetX = { -it })) {
-            QueueScreen(viewModel = viewModel, onClose = { showQueue = false })
+            queueScreen { showQueue = false }
         }
 
         AnimatedVisibility(visible = showLyrics, enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it })) {
-            LyricsScreen(viewModel = viewModel, onClose = { showLyrics = false })
+            lyricsScreen { showLyrics = false }
         }
 
         if (showMoreActions) {
@@ -307,6 +380,10 @@ fun PlayerScreen(
                         .padding(horizontal = 20.dp)
                         .padding(bottom = 24.dp)
                 ) {
+                    // Оптимизация слайдера громкости: локальный стейт
+                    var localVolume by remember { mutableFloatStateOf(uiState.systemVolume) }
+                    LaunchedEffect(uiState.systemVolume) { localVolume = uiState.systemVolume }
+
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         shape = RoundedCornerShape(24.dp),
@@ -318,8 +395,11 @@ fun PlayerScreen(
                         ) {
                             Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, modifier = Modifier.size(20.dp))
                             Slider(
-                                value = systemVolume,
-                                onValueChange = { viewModel.setSystemVolume(it) },
+                                value = localVolume,
+                                onValueChange = { 
+                                    localVolume = it
+                                    onSetSystemVolume(it) 
+                                },
                                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                             )
                             Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.size(20.dp))
@@ -333,31 +413,17 @@ fun PlayerScreen(
                         modifier = Modifier.heightIn(max = 400.dp)
                     ) {
                         item {
-                            ActionCard(
-                                icon = Icons.Rounded.Speed,
-                                label = "Speed",
-                                onClick = {
-                                    showMoreActions = false
-                                    showSpeedSheet = true
-                                }
-                            )
+                            ActionCard(icon = Icons.Rounded.Speed, label = "Speed", onClick = { showMoreActions = false; showSpeedSheet = true })
                         }
                         item {
-                            ActionCard(
-                                icon = Icons.Rounded.GraphicEq,
-                                label = "Pitch",
-                                onClick = {
-                                    showMoreActions = false
-                                    showPitchSheet = true
-                                }
-                            )
+                            ActionCard(icon = Icons.Rounded.GraphicEq, label = "Pitch", onClick = { showMoreActions = false; showPitchSheet = true })
                         }
                         item {
                             ActionCard(
                                 icon = Icons.Rounded.Album,
                                 label = "Album",
                                 onClick = {
-                                    currentTrack?.let { track ->
+                                    uiState.currentTrack?.let { track ->
                                         val encoded = URLEncoder.encode(track.album, StandardCharsets.UTF_8.toString())
                                         navController.navigate("album_detail/$encoded")
                                         showMoreActions = false
@@ -371,7 +437,7 @@ fun PlayerScreen(
                                 icon = Icons.Rounded.Person,
                                 label = "Artist",
                                 onClick = {
-                                    currentTrack?.let { track ->
+                                    uiState.currentTrack?.let { track ->
                                         val encoded = URLEncoder.encode(track.artist, StandardCharsets.UTF_8.toString())
                                         navController.navigate("artist_detail/$encoded")
                                         showMoreActions = false
@@ -381,42 +447,20 @@ fun PlayerScreen(
                             )
                         }
                         item {
-                            ActionCard(
-                                icon = Icons.Rounded.Queue,
-                                label = "Add to Queue",
-                                onClick = {
-                                    currentTrack?.let { viewModel.addToQueue(it, showToast = true) }
-                                    showMoreActions = false
-                                }
-                            )
+                            ActionCard(icon = Icons.Rounded.Queue, label = "Add to Queue", onClick = { uiState.currentTrack?.let { onAddToQueue(it) }; showMoreActions = false })
                         }
                         item {
-                            ActionCard(
-                                icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
-                                label = "Playlist",
-                                onClick = {
-                                    showMoreActions = false
-                                    showAddToPlaylistDialog = true
-                                }
-                            )
+                            ActionCard(icon = Icons.AutoMirrored.Rounded.PlaylistAdd, label = "Playlist", onClick = { showMoreActions = false; showAddToPlaylistDialog = true })
                         }
                         item {
-                            ActionCard(
-                                icon = Icons.Rounded.Info,
-                                label = "Details",
-                                onClick = {
-                                    showMoreActions = false
-                                    showTrackInfo = true
-                                }
-                            )
+                            ActionCard(icon = Icons.Rounded.Info, label = "Details", onClick = { showMoreActions = false; showTrackInfo = true })
                         }
                         item {
                             ActionCard(
                                 icon = Icons.Rounded.Share,
                                 label = "Share",
                                 onClick = {
-                                    val track = currentTrack ?: return@ActionCard
-                                    ShareHelper.shareTrack(context, track)
+                                    uiState.currentTrack?.let { ShareHelper.shareTrack(context, it) }
                                     showMoreActions = false
                                 }
                             )
@@ -451,40 +495,38 @@ fun PlayerScreen(
         }
 
         if (showSpeedSheet) {
-            val speed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
             ParameterAdjustmentSheet(
                 title = "Playback Speed",
-                value = speed,
+                value = uiState.playbackSpeed,
                 valueRange = 0.25f..2.0f,
                 steps = 6,
                 icon = Icons.Rounded.Speed,
-                onValueChange = { viewModel.setPlaybackSpeed(it) },
-                onReset = { viewModel.setPlaybackSpeed(1.0f) },
+                onValueChange = onSetPlaybackSpeed,
+                onReset = { onSetPlaybackSpeed(1.0f) },
                 onDismiss = { showSpeedSheet = false },
                 valueFormatter = { "%.2fx".format(it) }
             )
         }
 
         if (showPitchSheet) {
-            val pitch by viewModel.playbackPitch.collectAsStateWithLifecycle()
             ParameterAdjustmentSheet(
                 title = "Playback Pitch",
-                value = pitch,
+                value = uiState.playbackPitch,
                 valueRange = 0.5f..2.0f,
                 steps = 5,
                 icon = Icons.Rounded.GraphicEq,
-                onValueChange = { viewModel.setPlaybackPitch(it) },
-                onReset = { viewModel.setPlaybackPitch(1.0f) },
+                onValueChange = onSetPlaybackPitch,
+                onReset = { onSetPlaybackPitch(1.0f) },
                 onDismiss = { showPitchSheet = false },
                 valueFormatter = { "%.2f".format(it) }
             )
         }
 
-        if (showAddToPlaylistDialog && currentTrack != null) {
+        if (showAddToPlaylistDialog && uiState.currentTrack != null && trackViewModel != null) {
             AddToPlaylistDialog(
                 onDismissRequest = { showAddToPlaylistDialog = false },
                 onPlaylistSelected = { playlistId ->
-                    trackViewModel.addTrackToPlaylist(playlistId, currentTrack!!.id)
+                    onAddTrackToPlaylist(uiState.currentTrack.id, playlistId)
                     showAddToPlaylistDialog = false
                     Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
                 },
@@ -492,19 +534,17 @@ fun PlayerScreen(
             )
         }
 
-        if (showDeleteDialog && currentTrack != null) {
+        if (showDeleteDialog && uiState.currentTrack != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
                 title = { Text("Delete Track") },
-                text = { Text("Are you sure you want to delete \"${currentTrack?.title}\" from your device?") },
+                text = { Text("Are you sure you want to delete \"${uiState.currentTrack.title}\" from your device?") },
                 confirmButton = {
                     TextButton(
                         modifier = Modifier.bouncingClickable {
                             showDeleteDialog = false
-                            currentTrack?.let { track ->
-                                viewModel.prepareForDeletion(listOf(track))
-                                trackViewModel.deleteTracks(listOf(track))
-                            }
+                            onPrepareForDeletion(listOf(uiState.currentTrack))
+                            onDeleteTracks(listOf(uiState.currentTrack))
                         },
                         onClick = { }
                     ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
@@ -517,11 +557,13 @@ fun PlayerScreen(
             )
         }
 
-        if (showTrackInfo && currentTrack != null) {
-            TrackInfoBottomSheet(track = currentTrack!!, onDismissRequest = { showTrackInfo = false })
+        if (showTrackInfo && uiState.currentTrack != null) {
+            TrackInfoBottomSheet(track = uiState.currentTrack, onDismissRequest = { showTrackInfo = false })
         }
     }
 }
+
+// --- Internal Components ---
 
 @Composable
 fun TrackInfoSection(title: String?, artist: String?) {
@@ -583,8 +625,8 @@ fun PlaybackProgressSection(
             )
         }
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-            Text(formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(FormatUtils.formatTime(sliderValue.toLong()), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(FormatUtils.formatTime(duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }
@@ -602,10 +644,10 @@ fun PlaybackControlsSection(
 ) {
     val haptic = LocalHapticFeedback.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleRepeat() })
-        AnimatedControlIcon(icon = Icons.Rounded.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleShuffle() } )
-        AnimatedControlIcon(icon = Icons.Rounded.SkipPrevious, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onPrevious() })
-        AnimatedControlIcon(icon = Icons.Rounded.SkipNext, size = 44.dp, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onNext() })
+        AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleRepeat() })
+        AnimatedControlIcon(icon = Icons.Rounded.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleShuffle() } )
+        AnimatedControlIcon(icon = Icons.Rounded.SkipPrevious, size = 44.dp, onClick = { VibrationUtils.performLongPressHaptic(haptic); onPrevious() })
+        AnimatedControlIcon(icon = Icons.Rounded.SkipNext, size = 44.dp, onClick = { VibrationUtils.performLongPressHaptic(haptic); onNext() })
 
         val playPauseInteractionSource = remember { MutableInteractionSource() }
         val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
@@ -614,7 +656,7 @@ fun PlaybackControlsSection(
 
         Surface(
             onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                VibrationUtils.performLongPressHaptic(haptic)
                 onTogglePlayPause()
             },
             interactionSource = playPauseInteractionSource,
@@ -643,10 +685,10 @@ fun BottomActionsSection(
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AnimatedControlIcon(Icons.AutoMirrored.Rounded.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onShowQueue() })
-        AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggleFavorite() })
-        AnimatedControlIcon(Icons.Rounded.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onShowLyrics() })
-        AnimatedControlIcon(Icons.Rounded.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onShowMore() })
+        AnimatedControlIcon(Icons.AutoMirrored.Rounded.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowQueue() })
+        AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleFavorite() })
+        AnimatedControlIcon(Icons.Rounded.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowLyrics() })
+        AnimatedControlIcon(Icons.Rounded.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowMore() })
     }
 }
 
@@ -708,7 +750,7 @@ fun ParameterAdjustmentSheet(
                 value = value,
                 onValueChange = {
                     if (it != value) {
-                        tickVibrate(vibrator)
+                        VibrationUtils.tickVibrate(vibrator)
                         onValueChange(it)
                     }
                 },
@@ -732,14 +774,12 @@ fun ParameterAdjustmentSheet(
                             selected = value == preset,
                             onClick = {
                                 if (value != preset) {
-                                    tickVibrate(vibrator)
+                                    VibrationUtils.tickVibrate(vibrator)
                                     onValueChange(preset)
                                 }
                             },
                             label = { Text(valueFormatter(preset)) },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.graphicsLayer {
-                            }
+                            shape = RoundedCornerShape(12.dp)
                         )
                     }
                 }
@@ -749,7 +789,7 @@ fun ParameterAdjustmentSheet(
 
             Button(
                 onClick = {
-                    tickVibrate(vibrator)
+                    VibrationUtils.tickVibrate(vibrator)
                     onReset()
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp).bouncingClickable { onReset() },
@@ -762,16 +802,6 @@ fun ParameterAdjustmentSheet(
                 Text("Reset to Default", fontWeight = FontWeight.Bold)
             }
         }
-    }
-}
-
-private fun tickVibrate(vibrator: Vibrator?) {
-    if (vibrator == null) return
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        vibrator.vibrate(VibrationEffect.createOneShot(10, 100))
-    } else {
-        @Suppress("DEPRECATION")
-        vibrator.vibrate(10)
     }
 }
 
@@ -812,7 +842,7 @@ fun ActionCard(
 
 @Composable
 fun AnimatedControlIcon(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 28.dp,
@@ -827,9 +857,42 @@ fun AnimatedControlIcon(
     }
 }
 
-private fun formatTime(ms: Long): String {
-    val totalSeconds = ms / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+@Preview(showBackground = true)
+@Composable
+fun PlayerPreview() {
+    JasmineTheme {
+        PlayerContent(
+            uiState = PlayerUiState(
+                currentTrack = Track(
+                    id = 1,
+                    title = "Sample Song",
+                    artist = "Sample Artist",
+                    album = "Sample Album",
+                    duration = 300000,
+                    contentUri = android.net.Uri.EMPTY,
+                    albumArtUri = null
+                ),
+                isPlaying = true,
+                progress = 120000,
+                duration = 300000,
+                isFavorite = true
+            ),
+            onClose = {},
+            onTogglePlayPause = {},
+            onSkipNext = {},
+            onSkipPrevious = {},
+            onSeek = {},
+            onToggleShuffle = {},
+            onToggleRepeat = {},
+            onToggleFavorite = {},
+            onSetSystemVolume = {},
+            onSetPlaybackSpeed = {},
+            onSetPlaybackPitch = {},
+            onAddToQueue = {},
+            onPrepareForDeletion = {},
+            onDeleteTracks = {},
+            onLoadTracks = {},
+            onAddTrackToPlaylist = { _, _ -> }
+        )
+    }
 }

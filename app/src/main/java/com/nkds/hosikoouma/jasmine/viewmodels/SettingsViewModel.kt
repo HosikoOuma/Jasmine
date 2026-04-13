@@ -3,23 +3,23 @@ package com.nkds.hosikoouma.jasmine.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nkds.hosikoouma.jasmine.core.models.AppFontFamily
+import com.nkds.hosikoouma.jasmine.core.models.DarkMode
+import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
+import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-
-enum class ProgressBarStyle { STANDARD, SOLID, DOTTED, WAVE, NEON }
-enum class AppFontFamily { DEFAULT, GOOGLE_SANS, JETBRAINS_MONO, NUNITO }
-enum class DarkMode { FOLLOW_SYSTEM, LIGHT, DARK }
 
 data class SettingsState(
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Long = 3000L,
     val minTrackDuration: Int = 0,
-    val defaultSortType: String = "BY_DATE",
+    val defaultSortType: SortType = SortType.BY_DATE,
     val isDefaultSortReversed: Boolean = false,
-    val progressBarStyle: String = "STANDARD",
-    val appFontFamily: String = "DEFAULT",
-    val darkMode: String = "FOLLOW_SYSTEM",
+    val progressBarStyle: ProgressBarStyle = ProgressBarStyle.STANDARD,
+    val appFontFamily: AppFontFamily = AppFontFamily.DEFAULT,
+    val darkMode: DarkMode = DarkMode.FOLLOW_SYSTEM,
     val paletteStyle: String = "TonalSpot",
     val amoledDarkMode: Boolean = false,
     val useDynamicColor: Boolean = true,
@@ -44,16 +44,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository.useDynamicColor,
         repository.useAlbumArtColor,
         repository.seedColor
-    ) { args: Array<Any> ->
+    ) { args ->
         SettingsState(
             isCrossfadeEnabled = args[0] as Boolean,
             crossfadeDuration = args[1] as Long,
             minTrackDuration = args[2] as Int,
-            defaultSortType = args[3] as String,
+            defaultSortType = safeValueOf(args[3] as String, SortType.BY_DATE),
             isDefaultSortReversed = args[4] as Boolean,
-            progressBarStyle = args[5] as String,
-            appFontFamily = args[6] as String,
-            darkMode = args[7] as String,
+            progressBarStyle = safeValueOf(args[5] as String, ProgressBarStyle.STANDARD),
+            appFontFamily = safeValueOf(args[6] as String, AppFontFamily.DEFAULT),
+            darkMode = safeValueOf(args[7] as String, DarkMode.FOLLOW_SYSTEM),
             paletteStyle = args[8] as String,
             amoledDarkMode = args[9] as Boolean,
             useDynamicColor = args[10] as Boolean,
@@ -66,19 +66,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         initialValue = SettingsState()
     )
 
-    // Individual setters
-    fun setCrossfadeEnabled(enabled: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(enabled) }
-    fun setCrossfadeDuration(duration: Long) = viewModelScope.launch { repository.setCrossfadeDuration(duration) }
-    fun setMinTrackDuration(seconds: Int) = viewModelScope.launch { repository.setMinTrackDuration(seconds) }
-    fun setDefaultSortType(sortType: String) = viewModelScope.launch { repository.setDefaultSortType(sortType) }
-    fun setDefaultSortReversed(reversed: Boolean) = viewModelScope.launch { repository.setDefaultSortReversed(reversed) }
-    fun setProgressBarStyle(style: ProgressBarStyle) = viewModelScope.launch { repository.setProgressBarStyle(style.name) }
-    fun setAppFontFamily(fontFamily: AppFontFamily) = viewModelScope.launch { repository.setAppFontFamily(fontFamily.name) }
-    fun setDarkMode(mode: DarkMode) = viewModelScope.launch { repository.setDarkMode(mode.name) }
+    // Individual setters with proper typing
+    fun setCrossfadeEnabled(enabled: Boolean) = launchUpdate { repository.setCrossfadeEnabled(enabled) }
+    fun setCrossfadeDuration(duration: Long) = launchUpdate { repository.setCrossfadeDuration(duration) }
+    fun setMinTrackDuration(seconds: Int) = launchUpdate { repository.setMinTrackDuration(seconds) }
+    fun setDefaultSortType(sortType: SortType) = launchUpdate { repository.setDefaultSortType(sortType.name) }
+    fun setDefaultSortReversed(reversed: Boolean) = launchUpdate { repository.setDefaultSortReversed(reversed) }
+    fun setProgressBarStyle(style: ProgressBarStyle) = launchUpdate { repository.setProgressBarStyle(style.name) }
+    fun setAppFontFamily(fontFamily: AppFontFamily) = launchUpdate { repository.setAppFontFamily(fontFamily.name) }
+    fun setDarkMode(mode: DarkMode) = launchUpdate { repository.setDarkMode(mode.name) }
+    fun setPaletteStyle(style: String) = launchUpdate { repository.setPaletteStyle(style) }
+    fun setAmoledDarkMode(enabled: Boolean) = launchUpdate { repository.setAmoledDarkMode(enabled) }
+    fun setUseDynamicColor(enabled: Boolean) = launchUpdate { repository.setUseDynamicColor(enabled) }
+    fun setUseAlbumArtColor(enabled: Boolean) = launchUpdate { repository.setUseAlbumArtColor(enabled) }
+    fun setSeedColor(color: Int) = launchUpdate { repository.setSeedColor(color) }
 
-    fun setPaletteStyle(style: String) = viewModelScope.launch { repository.setPaletteStyle(style) }
-    fun setAmoledDarkMode(enabled: Boolean) = viewModelScope.launch { repository.setAmoledDarkMode(enabled) }
-    fun setUseDynamicColor(enabled: Boolean) = viewModelScope.launch { repository.setUseDynamicColor(enabled) }
-    fun setUseAlbumArtColor(enabled: Boolean) = viewModelScope.launch { repository.setUseAlbumArtColor(enabled) }
-    fun setSeedColor(color: Int) = viewModelScope.launch { repository.setSeedColor(color) }
+    private fun launchUpdate(block: suspend () -> Unit) = viewModelScope.launch { block() }
+
+    companion object {
+        private inline fun <reified T : Enum<T>> safeValueOf(name: String, fallback: T): T {
+            return try { enumValueOf<T>(name) } catch (e: Exception) { fallback }
+        }
+    }
 }

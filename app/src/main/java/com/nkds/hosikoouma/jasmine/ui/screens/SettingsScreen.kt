@@ -13,26 +13,78 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.nkds.hosikoouma.jasmine.viewmodels.*
+import com.nkds.hosikoouma.jasmine.core.models.*
+import com.nkds.hosikoouma.jasmine.datamodels.Folder
+import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsState
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
     trackViewModel: TrackViewModel
 ) {
     val settings by viewModel.settingsState.collectAsStateWithLifecycle()
+    val folders by trackViewModel.folders.collectAsStateWithLifecycle()
+    // Исправлено: используем .value напрямую, чтобы избежать проблем с выводом типов
+    val blacklistedFoldersState = trackViewModel.blacklistedFolders.collectAsStateWithLifecycle(initialValue = emptySet())
+    val blacklistedFolders = blacklistedFoldersState.value
 
-    var showSortDialog by remember { mutableStateOf(false) }
+    SettingsContent(
+        settings = settings,
+        folders = folders,
+        blacklistedFolders = blacklistedFolders,
+        onSetCrossfadeEnabled = viewModel::setCrossfadeEnabled,
+        onSetCrossfadeDuration = viewModel::setCrossfadeDuration,
+        onSetProgressBarStyle = viewModel::setProgressBarStyle,
+        onSetDarkMode = viewModel::setDarkMode,
+        onSetAmoledMode = viewModel::setAmoledDarkMode,
+        onSetUseDynamicColor = viewModel::setUseDynamicColor,
+        onSetUseAlbumArtColor = viewModel::setUseAlbumArtColor,
+        onSetPaletteStyle = viewModel::setPaletteStyle,
+        onSetAppFontFamily = viewModel::setAppFontFamily,
+        onSetMinTrackDuration = viewModel::setMinTrackDuration,
+        onSetDefaultSortType = viewModel::setDefaultSortType,
+        onSetDefaultSortReversed = viewModel::setDefaultSortReversed,
+        onToggleFolderBlacklist = { path ->
+            if (blacklistedFolders.contains(path)) trackViewModel.removeFolderFromBlacklist(path)
+            else trackViewModel.addFolderToBlacklist(path)
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsContent(
+    settings: SettingsState,
+    folders: List<Folder> = emptyList(),
+    blacklistedFolders: Set<String> = emptySet(),
+    onSetCrossfadeEnabled: (Boolean) -> Unit,
+    onSetCrossfadeDuration: (Long) -> Unit,
+    onSetProgressBarStyle: (ProgressBarStyle) -> Unit,
+    onSetDarkMode: (DarkMode) -> Unit,
+    onSetAmoledMode: (Boolean) -> Unit,
+    onSetUseDynamicColor: (Boolean) -> Unit,
+    onSetUseAlbumArtColor: (Boolean) -> Unit,
+    onSetPaletteStyle: (String) -> Unit,
+    onSetAppFontFamily: (AppFontFamily) -> Unit,
+    onSetMinTrackDuration: (Int) -> Unit,
+    onSetDefaultSortType: (SortType) -> Unit,
+    onSetDefaultSortReversed: (Boolean) -> Unit,
+    onToggleFolderBlacklist: (String) -> Unit
+) {
     var showStyleDialog by remember { mutableStateOf(false) }
-    var showFontDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showFontDialog by remember { mutableStateOf(false) }
     var showPaletteDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
     var showBlacklistDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -41,430 +93,256 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // --- PLAYBACK ---
-        Text(
-            text = "Playback",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-
+        SettingsSectionTitle("Playback")
         ListItem(
             headlineContent = { Text("Crossfade") },
             supportingContent = { Text("Smoothly transition between tracks") },
-            trailingContent = {
-                Switch(
-                    checked = settings.isCrossfadeEnabled,
-                    onCheckedChange = { viewModel.setCrossfadeEnabled(it) }
-                )
-            }
+            trailingContent = { Switch(checked = settings.isCrossfadeEnabled, onCheckedChange = onSetCrossfadeEnabled) }
         )
-
         if (settings.isCrossfadeEnabled) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Duration", style = MaterialTheme.typography.bodyMedium)
-                    Text("${(settings.crossfadeDuration / 1000f)}s", style = MaterialTheme.typography.bodyMedium)
-                }
-                Slider(
-                    value = settings.crossfadeDuration.toFloat(),
-                    onValueChange = { viewModel.setCrossfadeDuration(it.roundToLong()) },
-                    valueRange = 1000f..10000f,
-                    steps = 8
-                )
-            }
+            SettingsSliderItem(
+                label = "Duration",
+                value = settings.crossfadeDuration.toFloat(),
+                valueRange = 1000f..10000f,
+                steps = 8,
+                displayValue = "${(settings.crossfadeDuration / 1000f)}s",
+                onValueChange = { onSetCrossfadeDuration(it.roundToLong()) }
+            )
         }
-
-        ListItem(
-            headlineContent = { Text("Player Progress Style") },
-            supportingContent = { 
-                val styleLabel = when(settings.progressBarStyle) {
-                    "WAVE" -> "Wave Visualizer"
-                    "NEON" -> "Neon Glow"
-                    "DOTTED" -> "Dotted Line"
-                    "SOLID" -> "Solid Thick"
-                    else -> "Standard Slider"
-                }
-                Text(styleLabel)
-            },
-            modifier = Modifier.clickable { showStyleDialog = true }
+        SettingsClickableItem(
+            title = "Player Progress Style",
+            subtitle = settings.progressBarStyle.name.lowercase().replaceFirstChar { it.uppercase() },
+            onClick = { showStyleDialog = true }
         )
-        
+
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        // --- APPEARANCE ---
-        Text(
-            text = "Appearance",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(vertical = 8.dp)
+        SettingsSectionTitle("Appearance")
+        SettingsClickableItem(
+            title = "Theme Mode",
+            subtitle = settings.darkMode.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
+            onClick = { showThemeDialog = true }
         )
-
-        ListItem(
-            headlineContent = { Text("Theme Mode") },
-            supportingContent = { 
-                val themeLabel = when(settings.darkMode) {
-                    "DARK" -> "Dark"
-                    "LIGHT" -> "Light"
-                    else -> "Follow System"
-                }
-                Text(themeLabel)
-            },
-            modifier = Modifier.clickable { showThemeDialog = true }
+        SettingsSwitchItem(
+            title = "AMOLED Dark Mode",
+            subtitle = "Pure black background in dark theme",
+            checked = settings.amoledDarkMode,
+            onCheckedChange = onSetAmoledMode
         )
-
-        ListItem(
-            headlineContent = { Text("AMOLED Dark Mode") },
-            supportingContent = { Text("Pure black background in dark theme") },
-            trailingContent = {
-                Switch(
-                    checked = settings.amoledDarkMode,
-                    onCheckedChange = { viewModel.setAmoledDarkMode(it) }
-                )
-            }
-        )
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ListItem(
-                headlineContent = { Text("Dynamic Colors (Material You)") },
-                supportingContent = { Text("Use system accent colors") },
-                trailingContent = {
-                    Switch(
-                        checked = settings.useDynamicColor,
-                        onCheckedChange = { viewModel.setUseDynamicColor(it) }
-                    )
-                }
+            SettingsSwitchItem(
+                title = "Dynamic Colors (Material You)",
+                subtitle = "Use system accent colors",
+                checked = settings.useDynamicColor,
+                onCheckedChange = onSetUseDynamicColor
             )
         }
-
-        ListItem(
-            headlineContent = { Text("Use Album Art Color") },
-            supportingContent = { Text("Generate theme from current track cover") },
-            trailingContent = {
-                Switch(
-                    checked = settings.useAlbumArtColor,
-                    onCheckedChange = { viewModel.setUseAlbumArtColor(it) }
-                )
-            }
+        SettingsSwitchItem(
+            title = "Use Album Art Color",
+            subtitle = "Generate theme from current track cover",
+            checked = settings.useAlbumArtColor,
+            onCheckedChange = onSetUseAlbumArtColor
         )
-
         if (!settings.useDynamicColor || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            ListItem(
-                headlineContent = { Text("Palette Style") },
-                supportingContent = { Text(settings.paletteStyle) },
-                modifier = Modifier.clickable { showPaletteDialog = true }
-            )
+            SettingsClickableItem(title = "Palette Style", subtitle = settings.paletteStyle, onClick = { showPaletteDialog = true })
         }
-
-        ListItem(
-            headlineContent = { Text("App Font") },
-            supportingContent = { 
-                val fontLabel = when(settings.appFontFamily) {
-                    "GOOGLE_SANS" -> "Google Sans"
-                    "JETBRAINS_MONO" -> "JetBrains Mono Nerd"
-                    "NUNITO" -> "Nunito"
-                    else -> "System Default"
-                }
-                Text(fontLabel)
-            },
-            modifier = Modifier.clickable { showFontDialog = true }
+        SettingsClickableItem(
+            title = "App Font",
+            subtitle = settings.appFontFamily.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
+            onClick = { showFontDialog = true }
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        // --- LIBRARY ---
-        Text(
-            text = "Library",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(vertical = 8.dp)
+        SettingsSectionTitle("Library")
+        SettingsSliderItem(
+            label = "Filter short tracks",
+            value = settings.minTrackDuration.toFloat(),
+            valueRange = 0f..30f,
+            steps = 29,
+            displayValue = "${settings.minTrackDuration}s",
+            onValueChange = { onSetMinTrackDuration(it.roundToInt()) }
         )
-
-        ListItem(
-            headlineContent = { Text("Filter short tracks") },
-            supportingContent = { Text("Hide tracks shorter than ${settings.minTrackDuration}s") }
+        SettingsClickableItem(
+            title = "Default Sorting",
+            subtitle = "By ${settings.defaultSortType.name.substringAfter("BY_").lowercase()} ${if(settings.isDefaultSortReversed) "(Reversed)" else ""}",
+            onClick = { showSortDialog = true }
         )
-
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Slider(
-                value = settings.minTrackDuration.toFloat(),
-                onValueChange = { viewModel.setMinTrackDuration(it.roundToInt()) },
-                valueRange = 0f..30f,
-                steps = 29
-            )
-        }
-
-        ListItem(
-            headlineContent = { Text("Default Sorting") },
-            supportingContent = { 
-                val sortLabel = when(settings.defaultSortType) {
-                    "BY_NAME" -> "Name"
-                    "BY_ARTIST" -> "Artist"
-                    "BY_DURATION" -> "Duration"
-                    else -> "Date Added"
-                }
-                Text("Currently sorted by $sortLabel ${if(settings.isDefaultSortReversed) "(Reversed)" else ""}")
-            },
-            modifier = Modifier.clickable { showSortDialog = true }
-        )
-
-        ListItem(
-            headlineContent = { Text("Blacklisted Folders") },
-            supportingContent = { Text("Manage excluded music folders") },
-            modifier = Modifier.clickable { showBlacklistDialog = true }
+        SettingsClickableItem(
+            title = "Blacklisted Folders",
+            subtitle = "Manage excluded music folders",
+            onClick = { showBlacklistDialog = true }
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-        
-        Text(
-            text = "About",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-        
-        ListItem(
-            headlineContent = { Text("Version") },
-            supportingContent = { Text("1.0.0 (Jasmine)") }
-        )
-
+        SettingsSectionTitle("About")
+        ListItem(headlineContent = { Text("Version") }, supportingContent = { Text("1.0.0 (Jasmine)") })
         Spacer(modifier = Modifier.height(160.dp))
     }
 
-    if (showBlacklistDialog) {
-        val allFolders by trackViewModel.folders.collectAsStateWithLifecycle()
-        val blacklistedFolders by trackViewModel.blacklistedFolders.collectAsStateWithLifecycle()
-
-        AlertDialog(
-            onDismissRequest = { showBlacklistDialog = false },
-            title = { Text("Blacklisted Folders") },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    if (allFolders.isEmpty()) {
-                        Text("No folders found")
-                    }
-                    allFolders.forEach { folder ->
-                        val isBlacklisted = blacklistedFolders.contains(folder.path)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (isBlacklisted) {
-                                        trackViewModel.removeFolderFromBlacklist(folder.path)
-                                    } else {
-                                        trackViewModel.addFolderToBlacklist(folder.path)
-                                    }
-                                }
-                                .padding(vertical = 12.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isBlacklisted) Icons.Rounded.Block else Icons.Rounded.Folder,
-                                contentDescription = null,
-                                tint = if (isBlacklisted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = folder.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (isBlacklisted) FontWeight.Normal else FontWeight.Bold,
-                                    color = if (isBlacklisted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = folder.path,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Checkbox(
-                                checked = isBlacklisted,
-                                onCheckedChange = null,
-                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.error)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showBlacklistDialog = false }) { Text("Done") }
-            }
+    // --- Dialogs ---
+    if (showStyleDialog) {
+        SettingsSelectionDialog(
+            title = "Progress Bar Style",
+            options = ProgressBarStyle.entries.toTypedArray(),
+            selectedOption = settings.progressBarStyle,
+            onOptionSelected = onSetProgressBarStyle,
+            onDismiss = { showStyleDialog = false }
         )
     }
-
+    if (showThemeDialog) {
+        SettingsSelectionDialog(
+            title = "Theme Mode",
+            options = DarkMode.entries.toTypedArray(),
+            selectedOption = settings.darkMode,
+            onOptionSelected = onSetDarkMode,
+            onDismiss = { showThemeDialog = false }
+        )
+    }
+    if (showFontDialog) {
+        SettingsSelectionDialog(
+            title = "App Font",
+            options = AppFontFamily.entries.toTypedArray(),
+            selectedOption = settings.appFontFamily,
+            onOptionSelected = onSetAppFontFamily,
+            onDismiss = { showFontDialog = false }
+        )
+    }
     if (showSortDialog) {
         AlertDialog(
             onDismissRequest = { showSortDialog = false },
             title = { Text("Default Sorting") },
             text = {
                 Column {
-                    SortOption("By Name", "BY_NAME", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
-                    SortOption("By Artist", "BY_ARTIST", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
-                    SortOption("By Date Added", "BY_DATE", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
-                    SortOption("By Duration", "BY_DURATION", settings.defaultSortType) { viewModel.setDefaultSortType(it) }
-                    
+                    SortType.entries.forEach { type ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSetDefaultSortType(type) }.padding(vertical = 8.dp)) {
+                            RadioButton(selected = settings.defaultSortType == type, onClick = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(type.name.substringAfter("BY_").lowercase().replaceFirstChar { it.uppercase() })
+                        }
+                    }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.setDefaultSortReversed(!settings.isDefaultSortReversed) }
-                            .padding(vertical = 8.dp)
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSetDefaultSortReversed(!settings.isDefaultSortReversed) }.padding(vertical = 8.dp)) {
                         Checkbox(checked = settings.isDefaultSortReversed, onCheckedChange = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Reverse order by default")
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showSortDialog = false }) { Text("Done") }
-            }
+            confirmButton = { TextButton(onClick = { showSortDialog = false }) { Text("Done") } }
         )
     }
-
-    if (showThemeDialog) {
+    if (showBlacklistDialog) {
         AlertDialog(
-            onDismissRequest = { showThemeDialog = false },
-            title = { Text("Theme Mode") },
+            onDismissRequest = { showBlacklistDialog = false },
+            title = { Text("Blacklisted Folders") },
             text = {
-                Column {
-                    ThemeOption("Follow System", DarkMode.FOLLOW_SYSTEM, settings.darkMode) { 
-                        viewModel.setDarkMode(it) 
-                    }
-                    ThemeOption("Light", DarkMode.LIGHT, settings.darkMode) { 
-                        viewModel.setDarkMode(it) 
-                    }
-                    ThemeOption("Dark", DarkMode.DARK, settings.darkMode) { 
-                        viewModel.setDarkMode(it) 
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showThemeDialog = false }) { Text("Done") }
-            }
-        )
-    }
-
-    if (showStyleDialog) {
-        AlertDialog(
-            onDismissRequest = { showStyleDialog = false },
-            title = { Text("Progress Bar Style") },
-            text = {
-                Column {
-                    StyleOption("Standard Slider", ProgressBarStyle.STANDARD, settings.progressBarStyle) { 
-                        viewModel.setProgressBarStyle(it) 
-                    }
-                    StyleOption("Solid Thick", ProgressBarStyle.SOLID, settings.progressBarStyle) { 
-                        viewModel.setProgressBarStyle(it) 
-                    }
-                    StyleOption("Dotted Line", ProgressBarStyle.DOTTED, settings.progressBarStyle) { 
-                        viewModel.setProgressBarStyle(it) 
-                    }
-                    StyleOption("Wave Visualizer", ProgressBarStyle.WAVE, settings.progressBarStyle) { 
-                        viewModel.setProgressBarStyle(it) 
-                    }
-                    StyleOption("Neon Glow", ProgressBarStyle.NEON, settings.progressBarStyle) { 
-                        viewModel.setProgressBarStyle(it) 
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showStyleDialog = false }) { Text("Done") }
-            }
-        )
-    }
-
-    if (showFontDialog) {
-        AlertDialog(
-            onDismissRequest = { showFontDialog = false },
-            title = { Text("App Font") },
-            text = {
-                Column {
-                    FontOption("System Default", AppFontFamily.DEFAULT, settings.appFontFamily) { 
-                        viewModel.setAppFontFamily(it) 
-                    }
-                    FontOption("Google Sans", AppFontFamily.GOOGLE_SANS, settings.appFontFamily) { 
-                        viewModel.setAppFontFamily(it) 
-                    }
-                    FontOption("JetBrains Mono Nerd", AppFontFamily.JETBRAINS_MONO, settings.appFontFamily) { 
-                        viewModel.setAppFontFamily(it) 
-                    }
-                    FontOption("Nunito", AppFontFamily.NUNITO, settings.appFontFamily) {
-                        viewModel.setAppFontFamily(it)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showFontDialog = false }) { Text("Done") }
-            }
-        )
-    }
-
-    if (showPaletteDialog) {
-        AlertDialog(
-            onDismissRequest = { showPaletteDialog = false },
-            title = { Text("Palette Style") },
-            text = {
-                val styles = listOf(
-                    "TonalSpot", "Neutral", "Vibrant", "Expressive", 
-                    "Rainbow", "FruitSalad", "Monochrome", "Fidelity", "Content"
-                )
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    styles.forEach { style ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.setPaletteStyle(style) }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            RadioButton(selected = style == settings.paletteStyle, onClick = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(style)
+                Column(modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                    if (folders.isEmpty()) Text("No folders found")
+                    folders.forEach { folder ->
+                        val isBlacklisted = blacklistedFolders.contains(folder.path)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onToggleFolderBlacklist(folder.path) }.padding(vertical = 12.dp)) {
+                            Icon(imageVector = if (isBlacklisted) Icons.Rounded.Block else Icons.Rounded.Folder, contentDescription = null, tint = if (isBlacklisted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = folder.name, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isBlacklisted) FontWeight.Normal else FontWeight.Bold, color = if (isBlacklisted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                                Text(text = folder.path, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Checkbox(checked = isBlacklisted, onCheckedChange = null, colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.error))
                         }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showPaletteDialog = false }) { Text("Done") }
-            }
+            confirmButton = { TextButton(onClick = { showBlacklistDialog = false }) { Text("Done") } }
+        )
+    }
+    if (showPaletteDialog) {
+        val styles = listOf("TonalSpot", "Neutral", "Vibrant", "Expressive", "Rainbow", "FruitSalad", "Monochrome", "Fidelity", "Content")
+        AlertDialog(
+            onDismissRequest = { showPaletteDialog = false },
+            title = { Text("Palette Style") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    styles.forEach { style ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSetPaletteStyle(style) }.padding(vertical = 8.dp)) {
+                            RadioButton(selected = style == settings.paletteStyle, onClick = null)
+                            Spacer(modifier = Modifier.width(8.dp)); Text(style)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showPaletteDialog = false }) { Text("Done") } }
         )
     }
 }
 
+// --- Internal Helpers ---
+
 @Composable
-fun SortOption(label: String, value: String, currentValue: String, onSelect: (String) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
-        RadioButton(selected = value == currentValue, onClick = null)
-        Spacer(modifier = Modifier.width(8.dp)); Text(label)
+fun SettingsSectionTitle(text: String) {
+    Text(text = text, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
+}
+
+@Composable
+fun SettingsClickableItem(title: String, subtitle: String, onClick: () -> Unit) {
+    ListItem(headlineContent = { Text(title) }, supportingContent = { Text(subtitle) }, modifier = Modifier.clickable(onClick = onClick))
+}
+
+@Composable
+fun SettingsSwitchItem(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    ListItem(headlineContent = { Text(title) }, supportingContent = { Text(subtitle) }, trailingContent = { Switch(checked = checked, onCheckedChange = onCheckedChange) })
+}
+
+@Composable
+fun SettingsSliderItem(label: String, value: Float, valueRange: ClosedFloatingPointRange<Float>, steps: Int, displayValue: String, onValueChange: (Float) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(displayValue, style = MaterialTheme.typography.bodyMedium)
+        }
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
     }
 }
 
 @Composable
-fun ThemeOption(label: String, value: DarkMode, currentValue: String, onSelect: (DarkMode) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
-        RadioButton(selected = value.name == currentValue, onClick = null)
-        Spacer(modifier = Modifier.width(8.dp)); Text(label)
-    }
+fun <T : Enum<T>> SettingsSelectionDialog(title: String, options: Array<T>, selectedOption: T, onOptionSelected: (T) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                options.forEach { option ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onOptionSelected(option) }.padding(vertical = 8.dp)) {
+                        RadioButton(selected = option == selectedOption, onClick = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(option.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() })
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+    )
 }
 
+@Preview(showBackground = true)
 @Composable
-fun StyleOption(label: String, value: ProgressBarStyle, currentValue: String, onSelect: (ProgressBarStyle) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
-        RadioButton(selected = value.name == currentValue, onClick = null)
-        Spacer(modifier = Modifier.width(8.dp)); Text(label)
-    }
-}
-
-@Composable
-fun FontOption(label: String, value: AppFontFamily, currentValue: String, onSelect: (AppFontFamily) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onSelect(value) }.padding(vertical = 8.dp)) {
-        RadioButton(selected = value.name == currentValue, onClick = null)
-        Spacer(modifier = Modifier.width(8.dp)); Text(label)
+fun SettingsPreview() {
+    JasmineTheme {
+        SettingsContent(
+            settings = SettingsState(),
+            onSetCrossfadeEnabled = {},
+            onSetCrossfadeDuration = {},
+            onSetProgressBarStyle = {},
+            onSetDarkMode = {},
+            onSetAmoledMode = {},
+            onSetUseDynamicColor = {},
+            onSetUseAlbumArtColor = {},
+            onSetPaletteStyle = {},
+            onSetAppFontFamily = {},
+            onSetMinTrackDuration = {},
+            onSetDefaultSortType = {},
+            onSetDefaultSortReversed = {},
+            onToggleFolderBlacklist = {}
+        )
     }
 }

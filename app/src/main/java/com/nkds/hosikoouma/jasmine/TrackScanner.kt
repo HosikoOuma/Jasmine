@@ -3,6 +3,7 @@ package com.nkds.hosikoouma.jasmine
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import com.nkds.hosikoouma.jasmine.datamodels.Track
@@ -14,9 +15,13 @@ class TrackScanner(private val context: Context) {
     private val baseAudioUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
     private val baseAlbumArtUri = Uri.parse("content://media/external/audio/albumart")
 
+    /**
+     * Сканирует медиа-хранилище и возвращает поток списков треков.
+     * Эмитит промежуточные результаты каждые 50 треков для отзывчивости UI.
+     */
     fun scanTracksFlow(): Flow<List<Track>> = flow {
         val tracks = mutableListOf<Track>()
-        val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
             baseAudioUri
@@ -32,7 +37,8 @@ class TrackScanner(private val context: Context) {
             MediaStore.Audio.Media.DATA
         )
 
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        // Исключаем системные звуки, уведомления и слишком короткие файлы на уровне запроса
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} > 0"
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
 
         try {
@@ -43,49 +49,50 @@ class TrackScanner(private val context: Context) {
                 null,
                 sortOrder
             )?.use { cursor ->
-                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-                val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
-                var count = 0
                 while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idColumn)
-                    val albumId = cursor.getLong(albumIdColumn)
+                    val id = cursor.getLong(idCol)
+                    val albumId = cursor.getLong(albumIdCol)
                     
                     val track = Track(
                         id = id,
-                        title = cursor.getString(titleColumn) ?: "Unknown Title",
-                        artist = cursor.getString(artistColumn) ?: "Unknown Artist",
-                        album = cursor.getString(albumColumn) ?: "Unknown Album",
-                        duration = cursor.getLong(durationColumn),
+                        title = cursor.getString(titleCol) ?: "Unknown Title",
+                        artist = cursor.getString(artistCol) ?: "Unknown Artist",
+                        album = cursor.getString(albumCol) ?: "Unknown Album",
+                        duration = cursor.getLong(durationCol),
                         contentUri = ContentUris.withAppendedId(baseAudioUri, id),
                         albumArtUri = ContentUris.withAppendedId(baseAlbumArtUri, albumId),
-                        path = cursor.getString(dataColumn) ?: ""
+                        path = cursor.getString(dataCol) ?: ""
                     )
                     tracks.add(track)
-                    count++
 
-                    // Эмитим пачки по 50 треков для быстрого отклика UI
-                    if (count % 50 == 0) {
-                        emit(ArrayList(tracks))
+                    // Эмитим пачку данных для мгновенного появления в списке
+                    if (tracks.size % 50 == 0) {
+                        emit(tracks.toList())
                     }
                 }
-                // Финальный список
-                emit(tracks)
+                // Финальная эмиссия полного списка
+                emit(tracks.toList())
             }
         } catch (e: Exception) {
-            Log.e("TrackScanner", "Error scanning tracks", e)
+            Log.e("TrackScanner", "MediaStore query failed", e)
+            emit(emptyList())
         }
     }
 
-    // Оставляем старый метод для совместимости или удаляем, если переписали всё
+    /**
+     * Синхронная версия сканирования (для фоновых задач или виджетов).
+     */
     fun scanTracks(): List<Track> {
         val tracks = mutableListOf<Track>()
-        val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
             baseAudioUri
@@ -102,42 +109,34 @@ class TrackScanner(private val context: Context) {
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
-
+        
         try {
-            context.contentResolver.query(
-                collection,
-                projection,
-                selection,
-                null,
-                sortOrder
-            )?.use { cursor ->
-                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-                val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            context.contentResolver.query(collection, projection, selection, null, null)?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
                 while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idColumn)
-                    val albumId = cursor.getLong(albumIdColumn)
-                    
+                    val id = cursor.getLong(idCol)
+                    val albumId = cursor.getLong(albumIdCol)
                     tracks.add(Track(
-                        id, 
-                        cursor.getString(titleColumn) ?: "Unknown Title", 
-                        cursor.getString(artistColumn) ?: "Unknown Artist", 
-                        cursor.getString(albumColumn) ?: "Unknown Album", 
-                        cursor.getLong(durationColumn), 
-                        ContentUris.withAppendedId(baseAudioUri, id), 
-                        ContentUris.withAppendedId(baseAlbumArtUri, albumId), 
-                        cursor.getString(dataColumn) ?: ""
+                        id = id,
+                        title = cursor.getString(titleCol) ?: "Unknown Title",
+                        artist = cursor.getString(artistCol) ?: "Unknown Artist",
+                        album = cursor.getString(albumCol) ?: "Unknown Album",
+                        duration = cursor.getLong(durationCol),
+                        contentUri = ContentUris.withAppendedId(baseAudioUri, id),
+                        albumArtUri = ContentUris.withAppendedId(baseAlbumArtUri, albumId),
+                        path = cursor.getString(dataCol) ?: ""
                     ))
                 }
             }
         } catch (e: Exception) {
-            Log.e("TrackScanner", "Error scanning tracks", e)
+            Log.e("TrackScanner", "Sync scan failed", e)
         }
         return tracks
     }

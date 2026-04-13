@@ -9,52 +9,76 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.datamodels.Album
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
+import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+// --- UI State ---
+data class AlbumListUiState(
+    val albums: List<Album> = emptyList(),
+    val isLoading: Boolean = false
+)
+
+// --- Stateful Screen ---
 @Composable
 fun AlbumListScreen(
     navController: NavController,
     trackViewModel: TrackViewModel
 ) {
-    val albums by trackViewModel.albums.collectAsState()
+    val albums by trackViewModel.albums.collectAsStateWithLifecycle()
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 160.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        items(albums) { album ->
-            AlbumCard(
-                albumName = album.name,
-                artistName = album.artist,
-                albumArtUri = album.tracks.firstOrNull()?.albumArtUri,
-                onClick = {
-                    val encodedName = URLEncoder.encode(album.name, StandardCharsets.UTF_8.toString())
-                    navController.navigate("album_detail/$encodedName")
-                }
-            )
+    AlbumListContent(
+        uiState = AlbumListUiState(albums = albums),
+        onAlbumClick = { album ->
+            val encodedName = URLEncoder.encode(album.name, StandardCharsets.UTF_8.toString())
+            navController.navigate("album_detail/$encodedName")
+        }
+    )
+}
+
+// --- Stateless Content ---
+@Composable
+fun AlbumListContent(
+    uiState: AlbumListUiState,
+    onAlbumClick: (Album) -> Unit
+) {
+    if (uiState.albums.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            Text("No albums found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 160.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(uiState.albums, key = { it.name + it.artist }) { album ->
+                AlbumCard(
+                    album = album,
+                    onClick = { onAlbumClick(album) }
+                )
+            }
         }
     }
 }
 
 @Composable
 fun AlbumCard(
-    albumName: String,
-    artistName: String,
-    albumArtUri: android.net.Uri?,
+    album: Album,
     onClick: () -> Unit
 ) {
     Column(
@@ -63,7 +87,7 @@ fun AlbumCard(
             .clickable(onClick = onClick)
     ) {
         AlbumArt(
-            albumArtUri = albumArtUri,
+            albumArtUri = album.tracks.firstOrNull()?.albumArtUri,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
@@ -73,7 +97,7 @@ fun AlbumCard(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = albumName,
+            text = album.name,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -81,11 +105,27 @@ fun AlbumCard(
         )
         
         Text(
-            text = artistName,
+            text = album.artist,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AlbumListPreview() {
+    JasmineTheme {
+        AlbumListContent(
+            uiState = AlbumListUiState(
+                albums = listOf(
+                    Album("Luminous", "Jasmine", emptyList()),
+                    Album("Garden", "Various Artists", emptyList())
+                )
+            ),
+            onAlbumClick = {}
         )
     }
 }

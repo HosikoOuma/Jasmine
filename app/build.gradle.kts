@@ -20,18 +20,15 @@ android {
 
     buildTypes {
         release {
-            // Включаем R8 (minify) для обфускации и удаления мертвого кода
-            isMinifyEnabled = true
-            // Включаем оптимизацию ресурсов
-            isShrinkResources = true
+            // ОТКЛЮЧАЕМ ОБФУСКАЦИЮ И СЖАТИЕ
+            isMinifyEnabled = false
+            isShrinkResources = false
             
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            
-            // Добавляем флаг для более агрессивной оптимизации R8
-            signingConfig = signingConfigs.getByName("debug") // Временно используем debug ключ для тестов, если нет release
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -65,18 +62,16 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.datastore.preferences)
     implementation("sh.calvin.reorderable:reorderable:2.4.1")
-    // Тексты песен и API
+    
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("net.jthink:jaudiotagger:3.0.1")
 
-    // Room Database для кэширования
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Dynamic Theme & Palette
     implementation(libs.materialkolor)
     implementation(libs.kmpalette.core)
 

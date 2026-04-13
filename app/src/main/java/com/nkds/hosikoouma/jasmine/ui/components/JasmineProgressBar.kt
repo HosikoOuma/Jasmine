@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
+import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
 import kotlin.math.sin
 
 @Composable
@@ -51,16 +51,14 @@ fun JasmineProgressBar(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
-            // Объединяем жесты в один pointerInput для стабильности
             .pointerInput(valueRange) {
                 detectDragGestures(
-                    onDragStart = { /* можно добавить haptic */ },
+                    onDragStart = { },
                     onDragEnd = { onValueChangeFinished() },
                     onDragCancel = { onValueChangeFinished() },
-                    onDrag = { change, dragAmount ->
+                    onDrag = { change, _ ->
                         change.consume()
                         val width = size.width.toFloat()
-                        // Вычисляем новое значение на основе абсолютной позиции пальца X
                         val newProgress = (change.position.x / width).coerceIn(0f, 1f)
                         val newValue = newProgress * (valueRange.endInclusive - valueRange.start) + valueRange.start
                         onValueChange(newValue)

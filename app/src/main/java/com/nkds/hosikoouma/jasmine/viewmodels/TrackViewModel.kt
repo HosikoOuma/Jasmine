@@ -5,30 +5,20 @@ import android.content.ContentUris
 import android.content.IntentSender
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.TrackScanner
+import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.data.*
-import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.datamodels.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-
-enum class SortType {
-    BY_NAME,
-    BY_ARTIST,
-    BY_DATE,
-    BY_DURATION
-}
-
-data class Album(val name: String, val artist: String, val tracks: List<Track>)
-data class Artist(val name: String, val tracks: List<Track>)
-data class Folder(val name: String, val path: String, val tracks: List<Track>)
-data class Playlist(val id: Long, val name: String, val tracks: List<Track>, val createdAt: Long = 0)
 
 data class TrackFilters(
     val query: String = "",
@@ -39,14 +29,18 @@ data class TrackFilters(
 )
 
 class TrackViewModel(application: Application) : AndroidViewModel(application) {
-    private val _tracks = MutableStateFlow<List<Track>>(emptyList())
-    val allTracks = _tracks.asStateFlow()
     
+    // Repositories
     private val trackScanner = TrackScanner(application)
     private val favoritesRepository = FavoritesRepository(application)
     private val settingsRepository = SettingsRepository(application)
     private val playlistRepository = PlaylistRepository(application)
 
+    // Raw Data
+    private val _tracks = MutableStateFlow<List<Track>>(emptyList())
+    val allTracks = _tracks.asStateFlow()
+
+    // UI States
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
@@ -54,23 +48,25 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     val isLoaded = _isLoaded.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
-    private val _sortType = MutableStateFlow(SortType.BY_DATE)
-    private val _isReversed = MutableStateFlow(false)
-
     val searchQuery = _searchQuery.asStateFlow()
+
+    private val _sortType = MutableStateFlow(SortType.BY_DATE)
     val sortType = _sortType.asStateFlow()
+
+    private val _isReversed = MutableStateFlow(false)
     val isReversed = _isReversed.asStateFlow()
 
     private val _pendingDeleteIntent = MutableSharedFlow<IntentSender>()
     val pendingDeleteIntent = _pendingDeleteIntent.asSharedFlow()
 
+    // Filter Aggregation
     val minDurationLimit = settingsRepository.minTrackDuration
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
         
+    // Добавлено: публичный доступ к черному списку для SettingsScreen
     val blacklistedFolders = settingsRepository.blacklistedFolders
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-    // Aggregate filters into a single StateFlow to reduce re-calculations
     val filters: StateFlow<TrackFilters> = combine(
         _searchQuery, _sortType, _isReversed,
         minDurationLimit,
@@ -82,23 +78,26 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     val favoriteTrackIds: StateFlow<Set<String>> = favoritesRepository.favoriteTrackIds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    // Optimized filtered tracks using sequences for better performance on large lists
+    // --- High Performance Filtered Lists ---
+
     val filteredTracks: StateFlow<List<Track>> = combine(_tracks, filters) { tracks, f ->
         if (tracks.isEmpty()) return@combine emptyList()
         
-        tracks.asSequence()
-            .filter { track -> f.blacklist.none { track.path.startsWith(it) } }
-            .filter { it.duration >= f.minDuration * 1000L }
-            .filter { f.query.isBlank() || it.title.contains(f.query, true) || it.artist.contains(f.query, true) }
-            .let { seq ->
-                when (f.sortType) {
-                    SortType.BY_NAME -> seq.sortedBy { it.title.lowercase() }
-                    SortType.BY_ARTIST -> seq.sortedBy { it.artist.lowercase() }
-                    SortType.BY_DATE -> seq.sortedBy { it.id }
-                    SortType.BY_DURATION -> seq.sortedBy { it.duration }
+        withContext(Dispatchers.Default) {
+            tracks.asSequence()
+                .filter { track -> f.blacklist.none { track.path.startsWith(it) } }
+                .filter { it.duration >= f.minDuration * 1000L }
+                .filter { f.query.isBlank() || it.title.contains(f.query, true) || it.artist.contains(f.query, true) }
+                .let { seq ->
+                    when (f.sortType) {
+                        SortType.BY_TITLE -> seq.sortedBy { it.title.lowercase() }
+                        SortType.BY_ARTIST -> seq.sortedBy { it.artist.lowercase() }
+                        SortType.BY_DATE -> seq.sortedByDescending { it.id }
+                        SortType.BY_DURATION -> seq.sortedBy { it.duration }
+                    }
                 }
-            }
-            .let { if (f.isReversed) it.toList().reversed() else it.toList() }
+                .let { if (f.isReversed) it.toList().reversed() else it.toList() }
+        }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val favoriteTracks: StateFlow<List<Track>> = combine(filteredTracks, favoriteTrackIds) { tracks, favIds ->
@@ -106,30 +105,35 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val albums: StateFlow<List<Album>> = filteredTracks.map { tracks ->
-        tracks.groupBy { it.album }
-            .map { (name, albumTracks) -> Album(name, albumTracks.first().artist, albumTracks) }
-            .sortedBy { it.name.lowercase() }
+        withContext(Dispatchers.Default) {
+            tracks.groupBy { it.album }
+                .map { (name, albumTracks) -> Album(name, albumTracks.first().artist, albumTracks) }
+                .sortedBy { it.name.lowercase() }
+        }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val artists: StateFlow<List<Artist>> = filteredTracks.map { tracks ->
-        tracks.groupBy { it.artist }
-            .map { Artist(it.key, it.value) }
-            .sortedBy { it.name.lowercase() }
+        withContext(Dispatchers.Default) {
+            tracks.groupBy { it.artist }
+                .map { Artist(it.key, it.value) }
+                .sortedBy { it.name.lowercase() }
+        }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // ОПТИМИЗАЦИЯ: Папки вычисляем на основе ВСЕХ треков, чтобы они не исчезали из настроек
     val folders: StateFlow<List<Folder>> = _tracks.map { tracks ->
-        tracks.groupBy { File(it.path).parent ?: "Unknown" }
-            .map { (path, folderTracks) -> Folder(path.substringAfterLast("/"), path, folderTracks) }
-            .sortedBy { it.name.lowercase() }
+        withContext(Dispatchers.Default) {
+            tracks.groupBy { File(it.path).parent ?: "Unknown" }
+                .map { (path, folderTracks) -> Folder(path.substringAfterLast("/"), path, folderTracks) }
+                .sortedBy { it.name.lowercase() }
+        }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val playlists: StateFlow<List<Playlist>> = combine(playlistRepository.allPlaylists, _sortType, _isReversed) { entities, sort, reversed ->
-        val grouped = entities.map { Playlist(it.id, it.name, emptyList(), it.createdAt) }
+        val mapped = entities.map { Playlist(it.id, it.name, emptyList(), it.createdAt) }
         val sorted = when (sort) {
-            SortType.BY_NAME -> grouped.sortedBy { it.name.lowercase() }
-            SortType.BY_DATE -> grouped.sortedByDescending { it.createdAt }
-            else -> grouped.sortedBy { it.name.lowercase() }
+            SortType.BY_TITLE -> mapped.sortedBy { it.name.lowercase() }
+            SortType.BY_DATE -> mapped.sortedByDescending { it.createdAt }
+            else -> mapped.sortedBy { it.name.lowercase() }
         }
         if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -160,20 +164,18 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- Actions ---
+
     fun toggleFavorite(track: Track) = viewModelScope.launch { favoritesRepository.toggleFavorite(track.id.toString()) }
     fun setSearchQuery(query: String) { _searchQuery.value = query }
     fun setSortType(type: SortType) { _sortType.value = type }
     fun toggleReverse() { _isReversed.value = !_isReversed.value }
 
-    fun saveDefaultSortSettings(type: SortType, reversed: Boolean) = viewModelScope.launch {
-        settingsRepository.setDefaultSortType(type.name)
-        settingsRepository.setDefaultSortReversed(reversed)
-    }
-
     fun addFolderToBlacklist(path: String) = viewModelScope.launch { settingsRepository.addFolderToBlacklist(path) }
     fun removeFolderFromBlacklist(path: String) = viewModelScope.launch { settingsRepository.removeFolderFromBlacklist(path) }
 
     fun createPlaylist(name: String) = viewModelScope.launch { playlistRepository.createPlaylist(name) }
+    
     fun deletePlaylist(playlistId: Long) = viewModelScope.launch { 
         playlistRepository.allPlaylists.first().find { it.id == playlistId }?.let { playlistRepository.deletePlaylist(it) }
     }
@@ -181,7 +183,7 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
         val track = _tracks.value.find { it.id == trackId } ?: return@launch
         if (!playlistRepository.addTrackToPlaylist(playlistId, track)) {
-            Toast.makeText(getApplication(), "Track already in playlist", Toast.LENGTH_SHORT).show()
+            withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Already in playlist", Toast.LENGTH_SHORT).show() }
         } else {
             updateM3U(playlistId)
         }
@@ -190,7 +192,12 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>) = viewModelScope.launch {
         val added = playlistRepository.addTracksToPlaylist(playlistId, tracks)
         updateM3U(playlistId)
-        Toast.makeText(getApplication(), "Added $added tracks", Toast.LENGTH_SHORT).show()
+        withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Added $added tracks", Toast.LENGTH_SHORT).show() }
+    }
+
+    fun removeTracksFromPlaylist(playlistId: Long, tracks: List<Track>) = viewModelScope.launch {
+        playlistRepository.removeTracksFromPlaylist(playlistId, tracks.map { it.id })
+        updateM3U(playlistId)
     }
 
     private suspend fun updateM3U(playlistId: Long) {
@@ -200,43 +207,41 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun removeTracksFromPlaylist(playlistId: Long, tracks: List<Track>) = viewModelScope.launch {
-        playlistRepository.removeTracksFromPlaylist(playlistId, tracks.map { it.id })
-        updateM3U(playlistId)
-    }
-
     fun exportPlaylist(playlistId: Long, uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
         val tracks = getTracksForPlaylist(playlistId).first()
         val content = StringBuilder("#EXTM3U\n")
-        tracks.forEach { track ->
-            content.append("#EXTINF:${track.duration / 1000},${track.artist} - ${track.title}\n${track.path}\n")
-        }
+        tracks.forEach { track -> content.append("#EXTINF:${track.duration / 1000},${track.artist} - ${track.title}\n${track.path}\n") }
         try {
             getApplication<Application>().contentResolver.openFileDescriptor(uri, "w")?.use { fd ->
                 FileOutputStream(fd.fileDescriptor).use { it.write(content.toString().toByteArray()) }
             }
             withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Exported", Toast.LENGTH_SHORT).show() }
         } catch (e: Exception) {
-            withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Failed", Toast.LENGTH_SHORT).show() }
+            withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Export failed", Toast.LENGTH_SHORT).show() }
         }
     }
 
-    fun importPlaylists() = viewModelScope.launch { playlistRepository.importM3UPlaylists(_tracks.value) }
-    
     fun importPlaylistFromUri(uri: Uri, name: String) = viewModelScope.launch {
         playlistRepository.importPlaylistFromUri(uri, name, _tracks.value)
     }
 
     fun getTracksForPlaylist(playlistId: Long): Flow<List<Track>> = combine(
         playlistRepository.getTrackIdsForPlaylist(playlistId), _tracks
-    ) { ids, tracks -> ids.mapNotNull { id -> tracks.find { it.id == id } } }
+    ) { ids, tracks -> 
+        withContext(Dispatchers.Default) {
+            ids.mapNotNull { id -> tracks.find { it.id == id } }
+        }
+    }
 
     fun deleteTracks(tracks: List<Track>) {
         viewModelScope.launch(Dispatchers.IO) {
             val uris = tracks.map { ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, it.id) }
             try {
-                _pendingDeleteIntent.emit(MediaStore.createDeleteRequest(getApplication<Application>().contentResolver, uris).intentSender)
-            } catch (e: Exception) { e.printStackTrace() }
+                val intentSender = MediaStore.createDeleteRequest(getApplication<Application>().contentResolver, uris).intentSender
+                _pendingDeleteIntent.emit(intentSender)
+            } catch (e: Exception) {
+                Log.e("TrackViewModel", "Failed to create delete request", e)
+            }
         }
     }
 }

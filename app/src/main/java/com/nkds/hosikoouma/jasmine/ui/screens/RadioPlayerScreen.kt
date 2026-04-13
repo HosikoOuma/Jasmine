@@ -25,19 +25,31 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
+import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
+import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
-import com.nkds.hosikoouma.jasmine.viewmodels.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+// --- UI State ---
+data class RadioPlayerUiState(
+    val stationName: String = "",
+    val trackTitle: String? = null,
+    val trackArtist: String? = null,
+    val isPlaying: Boolean = false,
+    val progressStyle: ProgressBarStyle = ProgressBarStyle.STANDARD
+)
+
+// --- Stateful Screen ---
 @Composable
 fun RadioPlayerScreen(
     station: RadioStation,
@@ -48,16 +60,38 @@ fun RadioPlayerScreen(
     val radioTrackTitle by playerViewModel.radioTrackTitle.collectAsStateWithLifecycle()
     val radioTrackArtist by playerViewModel.radioTrackArtist.collectAsStateWithLifecycle()
     
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
+
+    val uiState = RadioPlayerUiState(
+        stationName = station.name,
+        trackTitle = radioTrackTitle,
+        trackArtist = radioTrackArtist,
+        isPlaying = isPlaying,
+        progressStyle = settings.progressBarStyle
+    )
+
+    RadioPlayerContent(
+        uiState = uiState,
+        onClose = onClose,
+        onTogglePlayPause = playerViewModel::togglePlayPause,
+        onSkipNext = playerViewModel::skipToNext,
+        onSkipPrevious = playerViewModel::skipToPrevious
+    )
+}
+
+// --- Stateless Content ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RadioPlayerContent(
+    uiState: RadioPlayerUiState,
+    onClose: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSkipNext: () -> Unit,
+    onSkipPrevious: () -> Unit
+) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val settingsViewModel: SettingsViewModel = viewModel()
-    
-    val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
-    val progressStyle = try {
-        ProgressBarStyle.valueOf(settings.progressBarStyle)
-    } catch (e: Exception) {
-        ProgressBarStyle.STANDARD
-    }
 
     // Back Gesture states
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
@@ -75,16 +109,12 @@ fun RadioPlayerScreen(
     }
 
     val animatedOffset = remember { Animatable(1000f) }
-
     LaunchedEffect(Unit) {
-        animatedOffset.animateTo(
-            targetValue = 0f,
-            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-        )
+        animatedOffset.animateTo(0f, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
     }
 
-    var isArtMinimized by remember { mutableStateOf(!isPlaying) }
-    LaunchedEffect(isPlaying) { if (isPlaying) isArtMinimized = false }
+    var isArtMinimized by remember { mutableStateOf(!uiState.isPlaying) }
+    LaunchedEffect(uiState.isPlaying) { if (uiState.isPlaying) isArtMinimized = false }
 
     val artScale by animateFloatAsState(
         targetValue = if (isArtMinimized) 0.8f else 0.9f,
@@ -96,11 +126,7 @@ fun RadioPlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                if (isBackingPlayer) {
-                    translationY = playerBackProgress * size.height
-                } else {
-                    translationY = animatedOffset.value.coerceAtLeast(0f)
-                }
+                translationY = if (isBackingPlayer) playerBackProgress * size.height else animatedOffset.value.coerceAtLeast(0f)
             }
             .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
             .background(MaterialTheme.colorScheme.surface)
@@ -108,10 +134,7 @@ fun RadioPlayerScreen(
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
-                            scope.launch {
-                                animatedOffset.animateTo(2500f, tween(200))
-                                onClose()
-                            }
+                            scope.launch { animatedOffset.animateTo(2500f, tween(200)); onClose() }
                         } else {
                             scope.launch { animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
                         }
@@ -132,185 +155,138 @@ fun RadioPlayerScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // LIVE Indicator
-            Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                    shape = CircleShape,
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Rounded.Radio,
-                            null,
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "LIVE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
+            RadioLiveIndicator()
 
             Spacer(modifier = Modifier.weight(0.2f))
 
-            // Иконка станции
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .aspectRatio(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(artScale / 0.9f)
-                        .aspectRatio(1f),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    tonalElevation = 4.dp
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Rounded.Radio,
-                            null,
-                            modifier = Modifier.size(120.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
+            RadioArtwork(artScale)
 
             Spacer(modifier = Modifier.weight(0.3f))
 
-            // Текстовая информация (ДИНАМИЧЕСКАЯ)
-            Column(
-                modifier = Modifier.fillMaxWidth().height(72.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = radioTrackTitle ?: station.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    modifier = Modifier.basicMarquee()
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = radioTrackArtist ?: "Radio Stream",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    modifier = Modifier.basicMarquee()
-                )
-            }
+            RadioInfoSection(
+                title = uiState.trackTitle ?: uiState.stationName,
+                artist = uiState.trackArtist ?: "Radio Stream"
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Прогресс-бар
-            Column(modifier = Modifier.fillMaxWidth().height(84.dp)) {
-                if (progressStyle == ProgressBarStyle.STANDARD) {
-                    Slider(
-                        value = 1f,
-                        onValueChange = {},
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        )
-                    )
-                } else {
-                    JasmineProgressBar(
-                        value = 1f,
-                        onValueChange = {},
-                        onValueChangeFinished = {},
-                        valueRange = 0f..1f,
-                        style = progressStyle,
-                        isPlaying = isPlaying
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("00:00", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text("∞", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
-                }
-            }
+            RadioProgressSection(uiState.progressStyle, uiState.isPlaying)
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Кнопки управления (Назад -> Вперед -> Пауза)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioAnimatedControlIcon(
-                    icon = Icons.Rounded.SkipPrevious,
-                    size = 44.dp,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        playerViewModel.skipToPrevious()
-                    }
-                )
-
-                RadioAnimatedControlIcon(
-                    icon = Icons.Rounded.SkipNext,
-                    size = 44.dp,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        playerViewModel.skipToNext()
-                    }
-                )
-
-                val playPauseInteractionSource = remember { MutableInteractionSource() }
-                val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
-                val playPauseScale by animateFloatAsState(
-                    targetValue = if (isPlayPausePressed) 0.9f else 1f,
-                    animationSpec = spring(stiffness = Spring.StiffnessLow),
-                    label = "playPauseScale"
-                )
-                val cornerPercent by animateIntAsState(
-                    targetValue = if (isPlaying) 50 else 25,
-                    animationSpec = tween(500, easing = LinearOutSlowInEasing),
-                    label = "cornerAnimation"
-                )
-
-                Surface(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        playerViewModel.togglePlayPause()
-                        if (isPlaying) isArtMinimized = true
-                    },
-                    interactionSource = playPauseInteractionSource,
-                    modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = scaleX },
-                    shape = RoundedCornerShape(cornerPercent),
-                    color = MaterialTheme.colorScheme.primary
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-                }
-            }
+            RadioControlsSection(
+                isPlaying = uiState.isPlaying,
+                onTogglePlayPause = {
+                    onTogglePlayPause()
+                    if (uiState.isPlaying) isArtMinimized = true
+                },
+                onSkipNext = onSkipNext,
+                onSkipPrevious = onSkipPrevious
+            )
 
             Spacer(modifier = Modifier.weight(0.5f))
+        }
+    }
+}
+
+// --- Internal Components ---
+
+@Composable
+private fun RadioLiveIndicator() {
+    Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Surface(
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+            shape = CircleShape,
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Rounded.Radio, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("LIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RadioArtwork(artScale: Float) {
+    Box(modifier = Modifier.fillMaxWidth(0.9f).aspectRatio(1f), contentAlignment = Alignment.Center) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(artScale / 0.9f).aspectRatio(1f),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            tonalElevation = 4.dp
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Radio, null, modifier = Modifier.size(120.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RadioInfoSection(title: String, artist: String) {
+    Column(modifier = Modifier.fillMaxWidth().height(72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = artist, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
+    }
+}
+
+@Composable
+private fun RadioProgressSection(progressStyle: ProgressBarStyle, isPlaying: Boolean) {
+    Column(modifier = Modifier.fillMaxWidth().height(84.dp)) {
+        if (progressStyle == ProgressBarStyle.STANDARD) {
+            Slider(
+                value = 1f, onValueChange = {}, valueRange = 0f..1f,
+                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            )
+        } else {
+            JasmineProgressBar(value = 1f, onValueChange = {}, onValueChangeFinished = {}, valueRange = 0f..1f, style = progressStyle, isPlaying = isPlaying)
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("00:00", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text("∞", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun RadioControlsSection(
+    isPlaying: Boolean,
+    onTogglePlayPause: () -> Unit,
+    onSkipNext: () -> Unit,
+    onSkipPrevious: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        RadioAnimatedControlIcon(Icons.Rounded.SkipPrevious, 44.dp) {
+            VibrationUtils.performLongPressHaptic(haptic)
+            onSkipPrevious()
+        }
+        RadioAnimatedControlIcon(Icons.Rounded.SkipNext, 44.dp) {
+            VibrationUtils.performLongPressHaptic(haptic)
+            onSkipNext()
+        }
+
+        val playPauseInteractionSource = remember { MutableInteractionSource() }
+        val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
+        val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.9f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
+        val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
+
+        Surface(
+            onClick = { VibrationUtils.performLongPressHaptic(haptic); onTogglePlayPause() },
+            interactionSource = playPauseInteractionSource,
+            modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = scaleX },
+            shape = RoundedCornerShape(cornerPercent),
+            color = MaterialTheme.colorScheme.primary
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
+            }
         }
     }
 }
@@ -318,29 +294,33 @@ fun RadioPlayerScreen(
 @Composable
 fun RadioAnimatedControlIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 28.dp,
-    tint: Color = MaterialTheme.colorScheme.onSurface
+    onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.85f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        label = "iconScale"
-    )
+    val scale by animateFloatAsState(targetValue = if (isPressed) 0.85f else 1f, animationSpec = spring(stiffness = Spring.StiffnessMedium), label = "iconScale")
 
-    IconButton(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        modifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(size)
+    IconButton(onClick = onClick, interactionSource = interactionSource, modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale }) {
+        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(size))
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun RadioPlayerPreview() {
+    JasmineTheme {
+        RadioPlayerContent(
+            uiState = RadioPlayerUiState(
+                stationName = "Jasmine Rocks",
+                trackTitle = "Heavy Metal track",
+                trackArtist = "Unknown Artist",
+                isPlaying = true
+            ),
+            onClose = {},
+            onTogglePlayPause = {},
+            onSkipNext = {},
+            onSkipPrevious = {}
         )
     }
 }
