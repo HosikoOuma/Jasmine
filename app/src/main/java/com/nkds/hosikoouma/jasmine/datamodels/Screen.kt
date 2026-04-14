@@ -14,6 +14,12 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object Settings : Screen("settings", "Settings", Icons.Rounded.Settings)
     data object Player : Screen("player", "Player", Icons.Rounded.MusicNote)
     
+    // Экраны настроек
+    data object SettingsPlayback : Screen("settings_playback", "Playback", Icons.Rounded.Settings)
+    data object SettingsAppearance : Screen("settings_appearance", "Appearance", Icons.Rounded.Settings)
+    data object SettingsLibrary : Screen("settings_library", "Library", Icons.Rounded.Settings)
+    data object SettingsMaintenance : Screen("settings_maintenance", "Maintenance", Icons.Rounded.Settings)
+    
     // Вложенные экраны библиотеки
     data object LibraryAlbums : Screen("library_albums", "Albums", Icons.Rounded.LibraryMusic)
     data object LibraryArtists : Screen("library_artists", "Artists", Icons.Rounded.LibraryMusic)

@@ -69,7 +69,7 @@ fun JasmineNavHost(
         composable(Screen.Radio.route) {
             RadioScreen(
                 viewModel = radioViewModel,
-                playerViewModel = playerViewModel, // Передаем viewModel
+                playerViewModel = playerViewModel,
                 showAddDialog = showAddRadioDialog,
                 onDismissDialog = onDismissRadioDialog,
                 onStationClick = { station ->
@@ -84,10 +84,23 @@ fun JasmineNavHost(
         composable(Screen.Library.route) { 
             LibraryScreen(navController = navController, trackViewModel = trackViewModel) 
         }
-        composable(Screen.Settings.route) { 
-            SettingsScreen(trackViewModel = trackViewModel) 
-        }
         
+        // --- Настройки ---
+        composable(Screen.Settings.route) { 
+            SettingsScreen(navController = navController) 
+        }
+        composable(Screen.SettingsPlayback.route) {
+            PlaybackSettingsScreen()
+        }
+        composable(Screen.SettingsAppearance.route) {
+            AppearanceSettingsScreen()
+        }
+        composable(Screen.SettingsLibrary.route) {
+            LibrarySettingsScreen(trackViewModel = trackViewModel)
+        }
+
+        
+        // --- Библиотека ---
         composable(Screen.LibraryAlbums.route) { 
             AlbumListScreen(navController = navController, trackViewModel = trackViewModel) 
         }

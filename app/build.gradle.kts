@@ -23,12 +23,17 @@ android {
             // ОТКЛЮЧАЕМ ОБФУСКАЦИЮ И СЖАТИЕ
             isMinifyEnabled = false
             isShrinkResources = false
-            
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("debug")
+        }
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-DEBUG"
+            resValue("string", "app_name", "Jasmine Debug")
         }
     }
     compileOptions {
@@ -37,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        resValues = true
     }
 }
 
