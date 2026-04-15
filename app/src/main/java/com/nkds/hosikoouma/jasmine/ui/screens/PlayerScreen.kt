@@ -236,12 +236,12 @@ fun PlayerContent(
 
     LaunchedEffect(currentIndex) {
         if (pagerState.currentPage != currentIndex) {
-            pagerState.animateScrollToPage(currentIndex)
+            pagerState.scrollToPage(currentIndex)
         }
     }
 
-    LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage != currentIndex && uiState.playlist.isNotEmpty()) {
+    LaunchedEffect(pagerState.currentPage, pagerState.isScrollInProgress) {
+        if (!pagerState.isScrollInProgress && pagerState.currentPage != currentIndex && uiState.playlist.isNotEmpty()) {
             onSkipToItem(pagerState.currentPage)
         }
     }
@@ -334,7 +334,7 @@ fun PlayerContent(
 
             Spacer(modifier = Modifier.weight(0.2f))
 
-            // Album Art Section with Flat Internal Pager Animation
+            // Album Art Section with Optimized Flat Pager Animation
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
@@ -345,7 +345,8 @@ fun PlayerContent(
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1
+                    beyondViewportPageCount = 1,
+                    key = { page -> uiState.playlist.getOrNull(page)?.uid ?: page }
                 ) { page ->
                     val track = uiState.playlist.getOrNull(page) ?: uiState.currentTrack
                     
@@ -358,7 +359,7 @@ fun PlayerContent(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
-                                    // Flat animation: only scale for play/pause, no transition scaling/alpha
+                                    // Scale for play/pause animation only
                                     scaleX = albumArtScale
                                     scaleY = albumArtScale
                                 },
