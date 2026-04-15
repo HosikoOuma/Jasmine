@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -70,6 +72,7 @@ import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import kotlin.math.absoluteValue
 
 // --- UI State ---
 data class PlayerUiState(
@@ -83,7 +86,8 @@ data class PlayerUiState(
     val systemVolume: Float = 0f,
     val progressStyle: ProgressBarStyle = ProgressBarStyle.STANDARD,
     val playbackSpeed: Float = 1f,
-    val playbackPitch: Float = 1f
+    val playbackPitch: Float = 1f,
+    val playlist: List<Track> = emptyList()
 )
 
 // --- Stateful Screen ---
@@ -105,6 +109,7 @@ fun PlayerScreen(
     val systemVolume by viewModel.systemVolume.collectAsStateWithLifecycle()
     val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
     val playbackPitch by viewModel.playbackPitch.collectAsStateWithLifecycle()
+    val playlist by viewModel.playlist.collectAsStateWithLifecycle()
 
     val settingsViewModel: SettingsViewModel = viewModel()
     val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
@@ -120,7 +125,8 @@ fun PlayerScreen(
         systemVolume = systemVolume,
         progressStyle = settings.progressBarStyle,
         playbackSpeed = playbackSpeed,
-        playbackPitch = playbackPitch
+        playbackPitch = playbackPitch,
+        playlist = playlist
     )
 
     PlayerContent(
@@ -141,6 +147,7 @@ fun PlayerScreen(
         onDeleteTracks = trackViewModel::deleteTracks,
         onLoadTracks = trackViewModel::loadTracks,
         onAddTrackToPlaylist = trackViewModel::addTrackToPlaylist,
+        onSkipToItem = viewModel::skipToQueueItem,
         pendingDeleteIntent = trackViewModel.pendingDeleteIntent,
         navController = navController,
         queueScreen = { onCloseQueue -> QueueScreen(viewModel = viewModel, onClose = onCloseQueue) },
@@ -170,6 +177,7 @@ fun PlayerContent(
     onDeleteTracks: (List<Track>) -> Unit,
     onLoadTracks: () -> Unit,
     onAddTrackToPlaylist: (Long, Long) -> Unit,
+    onSkipToItem: (Int) -> Unit,
     pendingDeleteIntent: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null,
     navController: NavController = rememberNavController(),
     queueScreen: @Composable (onClose: () -> Unit) -> Unit = {},
@@ -211,10 +219,32 @@ fun PlayerContent(
     }
 
     val albumArtScale by animateFloatAsState(
-        targetValue = if (isAlbumArtMinimized) 0.8f else 0.9f,
+        targetValue = if (isAlbumArtMinimized) 0.8f else 1.0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
         label = "albumArtScale"
     )
+
+    // Pager State & Sync
+    val currentIndex = remember(uiState.currentTrack, uiState.playlist) {
+        uiState.playlist.indexOfFirst { it.uid == uiState.currentTrack?.uid }.coerceAtLeast(0)
+    }
+    
+    val pagerState = rememberPagerState(
+        initialPage = currentIndex,
+        pageCount = { uiState.playlist.size.coerceAtLeast(1) }
+    )
+
+    LaunchedEffect(currentIndex) {
+        if (pagerState.currentPage != currentIndex) {
+            pagerState.animateScrollToPage(currentIndex)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != currentIndex && uiState.playlist.isNotEmpty()) {
+            onSkipToItem(pagerState.currentPage)
+        }
+    }
 
     // Back Gesture states
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
@@ -304,17 +334,38 @@ fun PlayerContent(
 
             Spacer(modifier = Modifier.weight(0.2f))
 
+            // Album Art Section with Flat Internal Pager Animation
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
-                    .aspectRatio(1f),
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(24.dp)), // Constrains the animation inside the block
                 contentAlignment = Alignment.Center
             ) {
-                AlbumArt(
-                    albumArtUri = uiState.currentTrack?.albumArtUri,
-                    modifier = Modifier.fillMaxWidth(albumArtScale / 0.9f).aspectRatio(1f),
-                    shape = RoundedCornerShape(24.dp)
-                )
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 1
+                ) { page ->
+                    val track = uiState.playlist.getOrNull(page) ?: uiState.currentTrack
+                    
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AlbumArt(
+                            albumArtUri = track?.albumArtUri,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    // Flat animation: only scale for play/pause, no transition scaling/alpha
+                                    scaleX = albumArtScale
+                                    scaleY = albumArtScale
+                                },
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(0.3f))
@@ -892,7 +943,8 @@ fun PlayerPreview() {
             onPrepareForDeletion = {},
             onDeleteTracks = {},
             onLoadTracks = {},
-            onAddTrackToPlaylist = { _, _ -> }
+            onAddTrackToPlaylist = { _, _ -> },
+            onSkipToItem = {}
         )
     }
 }
