@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,7 +48,8 @@ data class RadioPlayerUiState(
     val trackTitle: String? = null,
     val trackArtist: String? = null,
     val isPlaying: Boolean = false,
-    val progressStyle: ProgressBarStyle = ProgressBarStyle.STANDARD
+    val progressStyle: ProgressBarStyle = ProgressBarStyle.STANDARD,
+    val systemVolume: Float = 0f
 )
 
 // --- Stateful Screen ---
@@ -63,12 +66,15 @@ fun RadioPlayerScreen(
     val settingsViewModel: SettingsViewModel = viewModel()
     val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
 
+    val systemVolume by playerViewModel.systemVolume.collectAsStateWithLifecycle()
+
     val uiState = RadioPlayerUiState(
         stationName = station.name,
         trackTitle = radioTrackTitle,
         trackArtist = radioTrackArtist,
         isPlaying = isPlaying,
-        progressStyle = settings.progressBarStyle
+        progressStyle = settings.progressBarStyle,
+        systemVolume = systemVolume
     )
 
     RadioPlayerContent(
@@ -76,7 +82,8 @@ fun RadioPlayerScreen(
         onClose = onClose,
         onTogglePlayPause = playerViewModel::togglePlayPause,
         onSkipNext = playerViewModel::skipToNext,
-        onSkipPrevious = playerViewModel::skipToPrevious
+        onSkipPrevious = playerViewModel::skipToPrevious,
+        onSetSystemVolume = playerViewModel::setSystemVolume
     )
 }
 
@@ -88,7 +95,8 @@ fun RadioPlayerContent(
     onClose: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
-    onSkipPrevious: () -> Unit
+    onSkipPrevious: () -> Unit,
+    onSetSystemVolume: (Float) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -155,6 +163,8 @@ fun RadioPlayerContent(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            var localVolume by remember { mutableFloatStateOf(uiState.systemVolume) }
+            LaunchedEffect(uiState.systemVolume) { localVolume = uiState.systemVolume }
             RadioLiveIndicator()
 
             Spacer(modifier = Modifier.weight(0.2f))
@@ -184,6 +194,22 @@ fun RadioPlayerContent(
                 onSkipPrevious = onSkipPrevious
             )
 
+
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, modifier = Modifier.size(20.dp))
+                Slider(
+                    value = localVolume,
+                    onValueChange = {
+                        localVolume = it
+                        onSetSystemVolume(it)
+                    },
+                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                )
+                Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.size(20.dp))
+            }
             Spacer(modifier = Modifier.weight(0.5f))
         }
     }
@@ -320,7 +346,8 @@ fun RadioPlayerPreview() {
             onClose = {},
             onTogglePlayPause = {},
             onSkipNext = {},
-            onSkipPrevious = {}
+            onSkipPrevious = {},
+            onSetSystemVolume = {}
         )
     }
 }
