@@ -1,6 +1,8 @@
 package com.nkds.hosikoouma.jasmine.ui
 
 import android.app.Activity
+import android.graphics.Bitmap
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -49,6 +51,7 @@ import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.navigation.JasmineNavHost
 import com.nkds.hosikoouma.jasmine.ui.components.*
 import com.nkds.hosikoouma.jasmine.ui.screens.PlayerScreen
+import com.nkds.hosikoouma.jasmine.ui.screens.PlaylistCoverEditor
 import com.nkds.hosikoouma.jasmine.ui.screens.RadioPlayerScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
@@ -70,6 +73,7 @@ data class MainUiState(
     val selectedStations: Set<RadioStation> = emptySet(),
     val isRadioMode: Boolean = false,
     val currentPlaylistName: String = "Playlist",
+    val currentPlaylistCover: Uri? = null,
     val canPop: Boolean = false,
     val isPlaylistDetail: Boolean = false,
     val isTracksScreen: Boolean = false,
@@ -106,7 +110,9 @@ fun MainScreen(
     // Compute Derived UI values
     val playlistId = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L }
     val playlists by trackViewModel.playlists.collectAsStateWithLifecycle()
-    val currentPlaylistName = remember(playlists, playlistId) { playlists.find { it.id == playlistId }?.name ?: "Playlist" }
+    val currentPlaylist = remember(playlists, playlistId) { playlists.find { it.id == playlistId } }
+    val currentPlaylistName = currentPlaylist?.name ?: "Playlist"
+    val currentPlaylistCover = currentPlaylist?.coverUri
     
     val isInSelectionMode = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()
     
@@ -143,6 +149,7 @@ fun MainScreen(
         selectedStations = selectedStations,
         isRadioMode = isRadioMode,
         currentPlaylistName = currentPlaylistName,
+        currentPlaylistCover = currentPlaylistCover,
         canPop = canPop,
         isPlaylistDetail = currentRoute?.startsWith("playlist_detail") == true,
         isTracksScreen = currentRoute == Screen.Tracks.route,
@@ -340,6 +347,7 @@ private fun MainContent(
         selectedStations = uiState.selectedStations,
         playlistId = playlistId,
         currentPlaylistName = uiState.currentPlaylistName,
+        currentPlaylistCover = uiState.currentPlaylistCover,
         trackViewModel = trackViewModel,
         playerViewModel = playerViewModel,
         navController = navController,
@@ -404,7 +412,7 @@ private fun MainActionsSection(
                     var showPlaylistMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showPlaylistMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }
                     DropdownMenu(expanded = showPlaylistMenu, onDismissRequest = { showPlaylistMenu = false }, shape = RoundedCornerShape(24.dp)) {
-                        DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { showPlaylistMenu = false; onRenamePlaylist() })
+                        DropdownMenuItem(text = { Text("Edit Details") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { showPlaylistMenu = false; onRenamePlaylist() })
                         DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showPlaylistMenu = false; onDeletePlaylist() })
                     }
                 }
@@ -441,6 +449,7 @@ private fun MainDialogs(
     selectedStations: Set<RadioStation>,
     playlistId: Long,
     currentPlaylistName: String,
+    currentPlaylistCover: Uri?,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     navController: NavController,
@@ -485,30 +494,74 @@ private fun MainDialogs(
 
     if (showRenamePlaylistDialog) {
         var newName by remember { mutableStateOf(currentPlaylistName) }
-        AlertDialog(
-            onDismissRequest = onDismissRenamePlaylist,
-            title = { Text("Rename Playlist") },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("Playlist Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (newName.isNotBlank() && newName != currentPlaylistName) {
-                        trackViewModel.renamePlaylist(playlistId, newName)
+        var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+        var showEditor by remember { mutableStateOf(false) }
+
+        val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            uri?.let { 
+                selectedImageUri = it
+                showEditor = true
+            }
+        }
+
+        if (showEditor && selectedImageUri != null) {
+            PlaylistCoverEditor(
+                imageUri = selectedImageUri!!,
+                onDismiss = { showEditor = false },
+                onConfirm = { bitmap ->
+                    trackViewModel.updatePlaylistCover(playlistId, bitmap)
+                    showEditor = false
+                }
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = onDismissRenamePlaylist,
+                title = { Text("Edit Playlist Details") },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { pickMedia.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                        ) {
+                            AlbumArt(albumArtUri = currentPlaylistCover, modifier = Modifier.fillMaxSize())
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.PhotoCamera, null, tint = Color.White)
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            label = { Text("Playlist Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        )
                     }
-                    onDismissRenamePlaylist()
-                }) { Text("Rename") }
-            },
-            dismissButton = { TextButton(onClick = onDismissRenamePlaylist) { Text("Cancel") } },
-            shape = RoundedCornerShape(28.dp)
-        )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (newName.isNotBlank() && newName != currentPlaylistName) {
+                            trackViewModel.renamePlaylist(playlistId, newName)
+                        }
+                        onDismissRenamePlaylist()
+                    }) { Text("Save") }
+                },
+                dismissButton = { TextButton(onClick = onDismissRenamePlaylist) { Text("Cancel") } },
+                shape = RoundedCornerShape(28.dp)
+            )
+        }
     }
 
     if (showDeletePlaylistDialog) {

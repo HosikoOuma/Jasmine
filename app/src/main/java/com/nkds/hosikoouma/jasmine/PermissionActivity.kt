@@ -3,8 +3,11 @@ package com.nkds.hosikoouma.jasmine
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -35,19 +38,34 @@ class PermissionActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             JasmineTheme {
-                PermissionScreen(onPermissionsGranted = { startMainActivity() })
+                PermissionScreen(
+                    onPermissionsGranted = { startMainActivity() },
+                    onRequestManageStorage = { requestManageExternalStorage() }
+                )
             }
         }
     }
 
     private fun hasRequiredPermissions(): Boolean {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+        val storageGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
         } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         }
-        return permissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+
+        val mediaGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+        } else true
+
+        return storageGranted && mediaGranted
+    }
+
+    private fun requestManageExternalStorage() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                data = Uri.parse("package:${packageName}")
+            }
+            startActivity(intent)
         }
     }
 
@@ -55,21 +73,38 @@ class PermissionActivity : ComponentActivity() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasRequiredPermissions()) {
+            startMainActivity()
+        }
+    }
 }
 
 @Composable
-fun PermissionScreen(onPermissionsGranted: () -> Unit) {
+fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: () -> Unit) {
     val context = LocalContext.current
-    val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
-    } else {
-        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-    }
+    val permissionsToRequest = mutableListOf<String>().apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.READ_MEDIA_AUDIO)
+            add(Manifest.permission.READ_MEDIA_IMAGES)
+        } else {
+            add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }.toTypedArray()
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions.values.all { it }) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                onRequestManageStorage()
+            } else if (permissions.values.all { it }) {
+                onPermissionsGranted()
+            }
+        } else if (permissions.values.all { it }) {
             onPermissionsGranted()
         }
     }
@@ -92,13 +127,13 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Welcome to Jasmine",
+                text = "Permissions Required",
                 style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "To show your music collection, Jasmine needs permission to access your audio files.",
+                text = "Jasmine needs full access to storage to manage your playlists and covers directly in the Music folder.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -108,7 +143,7 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit) {
                 onClick = { launcher.launch(permissionsToRequest) },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Grant Permission")
+                Text("Grant All Access")
             }
         }
     }

@@ -14,6 +14,9 @@ interface PlaylistDao {
     @Query("UPDATE playlists SET name = :newName WHERE id = :playlistId")
     suspend fun updatePlaylistName(playlistId: Long, newName: String)
 
+    @Query("UPDATE playlists SET coverUri = :coverUri WHERE id = :playlistId")
+    suspend fun updatePlaylistCover(playlistId: Long, coverUri: String?)
+
     @Delete
     suspend fun deletePlaylist(playlist: PlaylistEntity)
 

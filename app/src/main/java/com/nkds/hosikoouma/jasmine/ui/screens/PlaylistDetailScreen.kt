@@ -1,5 +1,6 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -10,7 +11,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -21,7 +23,9 @@ import androidx.navigation.NavController
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.data.PlaylistEntity
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
+import com.nkds.hosikoouma.jasmine.ui.components.vibrateClick
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
@@ -49,7 +53,7 @@ fun PlaylistDetailScreen(
 ) {
     val playlists by trackViewModel.playlists.collectAsStateWithLifecycle()
     val playlist = remember(playlists, playlistId) { 
-        playlists.find { it.id == playlistId }?.let { PlaylistEntity(it.id, it.name, it.createdAt) }
+        playlists.find { it.id == playlistId }?.let { PlaylistEntity(it.id, it.name, it.coverUri?.toString(), it.createdAt) }
     }
     val playlistTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsStateWithLifecycle(initialValue = emptyList())
     
@@ -76,7 +80,13 @@ fun PlaylistDetailScreen(
             }
         },
         onTrackLongClick = onToggleTrackSelection,
-        onSwipeAction = { track -> playerViewModel.addToQueue(track, showToast = true) }
+        onSwipeAction = { track -> playerViewModel.addToQueue(track, showToast = true) },
+        onShufflePlay = {
+            if (playlistTracks.isNotEmpty()) {
+                playerViewModel.shuffleAndPlay(playlistTracks)
+                onNavigateToPlayer()
+            }
+        }
     )
 }
 
@@ -87,9 +97,11 @@ fun PlaylistDetailContent(
     onAddTracksClick: () -> Unit,
     onTrackClick: (Int) -> Unit,
     onTrackLongClick: (Track) -> Unit,
-    onSwipeAction: (Track) -> Unit
+    onSwipeAction: (Track) -> Unit,
+    onShufflePlay: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val isInSelectionMode = uiState.selectedTracks.isNotEmpty()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -97,44 +109,111 @@ fun PlaylistDetailContent(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Playlist not found")
             }
-        } else if (uiState.tracks.isEmpty()) {
-            EmptyPlaylistPlaceholder(onAddTracksClick)
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Добавляем информацию о количестве песен под заголовком (в списке это первый элемент)
                 item {
-                    Text(
-                        text = "${uiState.tracks.size} tracks",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                    PlaylistHeader(
+                        playlist = uiState.playlist,
+                        tracksCount = uiState.tracks.size,
+                        firstTrackArt = uiState.tracks.firstOrNull()?.albumArtUri,
+                        onShuffleClick = {
+                            vibrateClick(context)
+                            onShufflePlay()
+                        },
+                        showShuffle = !isInSelectionMode && uiState.tracks.isNotEmpty()
                     )
                 }
 
-                itemsIndexed(
-                    items = uiState.tracks,
-                    key = { _, track -> track.id }
-                ) { index, track ->
-                    val isSelected = uiState.selectedTracks.contains(track)
-                    SwipeableTrackCard(
-                        track = track,
-                        isCurrent = uiState.currentTrack?.id == track.id,
-                        isPlaying = uiState.isPlaying,
-                        isSelected = isSelected,
-                        enabled = !isInSelectionMode,
-                        onSwipeAction = { onSwipeAction(track) },
-                        onClick = { onTrackClick(index) },
-                        onLongClick = {
-                            VibrationUtils.performLongPressHaptic(haptic)
-                            onTrackLongClick(track)
+                if (uiState.tracks.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillParentMaxHeight(0.6f)) {
+                            EmptyPlaylistPlaceholder(onAddTracksClick)
                         }
-                    )
+                    }
+                } else {
+                    itemsIndexed(
+                        items = uiState.tracks,
+                        key = { _, track -> track.id }
+                    ) { index, track ->
+                        val isSelected = uiState.selectedTracks.contains(track)
+                        SwipeableTrackCard(
+                            track = track,
+                            isCurrent = uiState.currentTrack?.id == track.id,
+                            isPlaying = uiState.isPlaying,
+                            isSelected = isSelected,
+                            isManualMarkingEnabled = true, // Включаем метки очереди
+                            enabled = !isInSelectionMode,
+                            onSwipeAction = { onSwipeAction(track) },
+                            onClick = { onTrackClick(index) },
+                            onLongClick = {
+                                VibrationUtils.performLongPressHaptic(haptic)
+                                onTrackLongClick(track)
+                            }
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistHeader(
+    playlist: PlaylistEntity,
+    tracksCount: Int,
+    firstTrackArt: Uri?,
+    onShuffleClick: () -> Unit,
+    showShuffle: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            val displayArt = remember(playlist.coverUri, firstTrackArt) {
+                playlist.coverUri?.let { Uri.parse(it) } ?: firstTrackArt
+            }
+
+            AlbumArt(
+                albumArtUri = displayArt,
+                modifier = Modifier
+                    .size(150.dp) // Увеличена с 100dp до 130dp
+                    .clip(RoundedCornerShape(24.dp)),
+                isLowRes = false
+            )
+
+            Spacer(modifier = Modifier.width(20.dp))
+
+            Column {
+                Text(
+                    text = "$tracksCount tracks",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Playlist",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        if (showShuffle) {
+            ShuffleButton(
+                modifier = Modifier.padding(start = 8.dp),
+                onShuffle = onShuffleClick
+            )
         }
     }
 }
@@ -178,7 +257,8 @@ fun PlaylistDetailPreview() {
             onAddTracksClick = {},
             onTrackClick = {},
             onTrackLongClick = {},
-            onSwipeAction = {}
+            onSwipeAction = {},
+            onShufflePlay = {}
         )
     }
 }

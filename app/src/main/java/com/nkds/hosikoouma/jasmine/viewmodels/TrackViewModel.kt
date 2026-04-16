@@ -3,6 +3,7 @@ package com.nkds.hosikoouma.jasmine.viewmodels
 import android.app.Application
 import android.content.ContentUris
 import android.content.IntentSender
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
@@ -129,7 +130,15 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val playlists: StateFlow<List<Playlist>> = combine(playlistRepository.allPlaylists, _sortType, _isReversed) { entities, sort, reversed ->
-        val mapped = entities.map { Playlist(it.id, it.name, emptyList(), it.createdAt) }
+        val mapped = entities.map { 
+            Playlist(
+                id = it.id, 
+                name = it.name, 
+                tracks = emptyList(), 
+                createdAt = it.createdAt,
+                coverUri = it.coverUri?.let { uriStr -> Uri.parse(uriStr) }
+            ) 
+        }
         val sorted = when (sort) {
             SortType.BY_TITLE -> mapped.sortedBy { it.name.lowercase() }
             SortType.BY_DATE -> mapped.sortedByDescending { it.createdAt }
@@ -180,6 +189,12 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         playlistRepository.renamePlaylist(playlistId, newName)
     }
 
+    fun updatePlaylistCover(playlistId: Long, bitmap: Bitmap?) = viewModelScope.launch {
+        playlistRepository.updatePlaylistCover(playlistId, bitmap)
+        // После обновления картинки нужно обновить m3u
+        updateM3U(playlistId)
+    }
+
     fun deletePlaylist(playlistId: Long) = viewModelScope.launch { 
         playlistRepository.allPlaylists.first().find { it.id == playlistId }?.let { playlistRepository.deletePlaylist(it) }
     }
@@ -206,9 +221,8 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun updateM3U(playlistId: Long) {
         val pTracks = getTracksForPlaylist(playlistId).first()
-        playlists.value.find { it.id == playlistId }?.let { 
-            playlistRepository.updateM3UFile(it.name, pTracks)
-        }
+        val playlist = playlists.value.find { it.id == playlistId } ?: return
+        playlistRepository.updateM3UFile(playlist.name, pTracks, playlist.coverUri?.toString())
     }
 
     fun exportPlaylist(playlistId: Long, uri: Uri) = viewModelScope.launch(Dispatchers.IO) {

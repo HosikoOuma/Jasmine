@@ -5,7 +5,7 @@ import androidx.room.*
 
 @Database(
     entities = [PlaylistEntity::class, PlaylistTrackEntity::class, RadioStation::class],
-    version = 2,
+    version = 3, // Увеличили версию с 2 до 3 из-за добавления coverUri
     exportSchema = false
 )
 abstract class PlaylistDatabase : RoomDatabase() {
@@ -23,7 +23,7 @@ abstract class PlaylistDatabase : RoomDatabase() {
                     PlaylistDatabase::class.java,
                     "playlist_database"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration() // Позволяет Room пересоздать базу при несовпадении версий
                 .build()
                 INSTANCE = instance
                 instance

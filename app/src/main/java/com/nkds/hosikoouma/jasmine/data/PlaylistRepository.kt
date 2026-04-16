@@ -1,11 +1,15 @@
 package com.nkds.hosikoouma.jasmine.data
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 
 class PlaylistRepository(private val context: Context) {
     private val playlistDao = PlaylistDatabase.getDatabase(context).playlistDao()
@@ -22,9 +26,28 @@ class PlaylistRepository(private val context: Context) {
         val oldPlaylist = allPlaylists.first().find { it.id == playlistId }
         playlistDao.updatePlaylistName(playlistId, newName)
         
-        // Переименовываем M3U файл если он существует
         oldPlaylist?.let {
             m3uManager.renamePlaylistFile(it.name, newName)
+        }
+    }
+
+    suspend fun updatePlaylistCover(playlistId: Long, bitmap: Bitmap?) {
+        val playlist = allPlaylists.first().find { it.id == playlistId } ?: return
+        
+        if (bitmap == null) {
+            playlistDao.updatePlaylistCover(playlistId, null)
+            val coverFile = m3uManager.getCoverFileForPlaylist(playlist.name)
+            if (coverFile.exists()) coverFile.delete()
+            return
+        }
+
+        withContext(Dispatchers.IO) {
+            val coverFile = m3uManager.getCoverFileForPlaylist(playlist.name)
+            FileOutputStream(coverFile).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            }
+            val coverUri = Uri.fromFile(coverFile).toString()
+            playlistDao.updatePlaylistCover(playlistId, coverUri)
         }
     }
 
@@ -57,8 +80,8 @@ class PlaylistRepository(private val context: Context) {
         }
     }
 
-    suspend fun updateM3UFile(playlistName: String, tracks: List<Track>) {
-        m3uManager.savePlaylist(playlistName, tracks)
+    suspend fun updateM3UFile(playlistName: String, tracks: List<Track>, coverUri: String? = null) {
+        m3uManager.savePlaylist(playlistName, tracks, coverUri)
     }
 
     fun getTrackIdsForPlaylist(playlistId: Long): Flow<List<Long>> {

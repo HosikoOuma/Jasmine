@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 data class PlaylistEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
+    val coverUri: String? = null, // URI или путь к обложке плейлиста
     val createdAt: Long = System.currentTimeMillis()
 )
 
