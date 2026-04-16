@@ -64,9 +64,11 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
     val minDurationLimit = settingsRepository.minTrackDuration
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
         
-    // Добавлено: публичный доступ к черному списку для SettingsScreen
     val blacklistedFolders = settingsRepository.blacklistedFolders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val isPlaylistsGridView = settingsRepository.isPlaylistsGridView
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val filters: StateFlow<TrackFilters> = combine(
         _searchQuery, _sortType, _isReversed,
@@ -191,8 +193,11 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updatePlaylistCover(playlistId: Long, bitmap: Bitmap?) = viewModelScope.launch {
         playlistRepository.updatePlaylistCover(playlistId, bitmap)
-        // После обновления картинки нужно обновить m3u
         updateM3U(playlistId)
+    }
+
+    fun setPlaylistsGridView(enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setPlaylistsGridView(enabled)
     }
 
     fun deletePlaylist(playlistId: Long) = viewModelScope.launch { 

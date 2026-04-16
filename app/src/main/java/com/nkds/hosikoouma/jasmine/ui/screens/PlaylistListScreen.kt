@@ -13,14 +13,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.PostAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +51,7 @@ fun PlaylistListScreen(
     trackViewModel: TrackViewModel
 ) {
     val playlistsData by trackViewModel.playlists.collectAsStateWithLifecycle()
-    var isGridView by rememberSaveable { mutableStateOf(false) }
+    val isGridView by trackViewModel.isPlaylistsGridView.collectAsStateWithLifecycle()
     
     val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -76,7 +75,7 @@ fun PlaylistListScreen(
         onPlaylistClick = { id -> navController.navigate("playlist_detail/$id") },
         onImportClick = { filePickerLauncher.launch("*/*") },
         onCreateClick = { showCreateDialog = true },
-        onToggleView = { isGridView = !isGridView },
+        onToggleView = { trackViewModel.setPlaylistsGridView(!isGridView) },
         trackViewModel = trackViewModel
     )
 
@@ -117,7 +116,7 @@ fun PlaylistListContent(
                 onClick = onToggleView,
                 colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
-                Icon(if (uiState.isGridView) Icons.Rounded.List else Icons.Rounded.GridView, null)
+                Icon(if (uiState.isGridView) Icons.AutoMirrored.Rounded.List else Icons.Rounded.GridView, null)
             }
         }
 

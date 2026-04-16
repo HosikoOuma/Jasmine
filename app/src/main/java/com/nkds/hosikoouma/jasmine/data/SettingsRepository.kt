@@ -27,6 +27,7 @@ class SettingsRepository(private val context: Context) {
         val SEED_COLOR = intPreferencesKey("seed_color")
         
         val BLACKLISTED_FOLDERS = stringSetPreferencesKey("blacklisted_folders")
+        val PLAYLISTS_GRID_VIEW = booleanPreferencesKey("playlists_grid_view")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -45,6 +46,7 @@ class SettingsRepository(private val context: Context) {
     val seedColor: Flow<Int> = context.dataStore.data.map { it[SEED_COLOR] ?: 0xFF6750A4.toInt() }
     
     val blacklistedFolders: Flow<Set<String>> = context.dataStore.data.map { it[BLACKLISTED_FOLDERS] ?: emptySet() }
+    val isPlaylistsGridView: Flow<Boolean> = context.dataStore.data.map { it[PLAYLISTS_GRID_VIEW] ?: false }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) = context.dataStore.edit { it[CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeDuration(duration: Long) = context.dataStore.edit { it[CROSSFADE_DURATION] = duration }
@@ -70,4 +72,6 @@ class SettingsRepository(private val context: Context) {
         val current = it[BLACKLISTED_FOLDERS] ?: emptySet()
         it[BLACKLISTED_FOLDERS] = current - path
     }
+
+    suspend fun setPlaylistsGridView(enabled: Boolean) = context.dataStore.edit { it[PLAYLISTS_GRID_VIEW] = enabled }
 }

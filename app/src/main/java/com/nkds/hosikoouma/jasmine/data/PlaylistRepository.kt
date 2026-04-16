@@ -46,7 +46,8 @@ class PlaylistRepository(private val context: Context) {
             FileOutputStream(coverFile).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
             }
-            val coverUri = Uri.fromFile(coverFile).toString()
+            // Добавляем timestamp для сброса кэша изображений (Coil/Glide)
+            val coverUri = "${Uri.fromFile(coverFile)}?t=${System.currentTimeMillis()}"
             playlistDao.updatePlaylistCover(playlistId, coverUri)
         }
     }
