@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -22,15 +23,14 @@ fun AddToPlaylistDialog(
     onPlaylistSelected: (Long) -> Unit,
     trackViewModel: TrackViewModel
 ) {
-    val playlists by trackViewModel.playlists.collectAsState()
+    val playlists by trackViewModel.playlists.collectAsStateWithLifecycle()
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {},
         dismissButton = {
             TextButton(
-                modifier = Modifier.bouncingClickable { onDismissRequest() },
-                onClick = { }
+                onClick = onDismissRequest
             ) { Text("Cancel") }
         },
         title = { Text("Add to playlist") },
@@ -48,7 +48,7 @@ fun AddToPlaylistDialog(
                             leadingContent = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .bouncingClickable {
+                                .clickable {
                                     onPlaylistSelected(playlist.id)
                                 }
                         )

@@ -33,6 +33,11 @@ import com.kmpalette.palette.graphics.Palette
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.io.FileNotFoundException
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.updateAppWidgetState
+import com.nkds.hosikoouma.jasmine.widget.JasmineWidget
+import com.nkds.hosikoouma.jasmine.widget.JasmineWidgetState
+import com.nkds.hosikoouma.jasmine.widget.JasmineWidgetStateDefinition
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -57,16 +62,30 @@ class PlaybackService : MediaSessionService() {
     private var isCrossfadeEnabled = true
     private var crossfadeDurationMs = 3000L
 
+    private var feedbackJob: Job? = null
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             "ACTION_WIDGET_PLAY_PAUSE" -> {
-                currentPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
+                currentPlayer?.let { 
+                    if (it.isPlaying) it.pause() else it.play()
+                    triggerWidgetFeedback()
+                }
             }
             "ACTION_WIDGET_NEXT" -> currentPlayer?.seekToNext()
             "ACTION_WIDGET_PREV" -> currentPlayer?.seekToPrevious()
             "ACTION_WIDGET_UPDATE_REQUEST" -> pushWidgetUpdate()
         }
         return super.onStartCommand(intent, flags, startId)
+    }
+
+    private fun triggerWidgetFeedback() {
+        feedbackJob?.cancel()
+        feedbackJob = serviceScope.launch {
+            updateGlanceState(showFeedback = true)
+            delay(1000)
+            updateGlanceState(showFeedback = false)
+        }
     }
 
     override fun onCreate() {
@@ -346,6 +365,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun pushWidgetUpdate() {
+        updateGlanceState()
+        
         val player = currentPlayer ?: return
         val item = player.currentMediaItem ?: return
         
@@ -393,6 +414,34 @@ class PlaybackService : MediaSessionService() {
                     albumArt = albumArt,
                     backgroundColor = seedColor
                 )
+            }
+        }
+    }
+
+    private fun updateGlanceState(showFeedback: Boolean = false) {
+        val player = currentPlayer ?: return
+        val item = player.currentMediaItem ?: return
+        val title = item.mediaMetadata.title?.toString() ?: "Unknown"
+        val artist = item.mediaMetadata.artist?.toString() ?: "Jasmine"
+        val isPlaying = player.isPlaying
+        val artworkUri = item.mediaMetadata.artworkUri
+
+        serviceScope.launch {
+            val context = this@PlaybackService
+            val glanceManager = GlanceAppWidgetManager(context)
+            val glanceIds = glanceManager.getGlanceIds(JasmineWidget::class.java)
+            
+            glanceIds.forEach { glanceId ->
+                updateAppWidgetState(context, JasmineWidgetStateDefinition, glanceId) {
+                    JasmineWidgetState(
+                        title = title,
+                        artist = artist,
+                        isPlaying = isPlaying,
+                        albumArtUri = artworkUri?.toString(),
+                        showFeedback = showFeedback
+                    )
+                }
+                JasmineWidget().update(context, glanceId)
             }
         }
     }
