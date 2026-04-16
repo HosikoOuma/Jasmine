@@ -75,7 +75,7 @@ fun PlaylistDetailScreen(
             if (selectedTracks.isNotEmpty()) {
                 onToggleTrackSelection(playlistTracks[index])
             } else {
-                playerViewModel.playTracks(playlistTracks, index)
+                playerViewModel.playTracks(playlistTracks, index, sourceName = "Playlist: ${playlist?.name}")
                 onNavigateToPlayer()
             }
         },
@@ -83,7 +83,7 @@ fun PlaylistDetailScreen(
         onSwipeAction = { track -> playerViewModel.addToQueue(track, showToast = true) },
         onShufflePlay = {
             if (playlistTracks.isNotEmpty()) {
-                playerViewModel.shuffleAndPlay(playlistTracks)
+                playerViewModel.shuffleAndPlay(playlistTracks, sourceName = "Playlist: ${playlist?.name}")
                 onNavigateToPlayer()
             }
         }

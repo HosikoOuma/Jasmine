@@ -65,7 +65,7 @@ fun ArtistDetailScreen(
                 if (selectedTracks.isNotEmpty()) {
                     onToggleTrackSelection(it.tracks[index])
                 } else {
-                    playerViewModel.playTracks(it.tracks, index)
+                    playerViewModel.playTracks(it.tracks, index, sourceName = "Artist: ${it.name}")
                     onNavigateToPlayer()
                 }
             }

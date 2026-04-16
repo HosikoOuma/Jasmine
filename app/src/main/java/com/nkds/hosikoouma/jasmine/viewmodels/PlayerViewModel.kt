@@ -29,6 +29,8 @@ import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.datamodels.Lyrics
 import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.ui.components.ToastData
+import com.nkds.hosikoouma.jasmine.ui.components.ToastType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -91,6 +93,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _toastEvent = MutableSharedFlow<String>()
     val toastEvent = _toastEvent.asSharedFlow()
 
+    // Состояние для кастомного тоста
+    private val _appToast = MutableStateFlow<ToastData?>(null)
+    val appToast = _appToast.asStateFlow()
+
     private val _localLyrics = MutableStateFlow<String?>(null)
     val localLyrics = _localLyrics.asStateFlow()
 
@@ -99,6 +105,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _isLoadingLyrics = MutableStateFlow(false)
     val isLoadingLyrics = _isLoadingLyrics.asStateFlow()
+
+    private val _currentSource = MutableStateFlow<String?>(null)
+    val currentSource = _currentSource.asStateFlow()
 
     val syncedLocalLyrics: StateFlow<List<LyricsLine>?> = _localLyrics
         .map { withContext(Dispatchers.Default) { LyricsHelper.parseLrc(it) } }
@@ -118,8 +127,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var progressJob: Job? = null
     private var lyricsJob: Job? = null
     private var lastLoadedTrackId: String? = null
-    
-    // Список Track объектов, которые были изначально загружены в плеер (с их UID)
     private var originalTrackList: List<Track> = emptyList()
 
     private val volumeReceiver = object : BroadcastReceiver() {
@@ -255,6 +262,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val extras = mediaItem.mediaMetadata.extras
         val isRadio = extras?.getBoolean("isRadio") ?: false
         _isRadioMode.value = isRadio
+        _currentSource.value = extras?.getString("sourceName")
 
         if (isRadio) {
             val station = RadioStation(
@@ -268,9 +276,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
             parseRadioMetadata(mediaItem.mediaMetadata)
         } else {
-            val currentIndex = controller.currentMediaItemIndex
-            val uid = if (mediaItem.mediaId.isNotBlank()) mediaItem.mediaId else "fallback_${mediaIdToLong(mediaItem.mediaId)}_$currentIndex"
-            
+            val uid = mediaItem.mediaId
             val newTrack = mediaToTrack(mediaItem).copy(uid = uid)
             if (_currentTrack.value?.uid != newTrack.uid || _currentTrack.value?.id != newTrack.id) {
                 _currentTrack.value = newTrack
@@ -288,6 +294,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _radioTrackTitle.value = null
         _radioTrackArtist.value = null
         lastLoadedTrackId = null
+        _currentSource.value = null
     }
 
     private var updatePlaylistJob: Job? = null
@@ -298,17 +305,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (timeline.isEmpty) {
             for (i in 0 until controller.mediaItemCount) {
                 val item = controller.getMediaItemAt(i)
-                val uid = if (item.mediaId.isNotBlank()) item.mediaId else "fallback_${mediaIdToLong(item.mediaId)}_$i"
-                mediaItemsWithUids.add(item to uid)
+                mediaItemsWithUids.add(item to item.mediaId)
             }
         } else {
             val window = Timeline.Window()
             for (i in 0 until timeline.windowCount) {
                 timeline.getWindow(i, window)
-                window.mediaItem?.let { item ->
-                    val uid = if (item.mediaId.isNotBlank()) item.mediaId else window.uid.toString()
-                    mediaItemsWithUids.add(item to uid)
-                }
+                window.mediaItem?.let { mediaItemsWithUids.add(it to it.mediaId) }
             }
         }
         updatePlaylistJob?.cancel()
@@ -334,9 +337,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun mediaIdToLong(mediaId: String): Long = try {
-        val parts = mediaId.split("_")
-        val idStr = parts[0]
-        if (idStr.startsWith("radio_")) idStr.substring(6).toLong() else idStr.toLong()
+        val cleanId = if (mediaId.contains("_")) mediaId.split("_")[0] else mediaId
+        if (cleanId.startsWith("radio_")) cleanId.substring(6).toLong() else cleanId.toLong()
     } catch (e: Exception) { mediaId.hashCode().toLong() }
 
     fun toggleFavoriteCurrent() {
@@ -344,11 +346,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { favoritesRepository.toggleFavorite(track.id.toString()) }
     }
 
-    fun playTracks(tracks: List<Track>, startIndex: Int) {
+    fun playTracks(tracks: List<Track>, startIndex: Int, sourceName: String? = null) {
         val controller = controller ?: return
         _isRadioMode.value = false
+        _currentSource.value = sourceName
         viewModelScope.launch(Dispatchers.Default) {
-            val mediaItems = tracks.map { createMediaItem(it) }
+            val mediaItems = tracks.map { createMediaItem(it, sourceName = sourceName) }
             val tracksWithUids = tracks.zip(mediaItems).map { (t, m) -> t.copy(uid = m.mediaId) }
             withContext(Dispatchers.Main) {
                 originalTrackList = tracksWithUids
@@ -365,6 +368,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         _isRadioMode.value = true
         _currentRadioStation.value = targetStation
+        _currentSource.value = "Radio"
         viewModelScope.launch(Dispatchers.Default) {
             val mediaItems = allStations.map { station ->
                 val extras = Bundle().apply { putBoolean("isRadio", true) }
@@ -381,15 +385,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun shuffleAndPlay(tracks: List<Track>) {
+    fun shuffleAndPlay(tracks: List<Track>, sourceName: String? = null) {
         val controller = controller ?: return
         _isRadioMode.value = false
+        _currentSource.value = sourceName
         viewModelScope.launch(Dispatchers.Default) {
             val shuffled = tracks.shuffled()
-            val mediaItems = shuffled.map { createMediaItem(it) }
+            val mediaItems = shuffled.map { createMediaItem(it, sourceName = sourceName) }
             val tracksWithUids = shuffled.zip(mediaItems).map { (t, m) -> t.copy(uid = m.mediaId) }
             withContext(Dispatchers.Main) {
-                originalTrackList = tracksWithUids // В этом случае оригиналом станет перемешанный список
+                originalTrackList = tracksWithUids
                 controller.setMediaItems(mediaItems, 0, 0L)
                 controller.shuffleModeEnabled = false
                 _shuffleModeEnabled.value = true
@@ -399,13 +404,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun createMediaItem(track: Track, isManual: Boolean = false, existingUid: String? = null): MediaItem {
+    private fun createMediaItem(track: Track, isManual: Boolean = false, existingUid: String? = null, sourceName: String? = null): MediaItem {
         val uid = existingUid ?: "${track.id}_${UUID.randomUUID()}"
         val extras = Bundle().apply { 
             putString("path", track.path)
             putBoolean("isManual", isManual)
             putLong("duration", track.duration)
-            putBoolean("isRadio", false) 
+            putBoolean("isRadio", false)
+            sourceName?.let { putString("sourceName", it) }
         }
         return MediaItem.Builder()
             .setMediaId(uid)
@@ -428,9 +434,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val currentList = _playlist.value
         while (insertPos < currentList.size && currentList[insertPos].isManual) { insertPos++ }
         viewModelScope.launch(Dispatchers.Default) {
-            val mediaItem = createMediaItem(track, isManual = true)
-            withContext(Dispatchers.Main) { controller.addMediaItem(insertPos, mediaItem) }
-            if (showToast) _toastEvent.emit("Added to queue: ${track.title}")
+            val mediaItem = createMediaItem(track, isManual = true, sourceName = _currentSource.value)
+            withContext(Dispatchers.Main) { 
+                controller.addMediaItem(insertPos, mediaItem) 
+                if (showToast) {
+                    _appToast.value = ToastData(track, ToastType.ADDED)
+                }
+            }
         }
     }
 
@@ -441,17 +451,29 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val currentList = _playlist.value
         while (insertPos < currentList.size && currentList[insertPos].isManual) { insertPos++ }
         viewModelScope.launch(Dispatchers.Default) {
-            val mediaItems = tracks.map { createMediaItem(it, isManual = true) }
-            withContext(Dispatchers.Main) { controller.addMediaItems(insertPos, mediaItems) }
-            _toastEvent.emit("Added ${tracks.size} tracks to queue")
+            val mediaItems = tracks.map { createMediaItem(it, isManual = true, sourceName = _currentSource.value) }
+            withContext(Dispatchers.Main) { 
+                controller.addMediaItems(insertPos, mediaItems) 
+                if (tracks.isNotEmpty()) {
+                    _appToast.value = ToastData(tracks.first(), ToastType.ADDED)
+                }
+            }
         }
+    }
+
+    fun showToast(track: Track?, type: ToastType, message: String? = null) {
+        _appToast.value = ToastData(track, type, message)
+    }
+
+    fun clearAddedToast() {
+        _appToast.value = null
     }
 
     fun removeFromQueue(track: Track) {
         val index = _playlist.value.indexOfFirst { it.uid == track.uid }
         if (index != -1) {
             controller?.removeMediaItem(index)
-            viewModelScope.launch { _toastEvent.emit("Removed from queue: ${track.title}") }
+            _appToast.value = ToastData(track, ToastType.REMOVED)
         }
     }
 
@@ -495,27 +517,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val newIndex: Int
             
             if (willEnable) {
-                // ПЕРЕМЕШИВАНИЕ (быстрое через setMediaItems)
                 val mutableList = currentTracks.toMutableList()
                 val currentIndex = mutableList.indexOfFirst { it.uid == currentTrack.uid }.coerceAtLeast(0)
                 val playingItem = mutableList.removeAt(currentIndex)
                 mutableList.shuffle()
-                mutableList.add(0, playingItem) // Текущий всегда первый
+                mutableList.add(0, playingItem)
                 newList = mutableList
                 newIndex = 0
             } else {
-                // ВОЗВРАТ (используем originalTrackList)
                 if (originalTrackList.isNotEmpty()) {
                     newList = originalTrackList
                     newIndex = newList.indexOfFirst { it.id == currentTrack.id }.coerceAtLeast(0)
                 } else {
-                    _shuffleModeEnabled.value = false
+                    withContext(Dispatchers.Main) { _shuffleModeEnabled.value = false }
                     return@launch
                 }
             }
             
-            // Важно: используем СТАРЫЕ UID, чтобы Media3 не прерывала звук
-            val mediaItems = newList.map { createMediaItem(it, it.isManual, existingUid = it.uid) }
+            val mediaItems = newList.map { createMediaItem(it, it.isManual, existingUid = it.uid, sourceName = _currentSource.value) }
             
             withContext(Dispatchers.Main) {
                 controller.setMediaItems(mediaItems, newIndex, currentPos)

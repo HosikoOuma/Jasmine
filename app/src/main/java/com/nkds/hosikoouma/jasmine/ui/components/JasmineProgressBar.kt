@@ -104,17 +104,17 @@ fun JasmineProgressBar(
 
             when (style) {
                 ProgressBarStyle.STANDARD -> {
-                    drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
-                    drawCircle(activeColor, radius = 8.dp.toPx(), center = Offset(progressWidth, height / 2))
+                    drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
+                    drawCircle(activeColor, radius = 10.dp.toPx(), center = Offset(progressWidth, height / 2))
                 }
                 ProgressBarStyle.SOLID -> {
-                    drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = 10.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 10.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = 12.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 12.dp.toPx(), cap = StrokeCap.Round)
                 }
                 ProgressBarStyle.DOTTED -> {
                     val dotSpacingEffect = PathEffect.dashPathEffect(floatArrayOf(1f, 40f), 0f)
-                    val strokeThickness = 10.dp.toPx()
+                    val strokeThickness = 12.dp.toPx()
 
                     drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = strokeThickness, cap = StrokeCap.Round, pathEffect = dotSpacingEffect)
                     drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = strokeThickness, cap = StrokeCap.Round, pathEffect = dotSpacingEffect)
@@ -123,20 +123,18 @@ fun JasmineProgressBar(
                     val points = 100
                     val frequency = 2f
 
-                    // Неактивная часть
-                    drawLine(inactiveColor, Offset(progressWidth, height / 2), Offset(width, height / 2), strokeWidth = 12f, cap = StrokeCap.Round)
+                    // Неактивная часть (+2px к 12f)
+                    drawLine(inactiveColor, Offset(progressWidth, height / 2), Offset(width, height / 2), strokeWidth = 14f, cap = StrokeCap.Round)
 
                     val activePath = Path()
                     activePath.moveTo(0f, height / 2)
 
                     val activePoints = (points * progress).toInt()
-                    val fadeDist = 16.dp.toPx() // Очень короткое затухание для чистоты краев
+                    val fadeDist = 16.dp.toPx()
 
                     if (activePoints >= 0) {
                         for (i in 0..activePoints) {
                             val x = (i.toFloat() / points) * width
-                            
-                            // Plateau-затухание: полная амплитуда везде, кроме самых краев
                             val distFromStart = x
                             val distFromEnd = progressWidth - x
                             val edgeFade = minOf(1f, distFromStart / fadeDist, distFromEnd / fadeDist).coerceIn(0f, 1f)
@@ -148,9 +146,10 @@ fun JasmineProgressBar(
 
                     activePath.lineTo(progressWidth, height / 2)
 
-                    drawPath(activePath, activeColor, style = Stroke(width = 14f, cap = StrokeCap.Round))
+                    // Активная линия (+2px к 14f)
+                    drawPath(activePath, activeColor, style = Stroke(width = 16f, cap = StrokeCap.Round))
 
-                    val baseRadius = 7.dp.toPx()
+                    val baseRadius = 9.dp.toPx() // Точка (+2dp к 7dp)
                     val thumbWidth = if (isPlaying) baseRadius * 2 else baseRadius * 2 * thumbScale
                     val thumbHeight = if (isPlaying) baseRadius * 2 * thumbScale else baseRadius * 2
 
@@ -161,10 +160,10 @@ fun JasmineProgressBar(
                     )
                 }
                 ProgressBarStyle.NEON -> {
-                    drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(activeColor.copy(alpha = 0.2f), Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 12.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(activeColor.copy(alpha = 0.4f), Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(inactiveColor, Offset(0f, height / 2), Offset(width, height / 2), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(activeColor.copy(alpha = 0.2f), Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 14.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(activeColor.copy(alpha = 0.4f), Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 8.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(activeColor, Offset(0f, height / 2), Offset(progressWidth, height / 2), strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
                 }
             }
         }

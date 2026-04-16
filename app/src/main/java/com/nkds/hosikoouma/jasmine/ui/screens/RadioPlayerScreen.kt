@@ -194,12 +194,13 @@ fun RadioPlayerContent(
                 onSkipPrevious = onSkipPrevious
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Rounded.VolumeDown, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Slider(
                     value = localVolume,
                     onValueChange = {
@@ -208,7 +209,7 @@ fun RadioPlayerContent(
                     },
                     modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                 )
-                Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(modifier = Modifier.weight(0.5f))
         }

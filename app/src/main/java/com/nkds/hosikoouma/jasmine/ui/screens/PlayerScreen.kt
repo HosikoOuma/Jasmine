@@ -63,6 +63,7 @@ import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
+import com.nkds.hosikoouma.jasmine.ui.components.ToastType
 import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
 import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
@@ -87,7 +88,8 @@ data class PlayerUiState(
     val progressStyle: ProgressBarStyle = ProgressBarStyle.STANDARD,
     val playbackSpeed: Float = 1f,
     val playbackPitch: Float = 1f,
-    val playlist: List<Track> = emptyList()
+    val playlist: List<Track> = emptyList(),
+    val sourceName: String? = null
 )
 
 // --- Stateful Screen ---
@@ -110,6 +112,7 @@ fun PlayerScreen(
     val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
     val playbackPitch by viewModel.playbackPitch.collectAsStateWithLifecycle()
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
+    val currentSource by viewModel.currentSource.collectAsStateWithLifecycle()
 
     val settingsViewModel: SettingsViewModel = viewModel()
     val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
@@ -126,7 +129,8 @@ fun PlayerScreen(
         progressStyle = settings.progressBarStyle,
         playbackSpeed = playbackSpeed,
         playbackPitch = playbackPitch,
-        playlist = playlist
+        playlist = playlist,
+        sourceName = currentSource
     )
 
     PlayerContent(
@@ -148,7 +152,7 @@ fun PlayerScreen(
         onLoadTracks = trackViewModel::loadTracks,
         onAddTrackToPlaylist = trackViewModel::addTrackToPlaylist,
         onSkipToItem = viewModel::skipToQueueItem,
-        pendingDeleteIntent = trackViewModel.pendingDeleteIntent,
+        onShowToast = viewModel::showToast,
         navController = navController,
         queueScreen = { onCloseQueue -> QueueScreen(viewModel = viewModel, onClose = onCloseQueue) },
         lyricsScreen = { onCloseLyrics -> LyricsScreen(viewModel = viewModel, onClose = onCloseLyrics) },
@@ -178,7 +182,7 @@ fun PlayerContent(
     onLoadTracks: () -> Unit,
     onAddTrackToPlaylist: (Long, Long) -> Unit,
     onSkipToItem: (Int) -> Unit,
-    pendingDeleteIntent: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null,
+    onShowToast: (Track?, ToastType, String?) -> Unit,
     navController: NavController = rememberNavController(),
     queueScreen: @Composable (onClose: () -> Unit) -> Unit = {},
     lyricsScreen: @Composable (onClose: () -> Unit) -> Unit = {},
@@ -197,21 +201,6 @@ fun PlayerContent(
 
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showPitchSheet by remember { mutableStateOf(false) }
-
-    val deleteLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            onLoadTracks()
-            Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        pendingDeleteIntent?.collect { intentSender ->
-            deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
-        }
-    }
 
     var isAlbumArtMinimized by remember { mutableStateOf(!uiState.isPlaying) }
     LaunchedEffect(uiState.isPlaying) {
@@ -299,7 +288,7 @@ fun PlayerContent(
                                 onClose()
                             }
                         } else {
-                            scope.launch { animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                            scope.launch { animatedOffset.snapTo(0f); animatedOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
@@ -320,15 +309,27 @@ fun PlayerContent(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(modifier = Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.height(72.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (uiState.currentTrack?.isManual == true) {
-                    Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f), shape = CircleShape, modifier = Modifier.padding(top = 8.dp)) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        shape = CircleShape,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
                         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("From Queue", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
                         }
                     }
+                } else if (uiState.sourceName != null) {
+                    Text(
+                        text = uiState.sourceName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
 
@@ -345,13 +346,14 @@ fun PlayerContent(
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1,
-                    key = { page -> uiState.playlist.getOrNull(page)?.uid ?: page }
+                    beyondViewportPageCount = 0, // ОПТИМИЗАЦИЯ: держим только 1 обложку в памяти вместо 3
+                    pageSpacing = 24.dp,
+                    key = { page -> "p_${uiState.playlist.getOrNull(page)?.uid ?: page}" }
                 ) { page ->
                     val track = uiState.playlist.getOrNull(page) ?: uiState.currentTrack
                     
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         AlbumArt(
@@ -376,6 +378,7 @@ fun PlayerContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             PlaybackProgressSection(
+                currentTrack = uiState.currentTrack,
                 progress = uiState.progress,
                 duration = uiState.duration,
                 progressStyle = uiState.progressStyle,
@@ -433,7 +436,7 @@ fun PlayerContent(
                         .padding(bottom = 24.dp)
                 ) {
                     // Оптимизация слайдера громкости: локальный стейт
-                    var localVolume by remember { mutableFloatStateOf(uiState.systemVolume) }
+                    var localVolume by remember { mutableStateOf(uiState.systemVolume) }
                     LaunchedEffect(uiState.systemVolume) { localVolume = uiState.systemVolume }
 
                     Surface(
@@ -522,15 +525,14 @@ fun PlayerContent(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bouncingClickable {
-                                showMoreActions = false
-                                showDeleteDialog = true
-                            },
+                        onClick = {
+                            showMoreActions = false
+                            showDeleteDialog = true
+                        },
                         color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
                         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        shape = RoundedCornerShape(20.dp)
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -578,9 +580,9 @@ fun PlayerContent(
             AddToPlaylistDialog(
                 onDismissRequest = { showAddToPlaylistDialog = false },
                 onPlaylistSelected = { playlistId ->
-                    onAddTrackToPlaylist(uiState.currentTrack.id, playlistId)
+                    onAddTrackToPlaylist(playlistId, uiState.currentTrack.id)
                     showAddToPlaylistDialog = false
-                    Toast.makeText(context, "Added to playlist", Toast.LENGTH_SHORT).show()
+                    onShowToast(null, ToastType.ADDED, "Added to playlist")
                 },
                 trackViewModel = trackViewModel
             )
@@ -593,12 +595,11 @@ fun PlayerContent(
                 text = { Text("Are you sure you want to delete \"${uiState.currentTrack.title}\" from your device?") },
                 confirmButton = {
                     TextButton(
-                        modifier = Modifier.bouncingClickable {
+                        onClick = {
                             showDeleteDialog = false
                             onPrepareForDeletion(listOf(uiState.currentTrack))
                             onDeleteTracks(listOf(uiState.currentTrack))
-                        },
-                        onClick = { }
+                        }
                     ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
@@ -628,6 +629,7 @@ fun TrackInfoSection(title: String?, artist: String?) {
 
 @Composable
 fun PlaybackProgressSection(
+    currentTrack: Track?,
     progress: Long,
     duration: Long,
     progressStyle: ProgressBarStyle,
@@ -636,10 +638,20 @@ fun PlaybackProgressSection(
 ) {
     var sliderValue by remember { mutableFloatStateOf(0f) }
     var lastSeekTime by remember { mutableLongStateOf(0L) }
+    var lastTrackId by remember { mutableLongStateOf(-1L) }
+
+    // Мгновенный сброс прогресса при смене трека
+    LaunchedEffect(currentTrack?.id) {
+        if (currentTrack?.id != lastTrackId) {
+            sliderValue = 0f
+            lastTrackId = currentTrack?.id ?: -1L
+        }
+    }
 
     LaunchedEffect(progress) {
         val now = System.currentTimeMillis()
-        if (now - lastSeekTime > 1000L) {
+        // Обновляем только если не было недавнего Seek и трек тот же
+        if (now - lastSeekTime > 1000L && currentTrack?.id == lastTrackId) {
             sliderValue = progress.toFloat()
         }
     }
@@ -738,7 +750,7 @@ fun BottomActionsSection(
         verticalAlignment = Alignment.CenterVertically
     ) {
         AnimatedControlIcon(Icons.AutoMirrored.Rounded.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowQueue() })
-        AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleFavorite() })
+        AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowQueue() })
         AnimatedControlIcon(Icons.Rounded.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowLyrics() })
         AnimatedControlIcon(Icons.Rounded.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowMore() })
     }
@@ -945,7 +957,8 @@ fun PlayerPreview() {
             onDeleteTracks = {},
             onLoadTracks = {},
             onAddTrackToPlaylist = { _, _ -> },
-            onSkipToItem = {}
+            onSkipToItem = {},
+            onShowToast = { _, _, _ -> }
         )
     }
 }

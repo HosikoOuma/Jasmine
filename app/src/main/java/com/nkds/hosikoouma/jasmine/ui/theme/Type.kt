@@ -7,6 +7,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.nkds.hosikoouma.jasmine.R
+import com.nkds.hosikoouma.jasmine.core.models.AppFontFamily
 
 // Google Sans
 val GoogleSans = FontFamily(
@@ -32,6 +33,16 @@ val Nunito = FontFamily(
     Font(R.font.nunito_extrabold, FontWeight.ExtraBold),
     Font(R.font.nunito_black, FontWeight.Black)
 )
+
+fun getTypography(appFont: AppFontFamily): Typography {
+    val fontFamily = when(appFont) {
+        AppFontFamily.DEFAULT -> FontFamily.Default
+        AppFontFamily.GOOGLE_SANS -> GoogleSans
+        AppFontFamily.JETBRAINS_MONO -> JetBrainsMonoNerd
+        AppFontFamily.NUNITO -> Nunito
+    }
+    return getTypography(fontFamily)
+}
 
 fun getTypography(fontFamily: FontFamily): Typography {
     return Typography(

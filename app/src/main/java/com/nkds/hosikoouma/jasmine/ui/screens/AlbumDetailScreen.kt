@@ -63,14 +63,14 @@ fun AlbumDetailScreen(
                 if (selectedTracks.isNotEmpty()) {
                     onToggleTrackSelection(it.tracks[index])
                 } else {
-                    playerViewModel.playTracks(it.tracks, index)
+                    playerViewModel.playTracks(it.tracks, index, sourceName = "Album: ${it.name}")
                     onNavigateToPlayer()
                 }
             }
         },
         onTrackLongClick = onToggleTrackSelection,
         onSwipeAction = { track -> playerViewModel.addToQueue(track, showToast = true) },
-        onToggleTrackSelection = onToggleTrackSelection // Добавлено!
+        onToggleTrackSelection = onToggleTrackSelection 
     )
 }
 
@@ -81,7 +81,7 @@ fun AlbumDetailContent(
     onTrackClick: (Int) -> Unit,
     onTrackLongClick: (Track) -> Unit,
     onSwipeAction: (Track) -> Unit,
-    onToggleTrackSelection: (Track) -> Unit // Добавлено!
+    onToggleTrackSelection: (Track) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val isInSelectionMode = uiState.selectedTracks.isNotEmpty()

@@ -162,7 +162,13 @@ fun MainScreen(
     LaunchedEffect(isPlayerExpanded, isRadioPlayerExpanded) { if (isPlayerExpanded || isRadioPlayerExpanded) keyboardController?.hide() }
     
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { selectedTracks = emptySet(); trackViewModel.loadTracks(); Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show() }
+        if (result.resultCode == Activity.RESULT_OK) { 
+            selectedTracks = emptySet()
+            trackViewModel.loadTracks()
+            playerViewModel.showToast(null, ToastType.DELETE_SUCCESS)
+        } else {
+            playerViewModel.showToast(null, ToastType.DELETE_FAILED)
+        }
     }
     LaunchedEffect(Unit) { trackViewModel.pendingDeleteIntent.collect { intentSender -> deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build()) } }
 
@@ -176,6 +182,7 @@ fun MainScreen(
         onSearchQueryChange = trackViewModel::setSearchQuery,
         onToggleSearch = { isSearching = !isSearching },
         onClearSelection = { selectedTracks = emptySet(); selectedStations = emptySet() },
+        onSelectTracks = { tracks -> selectedTracks = tracks.toSet() },
         onToggleReverse = trackViewModel::toggleReverse,
         onSetSortType = trackViewModel::setSortType,
         onTogglePlayer = { isPlayerExpanded = it },
@@ -199,6 +206,7 @@ private fun MainContent(
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: () -> Unit,
     onClearSelection: () -> Unit,
+    onSelectTracks: (List<Track>) -> Unit,
     onToggleReverse: () -> Unit,
     onSetSortType: (SortType) -> Unit,
     onTogglePlayer: (Boolean) -> Unit,
@@ -212,6 +220,16 @@ private fun MainContent(
     val context = LocalContext.current
     val focusRequester = remember { FocusRequester() }
     val playlistTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsStateWithLifecycle(initialValue = emptyList())
+    
+    // Get tracks for current folder if applicable
+    val folderPath = remember(uiState.currentRoute) {
+        if (uiState.currentRoute?.startsWith("folder_detail") == true) {
+            URLDecoder.decode(navController.currentBackStackEntry?.arguments?.getString("folderPath") ?: "", StandardCharsets.UTF_8.toString())
+        } else null
+    }
+    val folders by trackViewModel.folders.collectAsStateWithLifecycle()
+    val folderTracks = remember(folders, folderPath) { folders.find { it.path == folderPath }?.tracks ?: emptyList() }
+
     val isCollapsed by remember { derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f } }
 
     var showTrackPickerDialog by remember { mutableStateOf(false) }
@@ -268,6 +286,14 @@ private fun MainContent(
                         onRemoveFromPlaylist = { showRemoveFromPlaylistDialog = true },
                         onAddToPlaylist = { showAddToPlaylistDialog = true },
                         onShowTrackInfo = { showTrackInfoForSelection = it },
+                        onSelectAll = {
+                            val tracksToSelect = when {
+                                uiState.isPlaylistDetail -> playlistTracks
+                                folderPath != null -> folderTracks
+                                else -> emptyList()
+                            }
+                            onSelectTracks(tracksToSelect)
+                        },
                         playerViewModel = playerViewModel
                     )
                 },
@@ -379,6 +405,7 @@ private fun MainActionsSection(
     onRemoveFromPlaylist: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onShowTrackInfo: (Track) -> Unit,
+    onSelectAll: () -> Unit,
     playerViewModel: PlayerViewModel
 ) {
     val context = LocalContext.current
@@ -387,6 +414,11 @@ private fun MainActionsSection(
 
     if (uiState.selectedTracks.isNotEmpty() || uiState.selectedStations.isNotEmpty()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // Кнопка "Выделить всё" (только для треков в детальных экранах)
+            if (uiState.selectedTracks.isNotEmpty() && (uiState.isPlaylistDetail || uiState.currentRoute?.startsWith("folder_detail") == true)) {
+                IconButton(onClick = { onSelectAll() }) { Icon(Icons.Rounded.SelectAll, "Select All") }
+            }
+
             if (uiState.selectedTracks.isNotEmpty()) {
                 if (uiState.selectedTracks.size == 1) IconButton(onClick = { onShowTrackInfo(uiState.selectedTracks.first()) }) { Icon(Icons.Rounded.Info, null) }
                 if (uiState.isPlaylistDetail) IconButton(onClick = { onRemoveFromPlaylist() }) { Icon(Icons.Rounded.PlaylistRemove, null, tint = MaterialTheme.colorScheme.error) }
@@ -569,7 +601,7 @@ private fun MainDialogs(
     }
 
     if (showDeleteTracksDialog) {
-        AlertDialog(onDismissRequest = onDismissDeleteTracks, title = { Text("Delete Tracks") }, text = { Text("Delete ${selectedTracks.size} tracks?") }, confirmButton = { TextButton(onClick = { onDismissDeleteTracks(); playerViewModel.prepareForDeletion(selectedTracks.toList()); trackViewModel.deleteTracks(selectedTracks.toList()); onClearSelection() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeleteTracks() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
+        AlertDialog(onDismissRequest = onDismissDeleteTracks, title = { Text("Delete Tracks") }, text = { Text("Delete ${selectedTracks.size} tracks from device?") }, confirmButton = { TextButton(onClick = { onDismissDeleteTracks(); playerViewModel.prepareForDeletion(selectedTracks.toList()); trackViewModel.deleteTracks(selectedTracks.toList()); onClearSelection() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeleteTracks() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
     }
 
     if (showDeleteStationsDialog) {

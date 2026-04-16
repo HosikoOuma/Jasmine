@@ -55,7 +55,7 @@ fun JasmineThemeWrapper(
                                 val source = ImageDecoder.createSource(context.contentResolver, albumArtUri)
                                 ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                                     // Увеличиваем целевой размер до 256px для более точного анализа палитры
-                                    val targetSize = 512
+                                    val targetSize = 256
                                     val sampleSize = (info.size.width / targetSize).coerceAtLeast(1)
                                     decoder.setTargetSampleSize(sampleSize)
                                     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE

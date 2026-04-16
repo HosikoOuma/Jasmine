@@ -60,13 +60,18 @@ fun FolderDetailScreen(
                 if (selectedTracks.isNotEmpty()) {
                     onToggleTrackSelection(it.tracks[index])
                 } else {
-                    playerViewModel.playTracks(it.tracks, index)
+                    playerViewModel.playTracks(it.tracks, index, sourceName = "Folder: ${it.name}")
                     onNavigateToPlayer()
                 }
             }
         },
         onTrackLongClick = onToggleTrackSelection,
-        onSwipeAction = { track -> playerViewModel.addToQueue(track, showToast = true) }
+        onSwipeAction = { track -> playerViewModel.addToQueue(track, showToast = true) },
+        onSelectAll = {
+            folder?.tracks?.forEach { track ->
+                if (!selectedTracks.contains(track)) onToggleTrackSelection(track)
+            }
+        }
     )
 }
 
@@ -76,7 +81,8 @@ fun FolderDetailContent(
     uiState: FolderDetailUiState,
     onTrackClick: (Int) -> Unit,
     onTrackLongClick: (Track) -> Unit,
-    onSwipeAction: (Track) -> Unit
+    onSwipeAction: (Track) -> Unit,
+    onSelectAll: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
     val isInSelectionMode = uiState.selectedTracks.isNotEmpty()

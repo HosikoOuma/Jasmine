@@ -1,5 +1,7 @@
 package com.nkds.hosikoouma.jasmine.ui.components
 
+import android.graphics.Bitmap
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +28,7 @@ fun AlbumArt(
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.medium,
     contentScale: ContentScale = ContentScale.Crop,
-    isLowRes: Boolean = false // Параметр для оптимизации в списках
+    isLowRes: Boolean = false 
 ) {
     var isSuccess by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -43,11 +45,18 @@ fun AlbumArt(
                 .error(R.drawable.ison_vec)
                 .fallback(R.drawable.ison_vec)
                 .crossfade(true)
-                // Если это список, запрашиваем картинку по размеру контейнера
                 .apply {
                     if (isLowRes) {
                         precision(Precision.INEXACT)
-                        size(200, 200) // Ограничиваем размер для экономии памяти
+                        size(100, 100)
+                        bitmapConfig(Bitmap.Config.RGB_565)
+                    } else {
+                        // Снижаем разрешение до 600x600 для плеера (в 3 раза меньше памяти, чем 1024)
+                        precision(Precision.INEXACT)
+                        size(600, 600) 
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            bitmapConfig(Bitmap.Config.HARDWARE)
+                        }
                     }
                 }
                 .diskCachePolicy(CachePolicy.ENABLED)
