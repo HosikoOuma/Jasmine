@@ -18,6 +18,16 @@ class PlaylistRepository(private val context: Context) {
         m3uManager.savePlaylist(name, emptyList())
     }
 
+    suspend fun renamePlaylist(playlistId: Long, newName: String) {
+        val oldPlaylist = allPlaylists.first().find { it.id == playlistId }
+        playlistDao.updatePlaylistName(playlistId, newName)
+        
+        // Переименовываем M3U файл если он существует
+        oldPlaylist?.let {
+            m3uManager.renamePlaylistFile(it.name, newName)
+        }
+    }
+
     suspend fun deletePlaylist(playlist: PlaylistEntity) {
         playlistDao.deletePlaylist(playlist)
         m3uManager.deletePlaylistFile(playlist.name)
@@ -28,11 +38,6 @@ class PlaylistRepository(private val context: Context) {
         if (currentIds.contains(track.id)) return false
         
         playlistDao.addTrackToPlaylist(PlaylistTrackEntity(playlistId, track.id))
-        
-        // Обновляем M3U файл
-        val updatedIds = playlistDao.getTrackIdsForPlaylist(playlistId).first()
-        // Примечание: Здесь нам нужны полные объекты Track, но репозиторий работает с ID.
-        // Эту часть лучше делегировать ViewModel, которая имеет доступ ко всем трекам.
         return true
     }
 

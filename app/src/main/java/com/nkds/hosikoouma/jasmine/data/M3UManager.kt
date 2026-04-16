@@ -25,6 +25,14 @@ class M3UManager(private val context: Context) {
         file.writeText(content.toString())
     }
 
+    fun renamePlaylistFile(oldName: String, newName: String) {
+        val oldFile = File(playlistsDir, "$oldName.m3u")
+        val newFile = File(playlistsDir, "$newName.m3u")
+        if (oldFile.exists()) {
+            oldFile.renameTo(newFile)
+        }
+    }
+
     fun deletePlaylistFile(name: String) {
         val file = File(playlistsDir, "$name.m3u")
         if (file.exists()) file.delete()

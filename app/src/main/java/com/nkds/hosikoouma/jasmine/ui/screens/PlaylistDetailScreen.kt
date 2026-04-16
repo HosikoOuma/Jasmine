@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,8 +48,6 @@ fun PlaylistDetailScreen(
     onToggleTrackSelection: (Track) -> Unit
 ) {
     val playlists by trackViewModel.playlists.collectAsStateWithLifecycle()
-    // Находим сущность плейлиста. Во ViewModel используется Playlist, в БД PlaylistEntity.
-    // Для совместимости с UI State создаем временный Entity или адаптируем.
     val playlist = remember(playlists, playlistId) { 
         playlists.find { it.id == playlistId }?.let { PlaylistEntity(it.id, it.name, it.createdAt) }
     }
@@ -106,6 +105,16 @@ fun PlaylistDetailContent(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Добавляем информацию о количестве песен под заголовком (в списке это первый элемент)
+                item {
+                    Text(
+                        text = "${uiState.tracks.size} tracks",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
                 itemsIndexed(
                     items = uiState.tracks,
                     key = { _, track -> track.id }

@@ -21,7 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.nkds.hosikoouma.jasmine.data.PlaylistEntity
+import com.nkds.hosikoouma.jasmine.datamodels.Playlist
 import com.nkds.hosikoouma.jasmine.ui.components.LibraryItemCard
 import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
@@ -29,7 +29,7 @@ import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
 // --- UI State ---
 data class PlaylistListUiState(
-    val playlists: List<PlaylistEntity> = emptyList(),
+    val playlists: List<Playlist> = emptyList(),
     val isLoading: Boolean = false
 )
 
@@ -40,11 +40,6 @@ fun PlaylistListScreen(
     trackViewModel: TrackViewModel
 ) {
     val playlistsData by trackViewModel.playlists.collectAsStateWithLifecycle()
-    // Адаптируем нашу модель Playlist к Entity для UI если нужно, 
-    // но во ViewModel они уже маппятся. Используем PlaylistEntity для чистоты БД сущностей.
-    val playlists = remember(playlistsData) {
-        playlistsData.map { PlaylistEntity(it.id, it.name, it.createdAt) }
-    }
     
     val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -64,10 +59,11 @@ fun PlaylistListScreen(
     }
 
     PlaylistListContent(
-        uiState = PlaylistListUiState(playlists = playlists),
+        uiState = PlaylistListUiState(playlists = playlistsData),
         onPlaylistClick = { id -> navController.navigate("playlist_detail/$id") },
         onImportClick = { filePickerLauncher.launch("*/*") },
-        onCreateClick = { showCreateDialog = true }
+        onCreateClick = { showCreateDialog = true },
+        trackViewModel = trackViewModel
     )
 
     if (showCreateDialog) {
@@ -87,7 +83,8 @@ fun PlaylistListContent(
     uiState: PlaylistListUiState,
     onPlaylistClick: (Long) -> Unit,
     onImportClick: () -> Unit,
-    onCreateClick: () -> Unit
+    onCreateClick: () -> Unit,
+    trackViewModel: TrackViewModel? = null
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -107,9 +104,16 @@ fun PlaylistListContent(
                 }
             } else {
                 items(uiState.playlists, key = { it.id }) { playlist ->
+                    // Получаем количество песен для каждого плейлиста
+                    val tracksCount by if (trackViewModel != null) {
+                        trackViewModel.getTracksForPlaylist(playlist.id).collectAsStateWithLifecycle(initialValue = emptyList())
+                    } else {
+                        remember { mutableStateOf(emptyList()) }
+                    }
+
                     LibraryItemCard(
                         title = playlist.name,
-                        subtitle = "Playlist",
+                        subtitle = "${tracksCount.size} tracks",
                         icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
                         onClick = { onPlaylistClick(playlist.id) }
                     )
@@ -166,7 +170,7 @@ fun PlaylistListPreview() {
     JasmineTheme {
         PlaylistListContent(
             uiState = PlaylistListUiState(
-                playlists = listOf(PlaylistEntity(id = 1, name = "Favorites"), PlaylistEntity(id = 2, name = "Gym"))
+                playlists = listOf(Playlist(id = 1, name = "Favorites", emptyList()), Playlist(id = 2, name = "Gym", emptyList()))
             ),
             onPlaylistClick = {}, onImportClick = {}, onCreateClick = {}
         )

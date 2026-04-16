@@ -176,6 +176,10 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createPlaylist(name: String) = viewModelScope.launch { playlistRepository.createPlaylist(name) }
     
+    fun renamePlaylist(playlistId: Long, newName: String) = viewModelScope.launch {
+        playlistRepository.renamePlaylist(playlistId, newName)
+    }
+
     fun deletePlaylist(playlistId: Long) = viewModelScope.launch { 
         playlistRepository.allPlaylists.first().find { it.id == playlistId }?.let { playlistRepository.deletePlaylist(it) }
     }

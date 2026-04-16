@@ -209,6 +209,7 @@ private fun MainContent(
 
     var showTrackPickerDialog by remember { mutableStateOf(false) }
     var showDeletePlaylistDialog by remember { mutableStateOf(false) }
+    var showRenamePlaylistDialog by remember { mutableStateOf(false) }
     var showDeleteTracksDialog by remember { mutableStateOf(false) }
     var showDeleteStationsDialog by remember { mutableStateOf(false) }
     var showRemoveFromPlaylistDialog by remember { mutableStateOf(false) }
@@ -254,6 +255,7 @@ private fun MainContent(
                         onSetSortType = onSetSortType,
                         onExportPlaylist = { exportLauncher.launch("${uiState.currentPlaylistName}.m3u") },
                         onDeletePlaylist = { showDeletePlaylistDialog = true },
+                        onRenamePlaylist = { showRenamePlaylistDialog = true },
                         onDeleteTracks = { showDeleteTracksDialog = true },
                         onDeleteStations = { showDeleteStationsDialog = true },
                         onRemoveFromPlaylist = { showRemoveFromPlaylistDialog = true },
@@ -328,6 +330,7 @@ private fun MainContent(
     MainDialogs(
         showTrackPickerDialog = showTrackPickerDialog,
         showDeletePlaylistDialog = showDeletePlaylistDialog,
+        showRenamePlaylistDialog = showRenamePlaylistDialog,
         showDeleteTracksDialog = showDeleteTracksDialog,
         showDeleteStationsDialog = showDeleteStationsDialog,
         showRemoveFromPlaylistDialog = showRemoveFromPlaylistDialog,
@@ -342,6 +345,7 @@ private fun MainContent(
         navController = navController,
         onDismissTrackPicker = { showTrackPickerDialog = false },
         onDismissDeletePlaylist = { showDeletePlaylistDialog = false },
+        onDismissRenamePlaylist = { showRenamePlaylistDialog = false },
         onDismissDeleteTracks = { showDeleteTracksDialog = false },
         onDismissDeleteStations = { showDeleteStationsDialog = false },
         onDismissRemoveFromPlaylist = { showRemoveFromPlaylistDialog = false },
@@ -361,6 +365,7 @@ private fun MainActionsSection(
     onSetSortType: (SortType) -> Unit,
     onExportPlaylist: () -> Unit,
     onDeletePlaylist: () -> Unit,
+    onRenamePlaylist: () -> Unit,
     onDeleteTracks: () -> Unit,
     onDeleteStations: () -> Unit,
     onRemoveFromPlaylist: () -> Unit,
@@ -395,7 +400,13 @@ private fun MainActionsSection(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (uiState.isPlaylistDetail && !uiState.isSearching) {
                     IconButton(onClick = { onExportPlaylist() }) { Icon(Icons.Rounded.FileUpload, null) }
-                    IconButton(onClick = { onDeletePlaylist() }) { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }
+                    
+                    var showPlaylistMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showPlaylistMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }
+                    DropdownMenu(expanded = showPlaylistMenu, onDismissRequest = { showPlaylistMenu = false }, shape = RoundedCornerShape(24.dp)) {
+                        DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { showPlaylistMenu = false; onRenamePlaylist() })
+                        DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showPlaylistMenu = false; onDeletePlaylist() })
+                    }
                 }
                 if (uiState.isTracksScreen) IconButton(onClick = { onToggleSearch() }) { Icon(if (uiState.isSearching) Icons.Rounded.Close else Icons.Rounded.Search, null) }
                 if (!uiState.isSearching && uiState.shouldShowSort) {
@@ -420,6 +431,7 @@ private fun MainActionsSection(
 private fun MainDialogs(
     showTrackPickerDialog: Boolean,
     showDeletePlaylistDialog: Boolean,
+    showRenamePlaylistDialog: Boolean,
     showDeleteTracksDialog: Boolean,
     showDeleteStationsDialog: Boolean,
     showRemoveFromPlaylistDialog: Boolean,
@@ -434,6 +446,7 @@ private fun MainDialogs(
     navController: NavController,
     onDismissTrackPicker: () -> Unit,
     onDismissDeletePlaylist: () -> Unit,
+    onDismissRenamePlaylist: () -> Unit,
     onDismissDeleteTracks: () -> Unit,
     onDismissDeleteStations: () -> Unit,
     onDismissRemoveFromPlaylist: () -> Unit,
@@ -466,6 +479,34 @@ private fun MainDialogs(
                 }
             },
             confirmButton = { TextButton(onClick = onDismissTrackPicker) { Text("Done") } },
+            shape = RoundedCornerShape(28.dp)
+        )
+    }
+
+    if (showRenamePlaylistDialog) {
+        var newName by remember { mutableStateOf(currentPlaylistName) }
+        AlertDialog(
+            onDismissRequest = onDismissRenamePlaylist,
+            title = { Text("Rename Playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Playlist Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newName.isNotBlank() && newName != currentPlaylistName) {
+                        trackViewModel.renamePlaylist(playlistId, newName)
+                    }
+                    onDismissRenamePlaylist()
+                }) { Text("Rename") }
+            },
+            dismissButton = { TextButton(onClick = onDismissRenamePlaylist) { Text("Cancel") } },
             shape = RoundedCornerShape(28.dp)
         )
     }
