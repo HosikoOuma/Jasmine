@@ -750,7 +750,7 @@ fun BottomActionsSection(
         verticalAlignment = Alignment.CenterVertically
     ) {
         AnimatedControlIcon(Icons.AutoMirrored.Rounded.PlaylistPlay, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowQueue() })
-        AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowQueue() })
+        AnimatedControlIcon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 26.dp, tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleFavorite() })
         AnimatedControlIcon(Icons.Rounded.Lyrics, size = 26.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowLyrics() })
         AnimatedControlIcon(Icons.Rounded.MoreHoriz, size = 28.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = { VibrationUtils.performLongPressHaptic(haptic); onShowMore() })
     }

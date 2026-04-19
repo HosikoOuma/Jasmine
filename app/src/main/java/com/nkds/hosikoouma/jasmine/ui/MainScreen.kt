@@ -180,7 +180,10 @@ fun MainScreen(
         playerViewModel = playerViewModel,
         scrollBehavior = scrollBehavior,
         onSearchQueryChange = trackViewModel::setSearchQuery,
-        onToggleSearch = { isSearching = !isSearching },
+        onToggleSearch = { 
+            if (isSearching) trackViewModel.setSearchQuery("")
+            isSearching = !isSearching 
+        },
         onClearSelection = { selectedTracks = emptySet(); selectedStations = emptySet() },
         onSelectTracks = { tracks -> selectedTracks = tracks.toSet() },
         onToggleReverse = trackViewModel::toggleReverse,
