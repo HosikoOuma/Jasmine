@@ -82,8 +82,6 @@ dependencies {
     implementation(libs.materialkolor)
     implementation(libs.kmpalette.core)
 
-    implementation(libs.androidx.glance.appwidget)
-    implementation(libs.androidx.glance.material3)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)

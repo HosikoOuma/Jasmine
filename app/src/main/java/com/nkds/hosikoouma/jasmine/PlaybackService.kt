@@ -2,10 +2,6 @@ package com.nkds.hosikoouma.jasmine
 
 import android.app.PendingIntent
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
-import android.os.Build
-import android.provider.MediaStore
 import android.media.AudioAttributes as AndroidAudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -23,21 +19,14 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.nkds.hosikoouma.jasmine.core.CrossfadeManager
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import java.nio.charset.Charset
 import androidx.media3.extractor.metadata.icy.IcyInfo
-import androidx.compose.ui.graphics.asImageBitmap
-import com.kmpalette.palette.graphics.Palette
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import java.io.FileNotFoundException
-import androidx.glance.appwidget.GlanceAppWidgetManager
-import androidx.glance.appwidget.state.updateAppWidgetState
-import com.nkds.hosikoouma.jasmine.widget.JasmineWidget
-import com.nkds.hosikoouma.jasmine.widget.JasmineWidgetState
-import com.nkds.hosikoouma.jasmine.widget.JasmineWidgetStateDefinition
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -49,44 +38,13 @@ class PlaybackService : MediaSessionService() {
     private lateinit var playerB: ExoPlayer
     private lateinit var processorB: CrossfadeAudioProcessor
     
-    private var currentPlayer: ExoPlayer? = null
+    private lateinit var crossfadeManager: CrossfadeManager
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var audioManager: AudioManager
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private var isCrossfading = false
-    private var fadeJob: Job? = null
     
     private var playOnFocusGain = false
     private lateinit var focusRequest: AudioFocusRequest
-
-    private var isCrossfadeEnabled = true
-    private var crossfadeDurationMs = 3000L
-
-    private var feedbackJob: Job? = null
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            "ACTION_WIDGET_PLAY_PAUSE" -> {
-                currentPlayer?.let { 
-                    if (it.isPlaying) it.pause() else it.play()
-                    triggerWidgetFeedback()
-                }
-            }
-            "ACTION_WIDGET_NEXT" -> currentPlayer?.seekToNext()
-            "ACTION_WIDGET_PREV" -> currentPlayer?.seekToPrevious()
-            "ACTION_WIDGET_UPDATE_REQUEST" -> pushWidgetUpdate()
-        }
-        return super.onStartCommand(intent, flags, startId)
-    }
-
-    private fun triggerWidgetFeedback() {
-        feedbackJob?.cancel()
-        feedbackJob = serviceScope.launch {
-            updateGlanceState(showFeedback = true)
-            delay(1000)
-            updateGlanceState(showFeedback = false)
-        }
-    }
 
     override fun onCreate() {
         super.onCreate()
@@ -94,7 +52,6 @@ class PlaybackService : MediaSessionService() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         
         setupAudioFocus()
-        observeSettings()
         
         processorA = CrossfadeAudioProcessor()
         playerA = createPlayer(processorA, "PlayerA")
@@ -102,7 +59,18 @@ class PlaybackService : MediaSessionService() {
         processorB = CrossfadeAudioProcessor()
         playerB = createPlayer(processorB, "PlayerB")
 
-        currentPlayer = playerA
+        crossfadeManager = CrossfadeManager(
+            serviceScope = serviceScope,
+            playerA = playerA,
+            processorA = processorA,
+            playerB = playerB,
+            processorB = processorB,
+            onPlayerSwapped = { newPlayer ->
+                mediaSession?.setPlayer(newPlayer)
+            }
+        )
+        
+        observeSettings()
         
         val intent = Intent(this, MainActivity::class.java).apply {
             putExtra("OPEN_PLAYER", true)
@@ -122,21 +90,14 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(pendingIntent)
             .setCallback(CustomMediaSessionCallback())
             .build()
-
-        serviceScope.launch {
-            while (isActive) {
-                delay(500)
-                checkCrossfadeCondition()
-            }
-        }
     }
 
     private fun observeSettings() {
         serviceScope.launch {
-            settingsRepository.isCrossfadeEnabled.collectLatest { isCrossfadeEnabled = it }
+            settingsRepository.isCrossfadeEnabled.collectLatest { crossfadeManager.isEnabled = it }
         }
         serviceScope.launch {
-            settingsRepository.crossfadeDuration.collectLatest { crossfadeDurationMs = it }
+            settingsRepository.crossfadeDuration.collectLatest { crossfadeManager.durationMs = it }
         }
     }
 
@@ -201,27 +162,10 @@ class PlaybackService : MediaSessionService() {
                 playerCommand == Player.COMMAND_STOP ||
                 playerCommand == Player.COMMAND_SEEK_TO_MEDIA_ITEM ||
                 playerCommand == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) {
-                cancelActiveCrossfade()
+                crossfadeManager.cancelActiveCrossfade()
             }
             return super.onPlayerCommandRequest(session, controller, playerCommand)
         }
-    }
-
-    private fun cancelActiveCrossfade() {
-        if (!isCrossfading) return
-        fadeJob?.cancel()
-        fadeJob = null
-        
-        val oldPlayer = if (currentPlayer == playerA) playerB else playerA
-        val oldProcessor = if (oldPlayer == playerA) processorA else processorB
-        val currentProcessor = if (currentPlayer == playerA) processorA else processorB
-        
-        oldPlayer.pause()
-        oldPlayer.stop()
-        oldProcessor.setVolumeScale(1.0f)
-        currentProcessor.setVolumeScale(1.0f)
-        
-        isCrossfading = false
     }
 
     private fun setupAudioFocus() {
@@ -236,22 +180,22 @@ class PlaybackService : MediaSessionService() {
             .setOnAudioFocusChangeListener { focusChange ->
                 when (focusChange) {
                     AudioManager.AUDIOFOCUS_LOSS -> {
-                        cancelActiveCrossfade()
-                        currentPlayer?.pause()
+                        crossfadeManager.cancelActiveCrossfade()
+                        crossfadeManager.getCurrentPlayer().pause()
                     }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                        if (currentPlayer?.isPlaying == true) {
+                        if (crossfadeManager.getCurrentPlayer().isPlaying) {
                             playOnFocusGain = true
-                            currentPlayer?.pause()
+                            crossfadeManager.getCurrentPlayer().pause()
                         }
                     }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                        currentPlayer?.volume = 0.2f
+                        crossfadeManager.getCurrentPlayer().volume = 0.2f
                     }
                     AudioManager.AUDIOFOCUS_GAIN -> {
-                        currentPlayer?.volume = 1.0f
+                        crossfadeManager.getCurrentPlayer().volume = 1.0f
                         if (playOnFocusGain) {
-                            currentPlayer?.play()
+                            crossfadeManager.getCurrentPlayer().play()
                             playOnFocusGain = false
                         }
                     }
@@ -286,36 +230,38 @@ class PlaybackService : MediaSessionService() {
 
         player.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                if (playWhenReady && !isCrossfading) {
+                if (playWhenReady && player == crossfadeManager.getCurrentPlayer()) {
                     requestManualAudioFocus()
                 }
-                
-                if (isCrossfading && player == currentPlayer) {
-                    val otherPlayer = if (player == playerA) playerB else playerA
-                    if (otherPlayer.playWhenReady != playWhenReady) {
-                        otherPlayer.playWhenReady = playWhenReady
-                    }
-                }
-                pushWidgetUpdate()
+                crossfadeManager.scheduleCrossfade()
             }
             
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
+                crossfadeManager.scheduleCrossfade()
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                crossfadeManager.scheduleCrossfade()
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                if (!isCrossfading) {
+                val currentPlayer = crossfadeManager.getCurrentPlayer()
+                if (player == currentPlayer) {
                     val otherPlayer = if (player == playerA) playerB else playerA
                     if (otherPlayer.isPlaying) {
                         otherPlayer.pause()
                         otherPlayer.stop()
                     }
                 }
-                pushWidgetUpdate()
+                crossfadeManager.scheduleCrossfade()
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 Log.e("JasminePlayer", "[$name] Error: ${error.errorCodeName} (${error.errorCode})", error)
-            }
-
-            override fun onPlaybackStateChanged(state: Int) {
-                pushWidgetUpdate()
             }
 
             override fun onMetadata(metadata: Metadata) {
@@ -360,89 +306,6 @@ class PlaybackService : MediaSessionService() {
                 .build()
             
             player.replaceMediaItem(player.currentMediaItemIndex, updatedItem)
-            pushWidgetUpdate()
-        }
-    }
-
-    private fun pushWidgetUpdate() {
-        updateGlanceState()
-        
-        val player = currentPlayer ?: return
-        val item = player.currentMediaItem ?: return
-        
-        val title = item.mediaMetadata.title?.toString() ?: "Unknown"
-        val artist = item.mediaMetadata.artist?.toString() ?: "Jasmine"
-        val isPlaying = player.isPlaying
-        val artworkUri = item.mediaMetadata.artworkUri
-        
-        serviceScope.launch(Dispatchers.Default) {
-            var albumArt: Bitmap? = null
-            var seedColor: Int? = null
-            
-            try {
-                if (artworkUri != null) {
-                    albumArt = withContext(Dispatchers.IO) {
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, artworkUri))
-                            } else {
-                                @Suppress("DEPRECATION")
-                                MediaStore.Images.Media.getBitmap(contentResolver, artworkUri)
-                            }
-                        } catch (e: FileNotFoundException) {
-                            null
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                    
-                    albumArt?.let { bitmap ->
-                        val palette = Palette.from(bitmap.asImageBitmap()).generate()
-                        seedColor = palette.dominantSwatch?.rgb
-                    }
-                }
-            } catch (e: Exception) { 
-                // Ignore widget update errors
-            }
-
-            withContext(Dispatchers.Main) {
-                PlayerWidget.updateWidget(
-                    context = this@PlaybackService,
-                    title = title,
-                    artist = artist,
-                    isPlaying = isPlaying,
-                    albumArt = albumArt,
-                    backgroundColor = seedColor
-                )
-            }
-        }
-    }
-
-    private fun updateGlanceState(showFeedback: Boolean = false) {
-        val player = currentPlayer ?: return
-        val item = player.currentMediaItem ?: return
-        val title = item.mediaMetadata.title?.toString() ?: "Unknown"
-        val artist = item.mediaMetadata.artist?.toString() ?: "Jasmine"
-        val isPlaying = player.isPlaying
-        val artworkUri = item.mediaMetadata.artworkUri
-
-        serviceScope.launch {
-            val context = this@PlaybackService
-            val glanceManager = GlanceAppWidgetManager(context)
-            val glanceIds = glanceManager.getGlanceIds(JasmineWidget::class.java)
-            
-            glanceIds.forEach { glanceId ->
-                updateAppWidgetState(context, JasmineWidgetStateDefinition, glanceId) {
-                    JasmineWidgetState(
-                        title = title,
-                        artist = artist,
-                        isPlaying = isPlaying,
-                        albumArtUri = artworkUri?.toString(),
-                        showFeedback = showFeedback
-                    )
-                }
-                JasmineWidget().update(context, glanceId)
-            }
         }
     }
 
@@ -480,93 +343,6 @@ class PlaybackService : MediaSessionService() {
         } catch (e: Throwable) { s }
     }
 
-    private suspend fun checkCrossfadeCondition() {
-        val current = currentPlayer ?: return
-        if (!current.isPlaying || isCrossfading) return
-
-        val isRadio = current.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio") ?: false
-        if (isRadio) return
-
-        if (!isCrossfadeEnabled) return
-
-        val duration = current.duration
-        if (duration == C.TIME_UNSET || duration <= 0) return
-
-        val remaining = duration - current.currentPosition
-        val isRepeatOne = current.repeatMode == Player.REPEAT_MODE_ONE
-        val isRepeatAll = current.repeatMode == Player.REPEAT_MODE_ALL
-        val hasNext = current.nextMediaItemIndex != C.INDEX_UNSET || isRepeatOne || isRepeatAll
-
-        if (remaining in 200..crossfadeDurationMs && hasNext) {
-            startOverlappingCrossfade(crossfadeDurationMs)
-        }
-    }
-
-    private fun startOverlappingCrossfade(fadeDuration: Long) {
-        isCrossfading = true
-        val oldPlayer = currentPlayer!!
-        val oldProcessor = if (oldPlayer == playerA) processorA else processorB
-        
-        val nextPlayer = if (oldPlayer == playerA) playerB else playerA
-        val nextProcessor = if (nextPlayer == playerA) processorA else processorB
-        
-        val currentRepeatMode = oldPlayer.repeatMode
-        val currentShuffleMode = oldPlayer.shuffleModeEnabled
-        
-        val nextIndex = if (currentRepeatMode == Player.REPEAT_MODE_ONE) {
-            oldPlayer.currentMediaItemIndex
-        } else if (oldPlayer.nextMediaItemIndex != C.INDEX_UNSET) {
-            oldPlayer.nextMediaItemIndex
-        } else if (currentRepeatMode == Player.REPEAT_MODE_ALL) {
-            0
-        } else {
-            -1
-        }
-
-        if (nextIndex == -1) {
-            isCrossfading = false
-            return
-        }
-
-        val allItems = getAllItems(oldPlayer)
-        nextProcessor.setVolumeScale(0f)
-        nextPlayer.setMediaItems(allItems, nextIndex, 0L)
-        nextPlayer.shuffleModeEnabled = currentShuffleMode
-        nextPlayer.repeatMode = currentRepeatMode
-        nextPlayer.prepare()
-        nextPlayer.play()
-
-        oldPlayer.repeatMode = Player.REPEAT_MODE_OFF
-        if (currentRepeatMode != Player.REPEAT_MODE_ONE) {
-            if (oldPlayer.mediaItemCount > nextIndex) {
-                oldPlayer.removeMediaItems(nextIndex, oldPlayer.mediaItemCount)
-            }
-        }
-
-        currentPlayer = nextPlayer
-        mediaSession?.setPlayer(nextPlayer)
-
-        fadeJob?.cancel()
-        fadeJob = serviceScope.launch(Dispatchers.Default) {
-            val steps = 30 
-            val interval = (fadeDuration / steps).coerceAtLeast(16)
-            for (i in 1..steps) {
-                if (!isActive) break
-                val progress = i.toFloat() / steps
-                nextProcessor.setVolumeScale(progress)
-                oldProcessor.setVolumeScale(1f - progress)
-                delay(interval)
-            }
-            withContext(Dispatchers.Main) {
-                oldPlayer.pause()
-                oldPlayer.stop()
-                oldProcessor.setVolumeScale(1.0f)
-                isCrossfading = false
-            }
-            fadeJob = null
-        }
-    }
-
     private fun getAllItems(player: Player): List<MediaItem> {
         return List(player.mediaItemCount) { i -> player.getMediaItemAt(i) }
     }
@@ -576,8 +352,7 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         serviceScope.cancel()
         audioManager.abandonAudioFocusRequest(focusRequest)
-        playerA.release()
-        playerB.release()
+        crossfadeManager.release()
         mediaSession?.release()
         super.onDestroy()
     }

@@ -64,30 +64,6 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".PlayerWidget"
-            android:exported="true"
-            android:label="Jasmine Widget">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/player_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.JasmineWidgetReceiver"
-            android:exported="true"
-            android:label="Jasmine Square Widget">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/jasmine_widget_info" />
-        </receiver>
-
         <service
             android:name=".PlaybackService"
             android:foregroundServiceType="mediaPlayback"

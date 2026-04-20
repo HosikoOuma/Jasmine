@@ -64,6 +64,13 @@ fun LyricsScreen(
     val syncedRemote by viewModel.syncedRemoteLyrics.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoadingLyrics.collectAsStateWithLifecycle()
 
+    // Запускаем загрузку текста только при открытии экрана
+    LaunchedEffect(currentTrack) {
+        if (currentTrack != null) {
+            viewModel.loadLyricsForCurrentTrack()
+        }
+    }
+
     val uiState = LyricsUiState(
         currentTrack = currentTrack,
         isPlaying = isPlaying,
@@ -152,6 +159,7 @@ fun LyricsContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LyricsHeader(isLrcLibMode: Boolean, onModeChange: (Boolean) -> Unit) {
+    // ... остальной код заголовка (без изменений) ...
     Row(
         modifier = Modifier
             .fillMaxWidth()

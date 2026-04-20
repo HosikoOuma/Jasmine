@@ -7,6 +7,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,7 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @Composable
 fun MiniPlayer(
@@ -50,7 +54,13 @@ fun MiniPlayer(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    
     val offsetX = remember { Animatable(0f) }
+    val offsetY = remember { Animatable(0f) }
+
+    val maxDragUpPx = with(density) { 16.dp.toPx() }
+    var hasVibratedOnLimit by remember { mutableStateOf(false) }
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -60,39 +70,93 @@ fun MiniPlayer(
         label = "scale"
     )
 
+    // Закругление всей карточки по мере перетаскивания вверх (от 16dp до 32dp)
+    val dynamicCornerRadius by animateDpAsState(
+        targetValue = if (offsetY.value < 0) {
+            (16 + (abs(offsetY.value) / maxDragUpPx * 16)).dp
+        } else 16.dp,
+        label = "corners"
+    )
+
     Surface(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .height(64.dp)
             .fillMaxWidth()
-            .draggable(
-                enabled = !isRadioMode,
-                orientation = Orientation.Horizontal,
-                state = rememberDraggableState { delta ->
-                    scope.launch { offsetX.snapTo(offsetX.value + delta) }
-                },
-                onDragStopped = {
-                    if (offsetX.value > 160) {
-                        viewModel.skipToNext()
-                        vibrateClick(context)
-                    } else if (offsetX.value < -160) {
-                        viewModel.skipToPrevious()
-                        vibrateClick(context)
+            .pointerInput(isRadioMode) {
+                var isVerticalDrag = false
+                var isHorizontalDrag = false
+                
+                detectDragGestures(
+                    onDragStart = {
+                        isVerticalDrag = false
+                        isHorizontalDrag = false
+                        hasVibratedOnLimit = false
+                    },
+                    onDragEnd = {
+                        scope.launch {
+                            if (isVerticalDrag && offsetY.value <= -maxDragUpPx * 0.8f) {
+                                onClick() // Открываем плеер
+                            } else if (isHorizontalDrag && !isRadioMode) {
+                                if (offsetX.value > 150f) {
+                                    viewModel.skipToPrevious()
+                                    vibrateClick(context)
+                                } else if (offsetX.value < -150f) {
+                                    viewModel.skipToNext()
+                                    vibrateClick(context)
+                                }
+                            }
+                            
+                            launch { offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                            launch { offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                        }
+                    },
+                    onDragCancel = {
+                        scope.launch {
+                            offsetX.animateTo(0f, spring())
+                            offsetY.animateTo(0f, spring())
+                        }
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        
+                        // Определяем направление жеста при начале движения
+                        if (!isVerticalDrag && !isHorizontalDrag) {
+                            if (abs(dragAmount.y) > abs(dragAmount.x)) {
+                                isVerticalDrag = true
+                            } else {
+                                isHorizontalDrag = true
+                            }
+                        }
+
+                        scope.launch {
+                            if (isVerticalDrag) {
+                                val newY = (offsetY.value + dragAmount.y).coerceIn(-maxDragUpPx, 0f)
+                                
+                                // Вызываем вибрацию при достижении лимита
+                                if (newY <= -maxDragUpPx && !hasVibratedOnLimit) {
+                                    vibrateClick(context)
+                                    hasVibratedOnLimit = true
+                                }
+
+                                offsetY.snapTo(newY)
+                            } else if (isHorizontalDrag && !isRadioMode) {
+                                offsetX.snapTo(offsetX.value + dragAmount.x)
+                            }
+                        }
                     }
-                    scope.launch {
-                        offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
-                    }
-                }
-            )
+                )
+            }
             .graphicsLayer {
                 translationX = offsetX.value
+                translationY = offsetY.value
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(dynamicCornerRadius))
             .bouncingClickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(dynamicCornerRadius),
         tonalElevation = 8.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
