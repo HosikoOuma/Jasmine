@@ -1,9 +1,7 @@
 package com.nkds.hosikoouma.jasmine.ui
 
 import android.app.Activity
-import android.graphics.Bitmap
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -40,10 +38,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
@@ -60,27 +56,6 @@ import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-// --- UI State ---
-data class MainUiState(
-    val currentRoute: String? = null,
-    val dynamicTitle: String = "Jasmine",
-    val searchQuery: String = "",
-    val isSearching: Boolean = false,
-    val isPlayerExpanded: Boolean = false,
-    val isRadioPlayerExpanded: Boolean = false,
-    val isReversed: Boolean = false,
-    val selectedTracks: Set<Track> = emptySet(),
-    val selectedStations: Set<RadioStation> = emptySet(),
-    val isRadioMode: Boolean = false,
-    val currentPlaylistName: String = "Playlist",
-    val currentPlaylistCover: Uri? = null,
-    val canPop: Boolean = false,
-    val isPlaylistDetail: Boolean = false,
-    val isTracksScreen: Boolean = false,
-    val isRadioScreen: Boolean = false,
-    val shouldShowSort: Boolean = false
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -89,13 +64,12 @@ fun MainScreen(
 ) {
     val navController = rememberNavController()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     
     // States
     var isPlayerExpanded by rememberSaveable { mutableStateOf(false) }
     var isRadioPlayerExpanded by rememberSaveable { mutableStateOf(false) }
-    var isSearching by remember { mutableStateOf(false) }
+    var isSearching by rememberSaveable { mutableStateOf(false) }
     var selectedTracks by remember { mutableStateOf(setOf<Track>()) }
     var selectedStations by remember { mutableStateOf(setOf<RadioStation>()) }
     var showAddRadioDialog by remember { mutableStateOf(false) }
@@ -107,29 +81,27 @@ fun MainScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Compute Derived UI values
-    val playlistId = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L }
-    val playlists by trackViewModel.playlists.collectAsStateWithLifecycle()
-    val currentPlaylist = remember(playlists, playlistId) { playlists.find { it.id == playlistId } }
-    val currentPlaylistName = currentPlaylist?.name ?: "Playlist"
-    val currentPlaylistCover = currentPlaylist?.coverUri
-    
+    // 1. Оптимизация заголовка через derivedStateOf
     val isInSelectionMode = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()
-    
-    val dynamicTitle = remember(currentRoute, navBackStackEntry, currentPlaylistName, selectedTracks.size, selectedStations.size) {
-        if (isInSelectionMode) {
-            "${if (selectedTracks.isNotEmpty()) selectedTracks.size else selectedStations.size} selected"
-        } else {
-            when {
-                currentRoute?.startsWith("album_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("albumName") ?: "Album", StandardCharsets.UTF_8.toString())
-                currentRoute?.startsWith("artist_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("artistName") ?: "Artist", StandardCharsets.UTF_8.toString())
-                currentRoute?.startsWith("folder_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("folderPath") ?: "Folder", StandardCharsets.UTF_8.toString()).substringAfterLast("/")
-                currentRoute?.startsWith("playlist_detail") == true -> currentPlaylistName
-                currentRoute == Screen.LibraryAlbums.route -> "Albums"
-                currentRoute == Screen.LibraryArtists.route -> "Artists"
-                currentRoute == Screen.LibraryFolders.route -> "Folders"
-                currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
-                else -> Screen.items.find { it.route == currentRoute }?.title ?: "Jasmine"
+    val dynamicTitle by remember(currentRoute, navBackStackEntry, isInSelectionMode, selectedTracks.size, selectedStations.size) {
+        derivedStateOf {
+            if (isInSelectionMode) {
+                "${if (selectedTracks.isNotEmpty()) selectedTracks.size else selectedStations.size} selected"
+            } else {
+                when {
+                    currentRoute?.startsWith("album_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("albumName") ?: "Album", StandardCharsets.UTF_8.toString())
+                    currentRoute?.startsWith("artist_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("artistName") ?: "Artist", StandardCharsets.UTF_8.toString())
+                    currentRoute?.startsWith("folder_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("folderPath") ?: "Folder", StandardCharsets.UTF_8.toString()).substringAfterLast("/")
+                    currentRoute?.startsWith("playlist_detail") == true -> {
+                        val pId = navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L
+                        trackViewModel.getPlaylistNameSync(pId) ?: "Playlist"
+                    }
+                    currentRoute == Screen.LibraryAlbums.route -> "Albums"
+                    currentRoute == Screen.LibraryArtists.route -> "Artists"
+                    currentRoute == Screen.LibraryFolders.route -> "Folders"
+                    currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
+                    else -> Screen.items.find { it.route == currentRoute }?.title ?: "Jasmine"
+                }
             }
         }
     }
@@ -137,29 +109,15 @@ fun MainScreen(
     val isMainDestination = remember(currentRoute) { Screen.items.any { it.route == currentRoute } }
     val canPop = remember(navBackStackEntry, isMainDestination) { navController.previousBackStackEntry != null && !isMainDestination }
 
-    val uiState = MainUiState(
-        currentRoute = currentRoute,
-        dynamicTitle = dynamicTitle,
-        searchQuery = searchQuery,
-        isSearching = isSearching,
-        isPlayerExpanded = isPlayerExpanded,
-        isRadioPlayerExpanded = isRadioPlayerExpanded,
-        isReversed = isReversed,
-        selectedTracks = selectedTracks,
-        selectedStations = selectedStations,
-        isRadioMode = isRadioMode,
-        currentPlaylistName = currentPlaylistName,
-        currentPlaylistCover = currentPlaylistCover,
-        canPop = canPop,
-        isPlaylistDetail = currentRoute?.startsWith("playlist_detail") == true,
-        isTracksScreen = currentRoute == Screen.Tracks.route,
-        isRadioScreen = currentRoute == Screen.Radio.route,
-        shouldShowSort = currentRoute == Screen.Tracks.route || currentRoute?.contains("library_") == true || currentRoute?.startsWith("playlist_detail") == true
-    )
-
     // Side Effects
-    LaunchedEffect(currentRoute) { selectedTracks = emptySet(); selectedStations = emptySet() }
-    LaunchedEffect(isPlayerExpanded, isRadioPlayerExpanded) { if (isPlayerExpanded || isRadioPlayerExpanded) keyboardController?.hide() }
+    LaunchedEffect(currentRoute) { 
+        selectedTracks = emptySet()
+        selectedStations = emptySet() 
+    }
+    
+    LaunchedEffect(isPlayerExpanded, isRadioPlayerExpanded) { 
+        if (isPlayerExpanded || isRadioPlayerExpanded) keyboardController?.hide() 
+    }
     
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { 
@@ -170,15 +128,28 @@ fun MainScreen(
             playerViewModel.showToast(null, ToastType.DELETE_FAILED)
         }
     }
-    LaunchedEffect(Unit) { trackViewModel.pendingDeleteIntent.collect { intentSender -> deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build()) } }
+    
+    LaunchedEffect(Unit) { 
+        trackViewModel.pendingDeleteIntent.collect { intentSender -> 
+            deleteLauncher.launch(IntentSenderRequest.Builder(intentSender).build()) 
+        } 
+    }
 
     // UI Structure
     MainContent(
-        uiState = uiState,
         navController = navController,
         trackViewModel = trackViewModel,
         playerViewModel = playerViewModel,
         scrollBehavior = scrollBehavior,
+        currentRoute = currentRoute,
+        dynamicTitle = dynamicTitle,
+        searchQuery = searchQuery,
+        isSearching = isSearching,
+        isReversed = isReversed,
+        isRadioMode = isRadioMode,
+        canPop = canPop,
+        selectedTracks = selectedTracks,
+        selectedStations = selectedStations,
         onSearchQueryChange = trackViewModel::setSearchQuery,
         onToggleSearch = { 
             if (isSearching) trackViewModel.setSearchQuery("")
@@ -193,19 +164,30 @@ fun MainScreen(
         onToggleAddRadioDialog = { showAddRadioDialog = it },
         onToggleTrackSelection = { track -> selectedTracks = if (selectedTracks.contains(track)) selectedTracks - track else selectedTracks + track },
         onToggleStationSelection = { station -> selectedStations = if (selectedStations.contains(station)) selectedStations - station else selectedStations + station },
-        showAddRadioDialog = showAddRadioDialog,
-        playlistId = playlistId
+        isPlayerExpanded = isPlayerExpanded,
+        isRadioPlayerExpanded = isRadioPlayerExpanded,
+        showAddRadioDialog = showAddRadioDialog
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainContent(
-    uiState: MainUiState,
     navController: androidx.navigation.NavHostController,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     scrollBehavior: TopAppBarScrollBehavior,
+    currentRoute: String?,
+    dynamicTitle: String,
+    searchQuery: String,
+    isSearching: Boolean,
+    isReversed: Boolean,
+    isRadioMode: Boolean,
+    canPop: Boolean,
+    selectedTracks: Set<Track>,
+    selectedStations: Set<RadioStation>,
+    isPlayerExpanded: Boolean,
+    isRadioPlayerExpanded: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: () -> Unit,
     onClearSelection: () -> Unit,
@@ -218,20 +200,17 @@ private fun MainContent(
     onToggleTrackSelection: (Track) -> Unit,
     onToggleStationSelection: (RadioStation) -> Unit,
     showAddRadioDialog: Boolean,
-    playlistId: Long
 ) {
-    val context = LocalContext.current
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val playlistId = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L }
     val focusRequester = remember { FocusRequester() }
-    val playlistTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsStateWithLifecycle(initialValue = emptyList())
     
-    // Get tracks for current folder if applicable
-    val folderPath = remember(uiState.currentRoute) {
-        if (uiState.currentRoute?.startsWith("folder_detail") == true) {
-            URLDecoder.decode(navController.currentBackStackEntry?.arguments?.getString("folderPath") ?: "", StandardCharsets.UTF_8.toString())
-        } else null
+    val isPlaylistDetail = remember(currentRoute) { currentRoute?.startsWith("playlist_detail") == true }
+    val isTracksScreen = remember(currentRoute) { currentRoute == Screen.Tracks.route }
+    val isRadioScreen = remember(currentRoute) { currentRoute == Screen.Radio.route }
+    val shouldShowSort = remember(currentRoute) { 
+        currentRoute == Screen.Tracks.route || currentRoute?.contains("library_") == true || currentRoute?.startsWith("playlist_detail") == true 
     }
-    val folders by trackViewModel.folders.collectAsStateWithLifecycle()
-    val folderTracks = remember(folders, folderPath) { folders.find { it.path == folderPath }?.tracks ?: emptyList() }
 
     val isCollapsed by remember { derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f } }
 
@@ -253,9 +232,9 @@ private fun MainContent(
         topBar = {
             LargeTopAppBar(
                 title = {
-                    if (uiState.isSearching && uiState.isTracksScreen) {
+                    if (isSearching && isTracksScreen) {
                         TextField(
-                            value = uiState.searchQuery,
+                            value = searchQuery,
                             onValueChange = onSearchQueryChange,
                             placeholder = { Text("Search tracks...") },
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
@@ -264,24 +243,31 @@ private fun MainContent(
                         )
                         LaunchedEffect(Unit) { focusRequester.requestFocus() }
                     } else {
-                        Text(uiState.dynamicTitle)
+                        Text(dynamicTitle)
                     }
                 },
                 navigationIcon = {
-                    if (uiState.selectedTracks.isNotEmpty() || uiState.selectedStations.isNotEmpty()) {
+                    if (selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()) {
                         IconButton(onClick = { onClearSelection() }) { Icon(Icons.Rounded.Close, "Clear") }
-                    } else if (uiState.canPop && !uiState.isSearching) {
+                    } else if (canPop && !isSearching) {
                         IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                     }
                 },
                 actions = {
                     MainActionsSection(
-                        uiState = uiState,
+                        currentRoute = currentRoute,
+                        selectedTracks = selectedTracks,
+                        selectedStations = selectedStations,
+                        isSearching = isSearching,
+                        isTracksScreen = isTracksScreen,
+                        isPlaylistDetail = isPlaylistDetail,
+                        shouldShowSort = shouldShowSort,
+                        isReversed = isReversed,
                         isCollapsed = isCollapsed,
                         onToggleSearch = onToggleSearch,
                         onToggleReverse = onToggleReverse,
                         onSetSortType = onSetSortType,
-                        onExportPlaylist = { exportLauncher.launch("${uiState.currentPlaylistName}.m3u") },
+                        onExportPlaylist = { exportLauncher.launch("Playlist.m3u") },
                         onDeletePlaylist = { showDeletePlaylistDialog = true },
                         onRenamePlaylist = { showRenamePlaylistDialog = true },
                         onDeleteTracks = { showDeleteTracksDialog = true },
@@ -290,12 +276,10 @@ private fun MainContent(
                         onAddToPlaylist = { showAddToPlaylistDialog = true },
                         onShowTrackInfo = { showTrackInfoForSelection = it },
                         onSelectAll = {
-                            val tracksToSelect = when {
-                                uiState.isPlaylistDetail -> playlistTracks
-                                folderPath != null -> folderTracks
-                                else -> emptyList()
+                            if (isPlaylistDetail) {
+                                // Загружаем список только в момент нажатия "Выбрать все"
+                                trackViewModel.getPlaylistTracksSync(playlistId).let { onSelectTracks(it) }
                             }
-                            onSelectTracks(tracksToSelect)
                         },
                         playerViewModel = playerViewModel
                     )
@@ -304,11 +288,11 @@ private fun MainContent(
             )
         },
         floatingActionButton = {
-            if (uiState.selectedTracks.isEmpty() && uiState.selectedStations.isEmpty()) {
-                if (uiState.isPlaylistDetail && playlistTracks.isNotEmpty()) {
-                    FloatingActionButton(onClick = { showTrackPickerDialog = true }, modifier = Modifier.padding(bottom = 140.dp).bouncingClickable { showTrackPickerDialog = true }, containerColor = MaterialTheme.colorScheme.primaryContainer) { Icon(Icons.Rounded.Add, null) }
-                } else if (uiState.isRadioScreen) {
-                    FloatingActionButton(onClick = { onToggleAddRadioDialog(true) }, modifier = Modifier.padding(bottom = 140.dp).bouncingClickable { onToggleAddRadioDialog(true) }, containerColor = MaterialTheme.colorScheme.primaryContainer) { Icon(Icons.Rounded.Add, null) }
+            if (selectedTracks.isEmpty() && selectedStations.isEmpty()) {
+                if (isPlaylistDetail) {
+                    FloatingActionButton(onClick = { showTrackPickerDialog = true }, modifier = Modifier.padding(bottom = 140.dp), containerColor = MaterialTheme.colorScheme.primaryContainer) { Icon(Icons.Rounded.Add, null) }
+                } else if (isRadioScreen) {
+                    FloatingActionButton(onClick = { onToggleAddRadioDialog(true) }, modifier = Modifier.padding(bottom = 140.dp), containerColor = MaterialTheme.colorScheme.primaryContainer) { Icon(Icons.Rounded.Add, null) }
                 }
             }
         }
@@ -318,11 +302,11 @@ private fun MainContent(
                 navController = navController,
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = { /* ТЕПЕРЬ ПУСТО: НЕ ОТКРЫВАЕМ ПРИ КЛИКЕ */ },
+                onNavigateToPlayer = { /* Пусто */ },
                 onNavigateToRadioPlayer = { onToggleRadioPlayer(true) },
-                selectedTracks = uiState.selectedTracks,
+                selectedTracks = selectedTracks,
                 onToggleTrackSelection = onToggleTrackSelection,
-                selectedStations = uiState.selectedStations,
+                selectedStations = selectedStations,
                 onToggleStationSelection = onToggleStationSelection,
                 onAddTracksToPlaylist = { showTrackPickerDialog = true },
                 showAddRadioDialog = showAddRadioDialog,
@@ -330,14 +314,14 @@ private fun MainContent(
                 modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
             )
             
-            BackHandler(enabled = uiState.selectedTracks.isNotEmpty() || uiState.selectedStations.isNotEmpty() || uiState.isPlayerExpanded || uiState.isRadioPlayerExpanded || uiState.isSearching || uiState.canPop || showAddRadioDialog) {
+            BackHandler(enabled = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty() || isPlayerExpanded || isRadioPlayerExpanded || isSearching || canPop || showAddRadioDialog) {
                 when {
                     showAddRadioDialog -> onToggleAddRadioDialog(false)
-                    uiState.isRadioPlayerExpanded -> onToggleRadioPlayer(false)
-                    uiState.selectedTracks.isNotEmpty() || uiState.selectedStations.isNotEmpty() -> onClearSelection()
-                    uiState.isPlayerExpanded -> onTogglePlayer(false)
-                    uiState.isSearching -> { onToggleSearch(); onSearchQueryChange("") }
-                    uiState.canPop -> navController.popBackStack()
+                    isRadioPlayerExpanded -> onToggleRadioPlayer(false)
+                    selectedTracks.isNotEmpty() || selectedStations.isNotEmpty() -> onClearSelection()
+                    isPlayerExpanded -> onTogglePlayer(false)
+                    isSearching -> { onToggleSearch(); onSearchQueryChange("") }
+                    canPop -> navController.popBackStack()
                 }
             }
 
@@ -349,16 +333,16 @@ private fun MainContent(
     // Bottom Layers
     Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars), contentAlignment = Alignment.BottomCenter) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            MiniPlayer(viewModel = playerViewModel, onClick = { if (uiState.isRadioMode) onToggleRadioPlayer(true) else onTogglePlayer(true) }, modifier = Modifier.padding(bottom = 8.dp))
+            MiniPlayer(viewModel = playerViewModel, onClick = { if (isRadioMode) onToggleRadioPlayer(true) else onTogglePlayer(true) }, modifier = Modifier.padding(bottom = 8.dp))
             JasmineBottomBar(navController = navController)
         }
     }
 
-    AnimatedVisibility(visible = uiState.isPlayerExpanded, enter = fadeIn(tween(300)), exit = ExitTransition.None) {
+    if (isPlayerExpanded) {
         PlayerScreen(viewModel = playerViewModel, trackViewModel = trackViewModel, navController = navController, onClose = { onTogglePlayer(false) })
     }
 
-    AnimatedVisibility(visible = uiState.isRadioPlayerExpanded, enter = fadeIn(tween(300)), exit = ExitTransition.None) {
+    if (isRadioPlayerExpanded) {
         val currentStation by playerViewModel.currentRadioStation.collectAsStateWithLifecycle()
         currentStation?.let { RadioPlayerScreen(station = it, playerViewModel = playerViewModel, onClose = { onToggleRadioPlayer(false) }) }
     }
@@ -372,11 +356,9 @@ private fun MainContent(
         showRemoveFromPlaylistDialog = showRemoveFromPlaylistDialog,
         showAddToPlaylistDialog = showAddToPlaylistDialog,
         showTrackInfoForSelection = showTrackInfoForSelection,
-        selectedTracks = uiState.selectedTracks,
-        selectedStations = uiState.selectedStations,
+        selectedTracks = selectedTracks,
+        selectedStations = selectedStations,
         playlistId = playlistId,
-        currentPlaylistName = uiState.currentPlaylistName,
-        currentPlaylistCover = uiState.currentPlaylistCover,
         trackViewModel = trackViewModel,
         playerViewModel = playerViewModel,
         navController = navController,
@@ -395,7 +377,14 @@ private fun MainContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainActionsSection(
-    uiState: MainUiState,
+    currentRoute: String?,
+    selectedTracks: Set<Track>,
+    selectedStations: Set<RadioStation>,
+    isSearching: Boolean,
+    isTracksScreen: Boolean,
+    isPlaylistDetail: Boolean,
+    shouldShowSort: Boolean,
+    isReversed: Boolean,
     isCollapsed: Boolean,
     onToggleSearch: () -> Unit,
     onToggleReverse: () -> Unit,
@@ -415,33 +404,32 @@ private fun MainActionsSection(
     val clipboardManager = LocalClipboardManager.current
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    if (uiState.selectedTracks.isNotEmpty() || uiState.selectedStations.isNotEmpty()) {
+    if (selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Кнопка "Выделить всё" (только для треков в детальных экранах)
-            if (uiState.selectedTracks.isNotEmpty() && (uiState.isPlaylistDetail || uiState.currentRoute?.startsWith("folder_detail") == true)) {
+            if (selectedTracks.isNotEmpty() && (isPlaylistDetail || currentRoute?.startsWith("folder_detail") == true)) {
                 IconButton(onClick = { onSelectAll() }) { Icon(Icons.Rounded.SelectAll, "Select All") }
             }
 
-            if (uiState.selectedTracks.isNotEmpty()) {
-                if (uiState.selectedTracks.size == 1) IconButton(onClick = { onShowTrackInfo(uiState.selectedTracks.first()) }) { Icon(Icons.Rounded.Info, null) }
-                if (uiState.isPlaylistDetail) IconButton(onClick = { onRemoveFromPlaylist() }) { Icon(Icons.Rounded.PlaylistRemove, null, tint = MaterialTheme.colorScheme.error) }
-                IconButton(onClick = { playerViewModel.addTracksToQueue(uiState.selectedTracks.toList()) }) { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) }
+            if (selectedTracks.isNotEmpty()) {
+                if (selectedTracks.size == 1) IconButton(onClick = { onShowTrackInfo(selectedTracks.first()) }) { Icon(Icons.Rounded.Info, null) }
+                if (isPlaylistDetail) IconButton(onClick = { onRemoveFromPlaylist() }) { Icon(Icons.Rounded.PlaylistRemove, null, tint = MaterialTheme.colorScheme.error) }
+                IconButton(onClick = { playerViewModel.addTracksToQueue(selectedTracks.toList()) }) { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) }
                 IconButton(onClick = { showMoreMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }
                 
                 DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }, shape = RoundedCornerShape(24.dp), modifier = Modifier.width(220.dp)) {
-                    DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = { showMoreMenu = false; ShareHelper.shareTracks(context, uiState.selectedTracks.toList()) })
+                    DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = { showMoreMenu = false; ShareHelper.shareTracks(context, selectedTracks.toList()) })
                     DropdownMenuItem(text = { Text("Add to playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) }, onClick = { showMoreMenu = false; onAddToPlaylist() })
                     DropdownMenuItem(text = { Text("Delete from device", fontWeight = FontWeight.Bold) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMoreMenu = false; onDeleteTracks() }, colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error))
                 }
             } else {
-                if (uiState.selectedStations.size == 1) IconButton(onClick = { clipboardManager.setText(AnnotatedString(uiState.selectedStations.first().url)); Toast.makeText(context, "URL copied", Toast.LENGTH_SHORT).show() }) { Icon(Icons.Rounded.ContentCopy, null) }
+                if (selectedStations.size == 1) IconButton(onClick = { clipboardManager.setText(AnnotatedString(selectedStations.first().url)); android.widget.Toast.makeText(context, "URL copied", android.widget.Toast.LENGTH_SHORT).show() }) { Icon(Icons.Rounded.ContentCopy, null) }
                 IconButton(onClick = { onDeleteStations() }) { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }
             }
         }
     } else {
-        AnimatedVisibility(visible = (isCollapsed || uiState.isSearching || uiState.shouldShowSort) && (uiState.isTracksScreen || uiState.shouldShowSort)) {
+        AnimatedVisibility(visible = (isCollapsed || isSearching || shouldShowSort) && (isTracksScreen || shouldShowSort)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (uiState.isPlaylistDetail && !uiState.isSearching) {
+                if (isPlaylistDetail && !isSearching) {
                     IconButton(onClick = { onExportPlaylist() }) { Icon(Icons.Rounded.FileUpload, null) }
                     
                     var showPlaylistMenu by remember { mutableStateOf(false) }
@@ -451,8 +439,8 @@ private fun MainActionsSection(
                         DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showPlaylistMenu = false; onDeletePlaylist() })
                     }
                 }
-                if (uiState.isTracksScreen) IconButton(onClick = { onToggleSearch() }) { Icon(if (uiState.isSearching) Icons.Rounded.Close else Icons.Rounded.Search, null) }
-                if (!uiState.isSearching && uiState.shouldShowSort) {
+                if (isTracksScreen) IconButton(onClick = { onToggleSearch() }) { Icon(if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search, null) }
+                if (!isSearching && shouldShowSort) {
                     var showSortMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showSortMenu = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, null) }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }, shape = RoundedCornerShape(24.dp)) {
@@ -461,7 +449,7 @@ private fun MainActionsSection(
                         DropdownMenuItem(text = { Text("By Date Added") }, onClick = { onSetSortType(SortType.BY_DATE); showSortMenu = false })
                         DropdownMenuItem(text = { Text("By Duration") }, onClick = { onSetSortType(SortType.BY_DURATION); showSortMenu = false })
                         HorizontalDivider()
-                        DropdownMenuItem(text = { Text(if (uiState.isReversed) "Normal Order" else "Reverse Order") }, leadingIcon = { Icon(Icons.Rounded.FilterList, null) }, onClick = { onToggleReverse(); showSortMenu = false })
+                        DropdownMenuItem(text = { Text(if (isReversed) "Normal Order" else "Reverse Order") }, leadingIcon = { Icon(Icons.Rounded.FilterList, null) }, onClick = { onToggleReverse(); showSortMenu = false })
                     }
                 }
             }
@@ -483,11 +471,9 @@ private fun MainDialogs(
     selectedTracks: Set<Track>,
     selectedStations: Set<RadioStation>,
     playlistId: Long,
-    currentPlaylistName: String,
-    currentPlaylistCover: Uri?,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
-    navController: NavController,
+    navController: androidx.navigation.NavController,
     onDismissTrackPicker: () -> Unit,
     onDismissDeletePlaylist: () -> Unit,
     onDismissRenamePlaylist: () -> Unit,
@@ -498,8 +484,6 @@ private fun MainDialogs(
     onDismissTrackInfo: () -> Unit,
     onClearSelection: () -> Unit
 ) {
-    val context = LocalContext.current
-
     if (showTrackPickerDialog) {
         val allTracks by trackViewModel.allTracks.collectAsStateWithLifecycle()
         val pTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsStateWithLifecycle(initialValue = emptyList())
@@ -528,6 +512,11 @@ private fun MainDialogs(
     }
 
     if (showRenamePlaylistDialog) {
+        val playlists by trackViewModel.playlists.collectAsStateWithLifecycle()
+        val currentPlaylist = remember(playlists, playlistId) { playlists.find { it.id == playlistId } }
+        val currentPlaylistName = currentPlaylist?.name ?: "Playlist"
+        val currentPlaylistCover = currentPlaylist?.coverUri
+
         var newName by remember { mutableStateOf(currentPlaylistName) }
         var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
         var showEditor by remember { mutableStateOf(false) }
@@ -600,7 +589,7 @@ private fun MainDialogs(
     }
 
     if (showDeletePlaylistDialog) {
-        AlertDialog(onDismissRequest = onDismissDeletePlaylist, title = { Text("Delete Playlist") }, text = { Text("Delete \"$currentPlaylistName\"?") }, confirmButton = { TextButton(onClick = { trackViewModel.deletePlaylist(playlistId); onDismissDeletePlaylist(); navController.popBackStack() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeletePlaylist() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
+        AlertDialog(onDismissRequest = onDismissDeletePlaylist, title = { Text("Delete Playlist") }, text = { Text("Delete this playlist?") }, confirmButton = { TextButton(onClick = { trackViewModel.deletePlaylist(playlistId); onDismissDeletePlaylist(); navController.popBackStack() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeletePlaylist() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
     }
 
     if (showDeleteTracksDialog) {

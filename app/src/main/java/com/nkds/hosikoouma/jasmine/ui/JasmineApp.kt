@@ -12,6 +12,8 @@ import com.nkds.hosikoouma.jasmine.ui.screens.SplashScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 @Composable
 fun JasmineApp(
@@ -19,12 +21,18 @@ fun JasmineApp(
     playerViewModel: PlayerViewModel = viewModel(),
     trackViewModel: TrackViewModel = viewModel()
 ) {
-    val currentTrack by playerViewModel.currentTrack.collectAsStateWithLifecycle()
+    // 1. Оптимизация темы: подписываемся только на URI обложки, а не на весь объект Track.
+    // Это предотвратит рекомпозицию темы при смене метаданных (названия и т.д.), если обложка та же.
+    val albumArtUri by remember(playerViewModel) {
+        playerViewModel.currentTrack
+            .map { it?.albumArtUri }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = null)
+
     val isLoaded by trackViewModel.isLoaded.collectAsStateWithLifecycle()
-    val appToast by playerViewModel.appToast.collectAsStateWithLifecycle()
 
     JasmineThemeWrapper(
-        albumArtUri = currentTrack?.albumArtUri,
+        albumArtUri = albumArtUri,
         settingsViewModel = settingsViewModel
     ) {
         var animationFinished by remember { mutableStateOf(false) }
@@ -33,17 +41,24 @@ fun JasmineApp(
             if (!animationFinished || !isLoaded) {
                 SplashScreen(onFinished = { animationFinished = true })
             } else {
+                // MainScreen теперь не рекомпозируется при каждом Toast или мелком изменении трека
                 MainScreen(
                     trackViewModel = trackViewModel,
                     playerViewModel = playerViewModel
                 )
             }
 
-            // Кастомное уведомление поверх всего интерфейса
-            AppToastContainer(
-                toastData = appToast,
-                onDismiss = { playerViewModel.clearAddedToast() }
-            )
+            // 2. Изоляция Toast: выносим подписку на стейт внутрь контейнера
+            OptimizedAppToastContainer(playerViewModel)
         }
     }
+}
+
+@Composable
+fun OptimizedAppToastContainer(playerViewModel: PlayerViewModel) {
+    val appToast by playerViewModel.appToast.collectAsStateWithLifecycle()
+    AppToastContainer(
+        toastData = appToast,
+        onDismiss = { playerViewModel.clearAddedToast() }
+    )
 }

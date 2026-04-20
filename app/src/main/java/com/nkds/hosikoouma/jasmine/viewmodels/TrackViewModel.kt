@@ -17,6 +17,7 @@ import com.nkds.hosikoouma.jasmine.datamodels.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -252,6 +253,20 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         playlistRepository.getTrackIdsForPlaylist(playlistId), _tracks
     ) { ids, tracks -> 
         withContext(Dispatchers.Default) {
+            ids.mapNotNull { id -> tracks.find { it.id == id } }
+        }
+    }
+
+    // --- Синхронные методы для UI (заголовки, быстрые действия) ---
+
+    fun getPlaylistNameSync(playlistId: Long): String? {
+        return playlists.value.find { it.id == playlistId }?.name
+    }
+
+    fun getPlaylistTracksSync(playlistId: Long): List<Track> {
+        return runBlocking(Dispatchers.Default) {
+            val ids = playlistRepository.getTrackIdsForPlaylist(playlistId).first()
+            val tracks = _tracks.value
             ids.mapNotNull { id -> tracks.find { it.id == id } }
         }
     }
