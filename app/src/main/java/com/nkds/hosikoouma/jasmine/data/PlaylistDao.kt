@@ -28,4 +28,20 @@ interface PlaylistDao {
 
     @Query("SELECT trackId FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY addedAt ASC")
     fun getTrackIdsForPlaylist(playlistId: Long): Flow<List<Long>>
+
+    // Очередь
+    @Query("SELECT * FROM current_queue ORDER BY orderIndex ASC")
+    suspend fun getCurrentQueue(): List<QueueTrackEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertQueueTracks(tracks: List<QueueTrackEntity>)
+
+    @Query("DELETE FROM current_queue")
+    suspend fun clearQueue()
+
+    @Transaction
+    suspend fun updateQueue(tracks: List<QueueTrackEntity>) {
+        clearQueue()
+        insertQueueTracks(tracks)
+    }
 }

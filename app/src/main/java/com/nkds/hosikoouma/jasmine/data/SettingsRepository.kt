@@ -28,6 +28,12 @@ class SettingsRepository(private val context: Context) {
         
         val BLACKLISTED_FOLDERS = stringSetPreferencesKey("blacklisted_folders")
         val PLAYLISTS_GRID_VIEW = booleanPreferencesKey("playlists_grid_view")
+
+        // Состояние плеера
+        val LAST_MEDIA_ITEM_INDEX = intPreferencesKey("last_media_item_index")
+        val LAST_PLAYBACK_POSITION = longPreferencesKey("last_playback_position")
+        val IS_RADIO_MODE = booleanPreferencesKey("is_radio_mode")
+        val LAST_RADIO_STATION_ID = longPreferencesKey("last_radio_station_id")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -47,6 +53,12 @@ class SettingsRepository(private val context: Context) {
     
     val blacklistedFolders: Flow<Set<String>> = context.dataStore.data.map { it[BLACKLISTED_FOLDERS] ?: emptySet() }
     val isPlaylistsGridView: Flow<Boolean> = context.dataStore.data.map { it[PLAYLISTS_GRID_VIEW] ?: false }
+
+    // Состояние плеера
+    val lastMediaItemIndex: Flow<Int> = context.dataStore.data.map { it[LAST_MEDIA_ITEM_INDEX] ?: 0 }
+    val lastPlaybackPosition: Flow<Long> = context.dataStore.data.map { it[LAST_PLAYBACK_POSITION] ?: 0L }
+    val isRadioMode: Flow<Boolean> = context.dataStore.data.map { it[IS_RADIO_MODE] ?: false }
+    val lastRadioStationId: Flow<Long> = context.dataStore.data.map { it[LAST_RADIO_STATION_ID] ?: -1L }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) = context.dataStore.edit { it[CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeDuration(duration: Long) = context.dataStore.edit { it[CROSSFADE_DURATION] = duration }
@@ -74,4 +86,11 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setPlaylistsGridView(enabled: Boolean) = context.dataStore.edit { it[PLAYLISTS_GRID_VIEW] = enabled }
+
+    suspend fun savePlayerState(index: Int, position: Long, isRadio: Boolean = false, radioStationId: Long = -1L) = context.dataStore.edit {
+        it[LAST_MEDIA_ITEM_INDEX] = index
+        it[LAST_PLAYBACK_POSITION] = position
+        it[IS_RADIO_MODE] = isRadio
+        it[LAST_RADIO_STATION_ID] = radioStationId
+    }
 }

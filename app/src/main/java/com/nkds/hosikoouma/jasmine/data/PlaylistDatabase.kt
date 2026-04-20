@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.room.*
 
 @Database(
-    entities = [PlaylistEntity::class, PlaylistTrackEntity::class, RadioStation::class],
-    version = 3, // Увеличили версию с 2 до 3 из-за добавления coverUri
+    entities = [PlaylistEntity::class, PlaylistTrackEntity::class, RadioStation::class, QueueTrackEntity::class],
+    version = 4, // Увеличили с 3 до 4 из-за добавления QueueTrackEntity
     exportSchema = false
 )
 abstract class PlaylistDatabase : RoomDatabase() {
@@ -23,7 +23,7 @@ abstract class PlaylistDatabase : RoomDatabase() {
                     PlaylistDatabase::class.java,
                     "playlist_database"
                 )
-                .fallbackToDestructiveMigration() // Позволяет Room пересоздать базу при несовпадении версий
+                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance

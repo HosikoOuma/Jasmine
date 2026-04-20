@@ -5,6 +5,7 @@ import android.content.Intent
 import android.media.AudioAttributes as AndroidAudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.net.Uri
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.*
@@ -20,9 +21,13 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.nkds.hosikoouma.jasmine.core.CrossfadeManager
+import com.nkds.hosikoouma.jasmine.data.PlaylistDatabase
+import com.nkds.hosikoouma.jasmine.data.PlaylistDao
+import com.nkds.hosikoouma.jasmine.data.QueueTrackEntity
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import java.nio.charset.Charset
 import androidx.media3.extractor.metadata.icy.IcyInfo
 import com.google.common.util.concurrent.Futures
@@ -40,15 +45,19 @@ class PlaybackService : MediaSessionService() {
     
     private lateinit var crossfadeManager: CrossfadeManager
     private lateinit var settingsRepository: SettingsRepository
-    private lateinit var audioManager: AudioManager
+    private lateinit var playlistDao: PlaylistDao
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
+    private var audioManager: AudioManager? = null
     private var playOnFocusGain = false
     private lateinit var focusRequest: AudioFocusRequest
+    
+    private var saveStateJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
         settingsRepository = SettingsRepository(this)
+        playlistDao = PlaylistDatabase.getDatabase(this).playlistDao()
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         
         setupAudioFocus()
@@ -145,7 +154,32 @@ class PlaybackService : MediaSessionService() {
                     )
                 )
             }
-            return Futures.immediateFailedFuture(UnsupportedOperationException("No items to resume"))
+
+            val setter = SettableFuture<MediaSession.MediaItemsWithStartPosition>()
+            serviceScope.launch {
+                try {
+                    val queueEntities = playlistDao.getCurrentQueue()
+                    val lastIndex = settingsRepository.lastMediaItemIndex.first()
+                    val lastPos = settingsRepository.lastPlaybackPosition.first()
+
+                    if (queueEntities.isNotEmpty()) {
+                        val mediaItems = queueEntities.map { entityToMediaItem(it) }
+                        val index = if (lastIndex in mediaItems.indices) lastIndex else 0
+                        withContext(Dispatchers.Main) {
+                            setter.set(MediaSession.MediaItemsWithStartPosition(mediaItems, index, lastPos))
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            setter.setException(UnsupportedOperationException("No saved queue found"))
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        setter.setException(e)
+                    }
+                }
+            }
+            return setter
         }
 
         override fun onPlayerCommandRequest(
@@ -182,6 +216,7 @@ class PlaybackService : MediaSessionService() {
                     AudioManager.AUDIOFOCUS_LOSS -> {
                         crossfadeManager.cancelActiveCrossfade()
                         crossfadeManager.getCurrentPlayer().pause()
+                        saveCurrentState(immediate = true)
                     }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                         if (crossfadeManager.getCurrentPlayer().isPlaying) {
@@ -205,7 +240,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun requestManualAudioFocus(): Boolean {
-        return audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return audioManager?.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     private fun createPlayer(processor: CrossfadeAudioProcessor, name: String): ExoPlayer {
@@ -233,6 +268,9 @@ class PlaybackService : MediaSessionService() {
                 if (playWhenReady && player == crossfadeManager.getCurrentPlayer()) {
                     requestManualAudioFocus()
                 }
+                if (!playWhenReady) {
+                    saveCurrentState(immediate = true)
+                }
                 crossfadeManager.scheduleCrossfade()
             }
             
@@ -241,10 +279,16 @@ class PlaybackService : MediaSessionService() {
                 newPosition: Player.PositionInfo,
                 reason: Int
             ) {
+                if (reason != Player.DISCONTINUITY_REASON_SEEK) {
+                    saveCurrentState()
+                }
                 crossfadeManager.scheduleCrossfade()
             }
 
             override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
+                    saveCurrentState(immediate = true)
+                }
                 crossfadeManager.scheduleCrossfade()
             }
 
@@ -256,12 +300,20 @@ class PlaybackService : MediaSessionService() {
                         otherPlayer.pause()
                         otherPlayer.stop()
                     }
+                    saveCurrentState(immediate = true)
                 }
                 crossfadeManager.scheduleCrossfade()
             }
 
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                if (player == crossfadeManager.getCurrentPlayer()) {
+                    saveQueueToDb(player)
+                }
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 Log.e("JasminePlayer", "[$name] Error: ${error.errorCodeName} (${error.errorCode})", error)
+                saveCurrentState(immediate = true)
             }
 
             override fun onMetadata(metadata: Metadata) {
@@ -278,6 +330,75 @@ class PlaybackService : MediaSessionService() {
         })
         
         return player
+    }
+
+    private fun saveCurrentState(immediate: Boolean = false) {
+        val player = crossfadeManager.getCurrentPlayer()
+        val index = player.currentMediaItemIndex
+        val position = player.currentPosition
+        val extras = player.currentMediaItem?.mediaMetadata?.extras
+        val isRadio = extras?.getBoolean("isRadio", false) ?: false
+        
+        if (index < 0) return
+
+        saveStateJob?.cancel()
+        saveStateJob = serviceScope.launch {
+            if (!immediate) delay(1000)
+            settingsRepository.savePlayerState(index, position, isRadio)
+        }
+    }
+
+    private fun saveQueueToDb(player: Player) {
+        val items = getAllItems(player)
+        if (items.isEmpty()) return
+        
+        serviceScope.launch(Dispatchers.IO) {
+            val entities = items.mapIndexed { index, item ->
+                mediaItemToEntity(item, index)
+            }
+            playlistDao.updateQueue(entities)
+        }
+    }
+
+    private fun mediaItemToEntity(item: MediaItem, index: Int): QueueTrackEntity {
+        val metadata = item.mediaMetadata
+        val extras = metadata.extras ?: android.os.Bundle()
+        return QueueTrackEntity(
+            trackId = try { (item.mediaId.split("_").firstOrNull() ?: "0").toLong() } catch (e: Exception) { 0L },
+            title = metadata.title?.toString() ?: "Unknown",
+            artist = metadata.artist?.toString() ?: "Unknown",
+            album = metadata.albumTitle?.toString() ?: "Unknown",
+            duration = extras.getLong("duration", 0L),
+            contentUri = item.localConfiguration?.uri?.toString() ?: "",
+            albumArtUri = metadata.artworkUri?.toString(),
+            path = extras.getString("path", ""),
+            isManual = extras.getBoolean("isManual", false),
+            sourceName = extras.getString("sourceName"),
+            orderIndex = index
+        )
+    }
+
+    private fun entityToMediaItem(entity: QueueTrackEntity): MediaItem {
+        val extras = android.os.Bundle().apply {
+            putLong("duration", entity.duration)
+            putString("path", entity.path)
+            putBoolean("isManual", entity.isManual)
+            putBoolean("isRadio", false)
+            putString("sourceName", entity.sourceName)
+        }
+        
+        return MediaItem.Builder()
+            .setMediaId("${entity.trackId}_${java.util.UUID.randomUUID()}")
+            .setUri(entity.contentUri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(entity.title)
+                    .setArtist(entity.artist)
+                    .setAlbumTitle(entity.album)
+                    .setArtworkUri(entity.albumArtUri?.let { Uri.parse(it) })
+                    .setExtras(extras)
+                    .build()
+            ).build()
     }
 
     private fun updateCurrentMediaItemMetadata(player: Player, streamTitle: String) {
@@ -350,10 +471,16 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        saveCurrentState(immediate = true)
         serviceScope.cancel()
-        audioManager.abandonAudioFocusRequest(focusRequest)
+        audioManager?.abandonAudioFocusRequest(focusRequest)
         crossfadeManager.release()
         mediaSession?.release()
         super.onDestroy()
+    }
+
+    private class SettableFuture<T> : com.google.common.util.concurrent.AbstractFuture<T>() {
+        public override fun set(value: T?): Boolean = super.set(value)
+        public override fun setException(throwable: Throwable): Boolean = super.setException(throwable)
     }
 }

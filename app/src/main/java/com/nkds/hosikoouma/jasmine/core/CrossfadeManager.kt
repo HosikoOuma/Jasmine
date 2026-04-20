@@ -16,7 +16,9 @@ class CrossfadeManager(
     private val onPlayerSwapped: (ExoPlayer) -> Unit
 ) {
     private var currentPlayer: ExoPlayer = playerA
-    private var isCrossfading = false
+    var isCrossfading = false
+        private set
+        
     private var fadeJob: Job? = null
     private var crossfadeCheckJob: Job? = null
 
@@ -47,7 +49,8 @@ class CrossfadeManager(
         val player = currentPlayer
         crossfadeCheckJob?.cancel()
 
-        if (!isEnabled || isCrossfading || !player.isPlaying) return
+        // ПРОВЕРКА: Не планируем кроссфейд, если плеер буферизуется (идет перемотка) или не играет
+        if (!isEnabled || isCrossfading || !player.isPlaying || player.playbackState != Player.STATE_READY) return
         
         val isRadio = player.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio") ?: false
         if (isRadio) return
@@ -63,7 +66,8 @@ class CrossfadeManager(
         crossfadeCheckJob = serviceScope.launch {
             if (delayMs > 0) delay(delayMs)
             
-            if (player == currentPlayer && player.isPlaying && !isCrossfading) {
+            // Повторная проверка перед самим стартом
+            if (player == currentPlayer && player.isPlaying && !isCrossfading && player.playbackState == Player.STATE_READY) {
                 val hasNext = player.nextMediaItemIndex != C.INDEX_UNSET || 
                              player.repeatMode != Player.REPEAT_MODE_OFF
                 if (hasNext) startOverlappingCrossfade()
@@ -74,10 +78,9 @@ class CrossfadeManager(
     private fun startOverlappingCrossfade() {
         isCrossfading = true
         val oldPlayer = currentPlayer
-        val oldProcessor = if (oldPlayer == playerA) processorA else processorB
-        
         val nextPlayer = if (oldPlayer == playerA) playerB else playerA
         val nextProcessor = if (nextPlayer == playerA) processorA else processorB
+        val oldProcessor = if (oldPlayer == playerA) processorA else processorB
         
         val currentRepeatMode = oldPlayer.repeatMode
         val currentShuffleMode = oldPlayer.shuffleModeEnabled
@@ -91,18 +94,19 @@ class CrossfadeManager(
 
         if (nextIndex == -1) {
             isCrossfading = false
-            scheduleCrossfade()
             return
         }
 
         val allItems = List(oldPlayer.mediaItemCount) { oldPlayer.getMediaItemAt(it) }
         
         serviceScope.launch {
-            // ОПТИМИЗАЦИЯ: Небольшая задержка перед подготовкой второго плеера.
-            // Это дает Compose 100-150мс на то, чтобы начать анимацию переключения в UI
-            // без конкуренции с I/O нагрузкой от ExoPlayer.
-            delay(150)
+            delay(150) // Даем время UI и системе стабилизироваться
             
+            if (!isActive || oldPlayer != currentPlayer || !oldPlayer.isPlaying) {
+                isCrossfading = false
+                return@launch
+            }
+
             withContext(Dispatchers.Main) {
                 nextProcessor.setVolumeScale(0f)
                 nextPlayer.setMediaItems(allItems, nextIndex, 0L)

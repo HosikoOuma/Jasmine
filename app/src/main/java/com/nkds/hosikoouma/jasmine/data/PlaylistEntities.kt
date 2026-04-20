@@ -28,3 +28,19 @@ data class PlaylistTrackEntity(
     val trackId: Long, // MediaStore ID
     val addedAt: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "current_queue")
+data class QueueTrackEntity(
+    @PrimaryKey(autoGenerate = true) val queueId: Long = 0,
+    val trackId: Long,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val duration: Long,
+    val contentUri: String,
+    val albumArtUri: String?,
+    val path: String,
+    val isManual: Boolean,
+    val sourceName: String?,
+    val orderIndex: Int
+)

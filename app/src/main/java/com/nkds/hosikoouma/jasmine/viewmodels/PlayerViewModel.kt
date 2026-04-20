@@ -94,7 +94,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _toastEvent = MutableSharedFlow<String>()
     val toastEvent = _toastEvent.asSharedFlow()
 
-    // Состояние для кастомного тоста
     private val _appToast = MutableStateFlow<ToastData?>(null)
     val appToast = _appToast.asStateFlow()
 
@@ -195,6 +194,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _duration.value = if (controller.duration > 0) controller.duration else 0L
         _progress.value = if (controller.currentPosition > 0) controller.currentPosition else 0L
         
+        // Если плеер пуст, пробуем подготовить его для восстановления состояния
+        if (controller.mediaItemCount == 0) {
+            controller.prepare() 
+        }
+
         updateCurrentTrack(controller.currentMediaItem)
         updatePlaylist()
         
@@ -213,7 +217,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (isPlaying) startProgressUpdate() else stopProgressUpdate()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) _duration.value = controller.duration
+                if (playbackState == Player.STATE_READY) {
+                    _duration.value = controller.duration
+                    _progress.value = controller.currentPosition
+                }
             }
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 if (_isRadioMode.value) parseRadioMetadata(mediaMetadata)
@@ -270,8 +277,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 _currentRadioStation.value = null
                 _radioTrackTitle.value = null
                 _radioTrackArtist.value = null
-                
-                // Очищаем старые тексты при смене трека, но не загружаем новые автоматически
                 _localLyrics.value = null
                 _remoteLyrics.value = null
             }
