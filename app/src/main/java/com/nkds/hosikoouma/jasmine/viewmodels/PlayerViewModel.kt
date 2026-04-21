@@ -33,6 +33,7 @@ import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.ToastData
 import com.nkds.hosikoouma.jasmine.ui.components.ToastType
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -40,8 +41,14 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import javax.inject.Inject
 
-class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class PlayerViewModel @Inject constructor(
+    application: Application,
+    private val favoritesRepository: FavoritesRepository,
+    private val lyricsRepository: LyricsRepository
+) : AndroidViewModel(application) {
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val controller: MediaController?
@@ -49,8 +56,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             try { controllerFuture?.get() } catch (e: Exception) { null }
         } else null
 
-    private val favoritesRepository = FavoritesRepository(application)
-    private val lyricsRepository = LyricsRepository(application)
     private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     private val _currentTrack = MutableStateFlow<Track?>(null)
@@ -358,7 +363,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun mediaToTrack(mediaItem: MediaItem): Track {
         val extras = mediaItem.mediaMetadata.extras
         return Track(
-            id = mediaIdToLong(mediaIdToIdString(mediaItem.mediaId)),
+            id = mediaIdToLong(mediaIdToIdString(mediaId = mediaItem.mediaId)),
             title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
             artist = mediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
             album = mediaItem.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",

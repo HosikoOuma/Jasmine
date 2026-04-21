@@ -4,9 +4,13 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class M3UManager(private val context: Context) {
+@Singleton
+class M3UManager @Inject constructor(@ApplicationContext private val context: Context) {
 
     private val playlistsDir: File
         get() {

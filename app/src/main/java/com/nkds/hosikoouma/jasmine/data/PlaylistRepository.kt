@@ -4,16 +4,22 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class PlaylistRepository(private val context: Context) {
-    private val playlistDao = PlaylistDatabase.getDatabase(context).playlistDao()
-    private val m3uManager = M3UManager(context)
+@Singleton
+class PlaylistRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val playlistDao: PlaylistDao,
+    private val m3uManager: M3UManager
+) {
 
     val allPlaylists: Flow<List<PlaylistEntity>> = playlistDao.getAllPlaylists()
 

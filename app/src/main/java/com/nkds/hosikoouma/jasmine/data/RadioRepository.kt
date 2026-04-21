@@ -1,10 +1,11 @@
 package com.nkds.hosikoouma.jasmine.data
 
-import android.content.Context
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class RadioRepository(context: Context) {
-    private val radioDao = PlaylistDatabase.getDatabase(context).radioDao()
+@Singleton
+class RadioRepository @Inject constructor(private val radioDao: RadioDao) {
 
     val allStations: Flow<List<RadioStation>> = radioDao.getAllStations()
 

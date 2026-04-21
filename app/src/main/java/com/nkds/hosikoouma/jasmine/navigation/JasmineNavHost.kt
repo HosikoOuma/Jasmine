@@ -3,22 +3,21 @@ package com.nkds.hosikoouma.jasmine.navigation
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.ui.screens.*
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -38,8 +37,6 @@ fun JasmineNavHost(
     onDismissRadioDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val radioViewModel: RadioViewModel = viewModel()
-
     NavHost(
         navController = navController,
         startDestination = Screen.Tracks.route,
@@ -67,6 +64,7 @@ fun JasmineNavHost(
             ) 
         }
         composable(Screen.Radio.route) {
+            val radioViewModel: RadioViewModel = hiltViewModel()
             RadioScreen(
                 viewModel = radioViewModel,
                 playerViewModel = playerViewModel,
@@ -90,16 +88,17 @@ fun JasmineNavHost(
             SettingsScreen(navController = navController) 
         }
         composable(Screen.SettingsPlayback.route) {
-            PlaybackSettingsScreen()
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            PlaybackSettingsScreen(viewModel = settingsViewModel)
         }
         composable(Screen.SettingsAppearance.route) {
-            AppearanceSettingsScreen()
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            AppearanceSettingsScreen(viewModel = settingsViewModel)
         }
         composable(Screen.SettingsLibrary.route) {
             LibrarySettingsScreen(trackViewModel = trackViewModel)
         }
 
-        
         // --- Библиотека ---
         composable(Screen.LibraryAlbums.route) { 
             AlbumListScreen(navController = navController, trackViewModel = trackViewModel) 

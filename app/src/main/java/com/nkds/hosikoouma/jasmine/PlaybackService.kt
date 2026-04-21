@@ -21,10 +21,10 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.nkds.hosikoouma.jasmine.core.CrossfadeManager
-import com.nkds.hosikoouma.jasmine.data.PlaylistDatabase
 import com.nkds.hosikoouma.jasmine.data.PlaylistDao
 import com.nkds.hosikoouma.jasmine.data.QueueTrackEntity
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -32,7 +32,10 @@ import java.nio.charset.Charset
 import androidx.media3.extractor.metadata.icy.IcyInfo
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import java.util.UUID
+import javax.inject.Inject
 
+@AndroidEntryPoint
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
@@ -44,8 +47,10 @@ class PlaybackService : MediaSessionService() {
     private lateinit var processorB: CrossfadeAudioProcessor
     
     private lateinit var crossfadeManager: CrossfadeManager
-    private lateinit var settingsRepository: SettingsRepository
-    private lateinit var playlistDao: PlaylistDao
+    
+    @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var playlistDao: PlaylistDao
+    
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     private var audioManager: AudioManager? = null
@@ -56,8 +61,6 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        settingsRepository = SettingsRepository(this)
-        playlistDao = PlaylistDatabase.getDatabase(this).playlistDao()
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         
         setupAudioFocus()
@@ -100,7 +103,6 @@ class PlaybackService : MediaSessionService() {
             .setCallback(CustomMediaSessionCallback())
             .build()
 
-        // Сразу пробуем восстановить очередь в плеер, чтобы MediaController увидел её при подключении
         restoreQueueToPlayer()
     }
 
@@ -413,7 +415,7 @@ class PlaybackService : MediaSessionService() {
         }
         
         return MediaItem.Builder()
-            .setMediaId("${entity.trackId}_${java.util.UUID.randomUUID()}")
+            .setMediaId("${entity.trackId}_${UUID.randomUUID()}")
             .setUri(entity.contentUri)
             .setMediaMetadata(
                 MediaMetadata.Builder()

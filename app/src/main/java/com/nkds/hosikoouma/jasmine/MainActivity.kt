@@ -5,7 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.nkds.hosikoouma.jasmine.ui.JasmineApp
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -13,8 +15,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         setContent {
-            // Теперь MainActivity — это просто точка входа.
-            // Вся логика темы и контента вынесена в JasmineApp.
             JasmineApp()
         }
     }

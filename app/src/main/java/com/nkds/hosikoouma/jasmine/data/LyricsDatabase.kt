@@ -1,6 +1,5 @@
 package com.nkds.hosikoouma.jasmine.data
 
-import android.content.Context
 import androidx.room.*
 
 @Entity(tableName = "lyrics_cache")
@@ -26,21 +25,4 @@ interface LyricsDao {
 @Database(entities = [LyricsCacheEntity::class], version = 1)
 abstract class LyricsDatabase : RoomDatabase() {
     abstract fun lyricsDao(): LyricsDao
-
-    companion object {
-        @Volatile
-        private var INSTANCE: LyricsDatabase? = null
-
-        fun getDatabase(context: Context): LyricsDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    LyricsDatabase::class.java,
-                    "lyrics_database"
-                ).build()
-                INSTANCE = instance
-                instance
-            }
-        }
-    }
 }

@@ -6,36 +6,21 @@ import android.provider.MediaStore
 import android.util.Log
 import com.nkds.hosikoouma.jasmine.datamodels.Lyrics
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class LyricsRepository(private val context: Context) {
-
-    private val lyricsDao = LyricsDatabase.getDatabase(context).lyricsDao()
-
-    private val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", "JasmineMusicPlayer/1.0 (https://github.com/hosikoouma/Jasmine)")
-                .build()
-            chain.proceed(request)
-        }
-        .build()
-
-    private val lrcLibService: LrcLibService by lazy {
-        Retrofit.Builder()
-            .baseUrl("https://lrclib.net/api/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(LrcLibService::class.java)
-    }
+@Singleton
+class LyricsRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val lyricsDao: LyricsDao,
+    private val lrcLibService: LrcLibService
+) {
 
     suspend fun getLocalLyrics(track: Track): String? = withContext(Dispatchers.IO) {
         try {

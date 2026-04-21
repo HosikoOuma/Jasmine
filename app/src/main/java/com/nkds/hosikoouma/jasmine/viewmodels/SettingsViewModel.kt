@@ -8,8 +8,10 @@ import com.nkds.hosikoouma.jasmine.core.models.DarkMode
 import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class SettingsState(
     val isCrossfadeEnabled: Boolean = true,
@@ -27,8 +29,11 @@ data class SettingsState(
     val seedColor: Int = 0xFF6750A4.toInt()
 )
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = SettingsRepository(application)
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    application: Application,
+    private val repository: SettingsRepository
+) : AndroidViewModel(application) {
 
     val settingsState: StateFlow<SettingsState> = combine(
         repository.isCrossfadeEnabled,

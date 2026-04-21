@@ -5,7 +5,9 @@ import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import dagger.hilt.android.HiltAndroidApp
 
+@HiltAndroidApp
 class JasmineApp : Application() {
     override fun onCreate() {
         super.onCreate()

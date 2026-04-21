@@ -3,10 +3,14 @@ package com.nkds.hosikoouma.jasmine.data
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class FavoritesRepository(private val context: Context) {
+@Singleton
+class FavoritesRepository @Inject constructor(@ApplicationContext private val context: Context) {
     companion object {
         private val FAVORITE_TRACKS = stringSetPreferencesKey("favorite_tracks")
     }
@@ -28,7 +32,6 @@ class FavoritesRepository(private val context: Context) {
     }
 
     suspend fun isFavorite(trackId: String): Boolean {
-        // Вспомогательный метод (хотя лучше использовать Flow)
         return false 
     }
 }

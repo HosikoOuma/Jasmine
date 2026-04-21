@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.data.RadioRepository
 import com.nkds.hosikoouma.jasmine.data.RadioStation
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,9 +17,14 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class RadioViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = RadioRepository(application)
+@HiltViewModel
+class RadioViewModel @Inject constructor(
+    application: Application,
+    private val repository: RadioRepository
+) : AndroidViewModel(application) {
+    
     private val _systemVolume = MutableStateFlow(0f)
     val systemVolume = _systemVolume.asStateFlow()
     private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -54,5 +60,11 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    fun setSystemVolume(vol: Float) { viewModelScope.launch(Dispatchers.IO) { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (vol * audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)).toInt(), 0); _systemVolume.value = vol } }
+    
+    fun setSystemVolume(vol: Float) { 
+        viewModelScope.launch(Dispatchers.IO) { 
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (vol * audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)).toInt(), 0)
+            _systemVolume.value = vol 
+        } 
+    }
 }

@@ -14,6 +14,7 @@ import com.nkds.hosikoouma.jasmine.TrackScanner
 import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.data.*
 import com.nkds.hosikoouma.jasmine.datamodels.*
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -21,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import javax.inject.Inject
 
 data class TrackFilters(
     val query: String = "",
@@ -30,14 +32,15 @@ data class TrackFilters(
     val blacklist: Set<String> = emptySet()
 )
 
-class TrackViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class TrackViewModel @Inject constructor(
+    application: Application,
+    private val trackScanner: TrackScanner,
+    private val favoritesRepository: FavoritesRepository,
+    private val settingsRepository: SettingsRepository,
+    private val playlistRepository: PlaylistRepository
+) : AndroidViewModel(application) {
     
-    // Repositories
-    private val trackScanner = TrackScanner(application)
-    private val favoritesRepository = FavoritesRepository(application)
-    private val settingsRepository = SettingsRepository(application)
-    private val playlistRepository = PlaylistRepository(application)
-
     // Raw Data
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
     val allTracks = _tracks.asStateFlow()
