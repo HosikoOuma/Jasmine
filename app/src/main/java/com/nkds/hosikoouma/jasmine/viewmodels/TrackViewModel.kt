@@ -271,6 +271,11 @@ class TrackViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun getFolderTracksSync(path: String): List<Track> {
+        val decodedPath = try { java.net.URLDecoder.decode(path, "UTF-8") } catch (e: Exception) { path }
+        return _tracks.value.filter { it.path.startsWith(decodedPath) }
+    }
+
     fun deleteTracks(tracks: List<Track>) {
         viewModelScope.launch(Dispatchers.IO) {
             val uris = tracks.map { ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, it.id) }

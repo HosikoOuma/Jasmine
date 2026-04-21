@@ -6,9 +6,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -27,27 +24,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
+import com.nkds.hosikoouma.jasmine.ui.components.simpleVerticalScrollbar
 import com.nkds.hosikoouma.jasmine.ui.components.vibrateClick
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
-import kotlinx.coroutines.launch
 
 // --- UI State ---
 data class TracksUiState(
@@ -323,68 +314,6 @@ fun ModeToggleButton(
     ) {
         Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
     }
-}
-
-@Composable
-fun Modifier.simpleVerticalScrollbar(
-    state: androidx.compose.foundation.lazy.LazyListState,
-    width: Dp = 6.dp
-): Modifier {
-    val targetAlpha = if (state.isScrollInProgress) 1f else 0f
-    val duration = if (state.isScrollInProgress) 150 else 500
-
-    val alpha by animateFloatAsState(
-        targetValue = targetAlpha,
-        animationSpec = tween(durationMillis = duration),
-        label = "scrollbarAlpha"
-    )
-
-    val color = MaterialTheme.colorScheme.primary
-    val scope = rememberCoroutineScope()
-
-    return this
-        .pointerInput(state) {
-            awaitEachGesture {
-                val down = awaitFirstDown()
-                if (down.position.x > size.width - 40.dp.toPx()) {
-                    verticalDrag(down.id) { change ->
-                        change.consume()
-                        val totalItems = state.layoutInfo.totalItemsCount
-                        if (totalItems > 0) {
-                            val ratio = (change.position.y / size.height).coerceIn(0f, 1f)
-                            val targetIndex = (ratio * totalItems).toInt().coerceIn(0, totalItems - 1)
-                            scope.launch {
-                                state.scrollToItem(targetIndex)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .drawWithContent {
-            drawContent()
-
-            val firstVisibleElementIndex = state.layoutInfo.visibleItemsInfo.firstOrNull()?.index
-            val needDrawScrollbar = state.isScrollInProgress || alpha > 0.0f
-
-            if (needDrawScrollbar && firstVisibleElementIndex != null) {
-                val elementCount = state.layoutInfo.totalItemsCount
-                val scrollbarFullHeight = size.height
-
-                if (elementCount <= state.layoutInfo.visibleItemsInfo.size) return@drawWithContent
-
-                val scrollbarHeight = (scrollbarFullHeight / elementCount) * state.layoutInfo.visibleItemsInfo.size
-                val scrollbarOffsetY = (scrollbarFullHeight / elementCount) * firstVisibleElementIndex
-
-                drawRoundRect(
-                    color = color,
-                    topLeft = Offset(size.width - width.toPx(), scrollbarOffsetY),
-                    size = Size(width.toPx(), scrollbarHeight),
-                    alpha = alpha,
-                    cornerRadius = CornerRadius(width.toPx() / 2, width.toPx() / 2)
-                )
-            }
-        }
 }
 
 @Preview(showBackground = true)

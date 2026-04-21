@@ -87,4 +87,10 @@ class CrossfadeAudioProcessor : AudioProcessor {
         outputFormat = AudioFormat.NOT_SET
         pendingOutputFormat = AudioFormat.NOT_SET
     }
+
+    fun release() {
+        // Сбрасываем состояние и очищаем буфер для GC
+        reset()
+        volumeScale = 1.0f
+    }
 }

@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -25,6 +26,7 @@ import com.nkds.hosikoouma.jasmine.data.PlaylistEntity
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
+import com.nkds.hosikoouma.jasmine.ui.components.simpleVerticalScrollbar
 import com.nkds.hosikoouma.jasmine.ui.components.vibrateClick
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
@@ -59,6 +61,15 @@ fun PlaylistDetailScreen(
     
     val currentTrack by playerViewModel.currentTrack.collectAsStateWithLifecycle()
     val isPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
+    
+    val searchQuery by trackViewModel.searchQuery.collectAsStateWithLifecycle()
+
+    val filteredTracks = remember(playlistTracks, searchQuery) {
+        playlistTracks.filter { 
+            it.title.contains(searchQuery, ignoreCase = true) || 
+            it.artist.contains(searchQuery, ignoreCase = true)
+        }
+    }
 
     val uiState = PlaylistDetailUiState(
         playlist = playlist,
@@ -70,12 +81,14 @@ fun PlaylistDetailScreen(
 
     PlaylistDetailContent(
         uiState = uiState,
+        filteredTracks = filteredTracks,
         onAddTracksClick = onAddTracksClick,
-        onTrackClick = { index ->
+        onTrackClick = { track ->
             if (selectedTracks.isNotEmpty()) {
-                onToggleTrackSelection(playlistTracks[index])
+                onToggleTrackSelection(track)
             } else {
-                playerViewModel.playTracks(playlistTracks, index, sourceName = "Playlist: ${playlist?.name}")
+                val originalIndex = playlistTracks.indexOf(track)
+                playerViewModel.playTracks(playlistTracks, originalIndex, sourceName = "Playlist: ${playlist?.name}")
                 onNavigateToPlayer()
             }
         },
@@ -94,8 +107,9 @@ fun PlaylistDetailScreen(
 @Composable
 fun PlaylistDetailContent(
     uiState: PlaylistDetailUiState,
+    filteredTracks: List<Track>,
     onAddTracksClick: () -> Unit,
-    onTrackClick: (Int) -> Unit,
+    onTrackClick: (Track) -> Unit,
     onTrackLongClick: (Track) -> Unit,
     onSwipeAction: (Track) -> Unit,
     onShufflePlay: () -> Unit
@@ -103,6 +117,7 @@ fun PlaylistDetailContent(
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val isInSelectionMode = uiState.selectedTracks.isNotEmpty()
+    val listState = rememberLazyListState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (uiState.playlist == null) {
@@ -111,7 +126,10 @@ fun PlaylistDetailContent(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .simpleVerticalScrollbar(listState),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -136,19 +154,19 @@ fun PlaylistDetailContent(
                     }
                 } else {
                     itemsIndexed(
-                        items = uiState.tracks,
+                        items = filteredTracks,
                         key = { _, track -> track.id }
-                    ) { index, track ->
+                    ) { _, track ->
                         val isSelected = uiState.selectedTracks.contains(track)
                         SwipeableTrackCard(
                             track = track,
                             isCurrent = uiState.currentTrack?.id == track.id,
                             isPlaying = uiState.isPlaying,
                             isSelected = isSelected,
-                            isManualMarkingEnabled = true, // Включаем метки очереди
+                            isManualMarkingEnabled = true,
                             enabled = !isInSelectionMode,
                             onSwipeAction = { onSwipeAction(track) },
-                            onClick = { onTrackClick(index) },
+                            onClick = { onTrackClick(track) },
                             onLongClick = {
                                 VibrationUtils.performLongPressHaptic(haptic)
                                 onTrackLongClick(track)
@@ -187,7 +205,7 @@ private fun PlaylistHeader(
             AlbumArt(
                 albumArtUri = displayArt,
                 modifier = Modifier
-                    .size(150.dp) // Увеличена с 100dp до 130dp
+                    .size(150.dp)
                     .clip(RoundedCornerShape(24.dp)),
                 isLowRes = false
             )
@@ -254,6 +272,7 @@ fun PlaylistDetailPreview() {
                 playlist = PlaylistEntity(1, "Night Vibes"),
                 tracks = listOf(sampleTrack, sampleTrack.copy(id = 2))
             ),
+            filteredTracks = listOf(sampleTrack),
             onAddTracksClick = {},
             onTrackClick = {},
             onTrackLongClick = {},

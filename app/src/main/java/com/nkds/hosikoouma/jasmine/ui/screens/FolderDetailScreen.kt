@@ -3,6 +3,7 @@ package com.nkds.hosikoouma.jasmine.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,11 +13,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.datamodels.Folder
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
+import com.nkds.hosikoouma.jasmine.ui.components.simpleVerticalScrollbar
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
@@ -45,6 +46,15 @@ fun FolderDetailScreen(
     
     val currentTrack by playerViewModel.currentTrack.collectAsStateWithLifecycle()
     val isPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
+    
+    val searchQuery by trackViewModel.searchQuery.collectAsStateWithLifecycle()
+
+    val filteredTracks = remember(folder, searchQuery) {
+        folder?.tracks?.filter { 
+            it.title.contains(searchQuery, ignoreCase = true) || 
+            it.artist.contains(searchQuery, ignoreCase = true)
+        } ?: emptyList()
+    }
 
     val uiState = FolderDetailUiState(
         folder = folder,
@@ -55,14 +65,14 @@ fun FolderDetailScreen(
 
     FolderDetailContent(
         uiState = uiState,
-        onTrackClick = { index ->
-            folder?.let {
-                if (selectedTracks.isNotEmpty()) {
-                    onToggleTrackSelection(it.tracks[index])
-                } else {
-                    playerViewModel.playTracks(it.tracks, index, sourceName = "Folder: ${it.name}")
-                    onNavigateToPlayer()
-                }
+        filteredTracks = filteredTracks,
+        onTrackClick = { track ->
+            if (selectedTracks.isNotEmpty()) {
+                onToggleTrackSelection(track)
+            } else {
+                val originalIndex = folder?.tracks?.indexOf(track) ?: 0
+                playerViewModel.playTracks(folder?.tracks ?: emptyList(), originalIndex, sourceName = "Folder: ${folder?.name}")
+                onNavigateToPlayer()
             }
         },
         onTrackLongClick = onToggleTrackSelection,
@@ -79,13 +89,15 @@ fun FolderDetailScreen(
 @Composable
 fun FolderDetailContent(
     uiState: FolderDetailUiState,
-    onTrackClick: (Int) -> Unit,
+    filteredTracks: List<Track>,
+    onTrackClick: (Track) -> Unit,
     onTrackLongClick: (Track) -> Unit,
     onSwipeAction: (Track) -> Unit,
     onSelectAll: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
     val isInSelectionMode = uiState.selectedTracks.isNotEmpty()
+    val listState = rememberLazyListState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (uiState.folder == null) {
@@ -94,11 +106,14 @@ fun FolderDetailContent(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .simpleVerticalScrollbar(listState),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                itemsIndexed(uiState.folder.tracks, key = { _, track -> track.id }) { index, track ->
+                itemsIndexed(filteredTracks, key = { _, track -> track.id }) { _, track ->
                     val isSelected = uiState.selectedTracks.contains(track)
                     SwipeableTrackCard(
                         track = track,
@@ -107,7 +122,7 @@ fun FolderDetailContent(
                         isSelected = isSelected,
                         enabled = !isInSelectionMode,
                         onSwipeAction = { onSwipeAction(track) },
-                        onClick = { onTrackClick(index) },
+                        onClick = { onTrackClick(track) },
                         onLongClick = {
                             VibrationUtils.performLongPressHaptic(haptic)
                             onTrackLongClick(track)
@@ -128,6 +143,7 @@ fun FolderDetailPreview() {
             uiState = FolderDetailUiState(
                 folder = Folder("Ambient", "/music/ambient", listOf(sampleTrack, sampleTrack.copy(id = 2)))
             ),
+            filteredTracks = listOf(sampleTrack),
             onTrackClick = {},
             onTrackLongClick = {},
             onSwipeAction = {}

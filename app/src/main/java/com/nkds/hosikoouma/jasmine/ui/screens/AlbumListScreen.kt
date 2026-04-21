@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.nkds.hosikoouma.jasmine.datamodels.Album
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
+import com.nkds.hosikoouma.jasmine.ui.components.gridVerticalScrollbar
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import java.net.URLEncoder
@@ -54,17 +56,22 @@ fun AlbumListContent(
     uiState: AlbumListUiState,
     onAlbumClick: (Album) -> Unit
 ) {
+    val gridState = rememberLazyGridState()
+
     if (uiState.albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
             Text("No albums found", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
         LazyVerticalGrid(
+            state = gridState,
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 160.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .gridVerticalScrollbar(gridState)
         ) {
             items(uiState.albums, key = { it.name + it.artist }) { album ->
                 AlbumCard(

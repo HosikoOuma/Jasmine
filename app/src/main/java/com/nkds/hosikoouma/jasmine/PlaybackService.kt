@@ -99,6 +99,31 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(pendingIntent)
             .setCallback(CustomMediaSessionCallback())
             .build()
+
+        // Сразу пробуем восстановить очередь в плеер, чтобы MediaController увидел её при подключении
+        restoreQueueToPlayer()
+    }
+
+    private fun restoreQueueToPlayer() {
+        serviceScope.launch {
+            try {
+                val queueEntities = playlistDao.getCurrentQueue()
+                if (queueEntities.isNotEmpty()) {
+                    val lastIndex = settingsRepository.lastMediaItemIndex.first()
+                    val lastPos = settingsRepository.lastPlaybackPosition.first()
+                    val mediaItems = queueEntities.map { entityToMediaItem(it) }
+                    
+                    withContext(Dispatchers.Main) {
+                        val index = if (lastIndex in mediaItems.indices) lastIndex else 0
+                        playerA.setMediaItems(mediaItems, index, lastPos)
+                        playerA.prepare()
+                        Log.d("JasminePlayer", "Restored ${mediaItems.size} items to PlayerA")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("JasminePlayer", "Failed to restore queue", e)
+            }
+        }
     }
 
     private fun observeSettings() {
@@ -471,11 +496,12 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
-        saveCurrentState(immediate = true)
+        saveStateJob?.cancel()
         serviceScope.cancel()
         audioManager?.abandonAudioFocusRequest(focusRequest)
         crossfadeManager.release()
         mediaSession?.release()
+        mediaSession = null
         super.onDestroy()
     }
 

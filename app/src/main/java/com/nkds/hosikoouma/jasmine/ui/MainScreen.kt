@@ -113,6 +113,11 @@ fun MainScreen(
     LaunchedEffect(currentRoute) { 
         selectedTracks = emptySet()
         selectedStations = emptySet() 
+        // При переходе между экранами сбрасываем поиск
+        if (isSearching) {
+            isSearching = false
+            trackViewModel.setSearchQuery("")
+        }
     }
     
     LaunchedEffect(isPlayerExpanded, isRadioPlayerExpanded) { 
@@ -203,11 +208,18 @@ private fun MainContent(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val playlistId = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L }
+    val folderPath = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getString("folderPath") ?: "" }
     val focusRequester = remember { FocusRequester() }
     
     val isPlaylistDetail = remember(currentRoute) { currentRoute?.startsWith("playlist_detail") == true }
+    val isFolderDetail = remember(currentRoute) { currentRoute?.startsWith("folder_detail") == true }
     val isTracksScreen = remember(currentRoute) { currentRoute == Screen.Tracks.route }
     val isRadioScreen = remember(currentRoute) { currentRoute == Screen.Radio.route }
+    
+    val canSearchHere = remember(isTracksScreen, isPlaylistDetail, isFolderDetail) {
+        isTracksScreen || isPlaylistDetail || isFolderDetail
+    }
+
     val shouldShowSort = remember(currentRoute) { 
         currentRoute == Screen.Tracks.route || currentRoute?.contains("library_") == true || currentRoute?.startsWith("playlist_detail") == true 
     }
@@ -232,11 +244,17 @@ private fun MainContent(
         topBar = {
             LargeTopAppBar(
                 title = {
-                    if (isSearching && isTracksScreen) {
+                    if (isSearching && canSearchHere) {
+                        val placeholder = when {
+                            isTracksScreen -> "Search tracks..."
+                            isPlaylistDetail -> "Search in playlist..."
+                            isFolderDetail -> "Search in folder..."
+                            else -> "Search..."
+                        }
                         TextField(
                             value = searchQuery,
                             onValueChange = onSearchQueryChange,
-                            placeholder = { Text("Search tracks...") },
+                            placeholder = { Text(placeholder) },
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                             colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
                             singleLine = true
@@ -261,9 +279,11 @@ private fun MainContent(
                         isSearching = isSearching,
                         isTracksScreen = isTracksScreen,
                         isPlaylistDetail = isPlaylistDetail,
+                        isFolderDetail = isFolderDetail,
                         shouldShowSort = shouldShowSort,
                         isReversed = isReversed,
                         isCollapsed = isCollapsed,
+                        canSearchHere = canSearchHere,
                         onToggleSearch = onToggleSearch,
                         onToggleReverse = onToggleReverse,
                         onSetSortType = onSetSortType,
@@ -277,8 +297,9 @@ private fun MainContent(
                         onShowTrackInfo = { showTrackInfoForSelection = it },
                         onSelectAll = {
                             if (isPlaylistDetail) {
-                                // Загружаем список только в момент нажатия "Выбрать все"
                                 trackViewModel.getPlaylistTracksSync(playlistId).let { onSelectTracks(it) }
+                            } else if (isFolderDetail) {
+                                trackViewModel.getFolderTracksSync(folderPath).let { onSelectTracks(it) }
                             }
                         },
                         playerViewModel = playerViewModel
@@ -383,9 +404,11 @@ private fun MainActionsSection(
     isSearching: Boolean,
     isTracksScreen: Boolean,
     isPlaylistDetail: Boolean,
+    isFolderDetail: Boolean,
     shouldShowSort: Boolean,
     isReversed: Boolean,
     isCollapsed: Boolean,
+    canSearchHere: Boolean,
     onToggleSearch: () -> Unit,
     onToggleReverse: () -> Unit,
     onSetSortType: (SortType) -> Unit,
@@ -406,7 +429,7 @@ private fun MainActionsSection(
 
     if (selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (selectedTracks.isNotEmpty() && (isPlaylistDetail || currentRoute?.startsWith("folder_detail") == true)) {
+            if (selectedTracks.isNotEmpty() && (isPlaylistDetail || isFolderDetail)) {
                 IconButton(onClick = { onSelectAll() }) { Icon(Icons.Rounded.SelectAll, "Select All") }
             }
 
@@ -427,7 +450,7 @@ private fun MainActionsSection(
             }
         }
     } else {
-        AnimatedVisibility(visible = (isCollapsed || isSearching || shouldShowSort) && (isTracksScreen || shouldShowSort)) {
+        AnimatedVisibility(visible = isCollapsed || isSearching || shouldShowSort || canSearchHere) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isPlaylistDetail && !isSearching) {
                     IconButton(onClick = { onExportPlaylist() }) { Icon(Icons.Rounded.FileUpload, null) }
@@ -439,7 +462,7 @@ private fun MainActionsSection(
                         DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showPlaylistMenu = false; onDeletePlaylist() })
                     }
                 }
-                if (isTracksScreen) IconButton(onClick = { onToggleSearch() }) { Icon(if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search, null) }
+                if (canSearchHere) IconButton(onClick = { onToggleSearch() }) { Icon(if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search, null) }
                 if (!isSearching && shouldShowSort) {
                     var showSortMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showSortMenu = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, null) }

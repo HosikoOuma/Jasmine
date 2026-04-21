@@ -152,6 +152,8 @@ class CrossfadeManager(
     fun release() {
         crossfadeCheckJob?.cancel()
         fadeJob?.cancel()
+        processorA.release()
+        processorB.release()
         playerA.release()
         playerB.release()
     }

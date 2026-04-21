@@ -10,6 +10,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -44,7 +45,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val controller: MediaController?
-        get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
+        get() = if (controllerFuture?.isDone == true) {
+            try { controllerFuture?.get() } catch (e: Exception) { null }
+        } else null
 
     private val favoritesRepository = FavoritesRepository(application)
     private val lyricsRepository = LyricsRepository(application)
@@ -149,10 +152,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun setupVolumeReceiver() {
         updateVolumeState()
         val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getApplication<Application>().registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            getApplication<Application>().registerReceiver(volumeReceiver, filter)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getApplication<Application>().registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                getApplication<Application>().registerReceiver(volumeReceiver, filter)
+            }
+        } catch (e: Exception) {
+            Log.e("PlayerViewModel", "Failed to register volume receiver", e)
         }
     }
 
@@ -194,13 +201,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _duration.value = if (controller.duration > 0) controller.duration else 0L
         _progress.value = if (controller.currentPosition > 0) controller.currentPosition else 0L
         
-        // Если плеер пуст, пробуем подготовить его для восстановления состояния
-        if (controller.mediaItemCount == 0) {
-            controller.prepare() 
-        }
-
-        updateCurrentTrack(controller.currentMediaItem)
+        // Сначала обновляем плейлист и текущий трек
         updatePlaylist()
+        updateCurrentTrack(controller.currentMediaItem)
         
         if (controller.isPlaying) startProgressUpdate()
 
@@ -223,7 +226,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                if (_isRadioMode.value) parseRadioMetadata(mediaMetadata)
+                if (_isRadioMode.value) {
+                    parseRadioMetadata(mediaMetadata)
+                } else {
+                    updateCurrentTrack(controller.currentMediaItem)
+                }
             }
             override fun onPlaybackParametersChanged(params: PlaybackParameters) {
                 _playbackSpeed.value = params.speed
@@ -247,14 +254,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun updateCurrentTrack(mediaItem: MediaItem?) {
-        val controller = controller ?: return
         if (mediaItem == null) {
             resetCurrentTrackState()
             return
         }
         
         val extras = mediaItem.mediaMetadata.extras
-        val isRadio = extras?.getBoolean("isRadio") ?: false
+        val isRadio = extras?.getBoolean("isRadio") ?: (mediaItem.mediaId.startsWith("radio_"))
         _isRadioMode.value = isRadio
         _currentSource.value = extras?.getString("sourceName")
 
@@ -271,14 +277,31 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             parseRadioMetadata(mediaItem.mediaMetadata)
         } else {
             val uid = mediaItem.mediaId
-            val newTrack = mediaToTrack(mediaItem).copy(uid = uid)
-            if (_currentTrack.value?.uid != newTrack.uid || _currentTrack.value?.id != newTrack.id) {
+            val trackFromMedia = mediaToTrack(mediaItem).copy(uid = uid)
+            
+            // Пытаемся найти трек в текущем плейлисте, чтобы получить полные данные 
+            // (если метаданные MediaItem еще пустые при восстановлении сессии)
+            val trackFromPlaylist = _playlist.value.find { it.uid == uid }
+            val newTrack = if (trackFromMedia.title == "Unknown" && trackFromPlaylist != null) {
+                trackFromPlaylist
+            } else {
+                trackFromMedia
+            }
+
+            // Обновляем стейт, если сменился ID/UID или если данные "поправились" (ушли из Unknown)
+            val isDataImproved = (_currentTrack.value?.title == "Unknown" || _currentTrack.value?.title == null) && newTrack.title != "Unknown"
+            
+            if (_currentTrack.value?.uid != newTrack.uid || _currentTrack.value?.id != newTrack.id || isDataImproved) {
                 _currentTrack.value = newTrack
                 _currentRadioStation.value = null
                 _radioTrackTitle.value = null
                 _radioTrackArtist.value = null
-                _localLyrics.value = null
-                _remoteLyrics.value = null
+                
+                // Сбрасываем лирику только если сменился физический трек
+                if (lastLoadedTrackId != "${newTrack.id}_${newTrack.title}") {
+                    _localLyrics.value = null
+                    _remoteLyrics.value = null
+                }
             }
         }
     }
@@ -304,6 +327,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val controller = controller ?: return
         val mediaItemsWithUids = mutableListOf<Pair<MediaItem, String>>()
         val timeline = controller.currentTimeline
+        
         if (timeline.isEmpty) {
             for (i in 0 until controller.mediaItemCount) {
                 val item = controller.getMediaItemAt(i)
@@ -316,10 +340,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 window.mediaItem?.let { mediaItemsWithUids.add(it to it.mediaId) }
             }
         }
+        
         updatePlaylistJob?.cancel()
         updatePlaylistJob = viewModelScope.launch(Dispatchers.Default) {
             val items = mediaItemsWithUids.map { (item, uid) -> mediaToTrack(item).copy(uid = uid) }
-            if (_playlist.value != items) _playlist.value = items
+            if (_playlist.value != items) {
+                _playlist.value = items
+                // После обновления плейлиста еще раз проверяем текущий трек, 
+                // так как теперь мы могли найти для него полные данные
+                withContext(Dispatchers.Main) {
+                    updateCurrentTrack(controller.currentMediaItem)
+                }
+            }
         }
     }
 
@@ -546,8 +578,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
-        controllerFuture?.let { MediaController.releaseFuture(it) }
+        try {
+            controller?.release()
+        } catch (_: Exception) {}
+        
+        if (controllerFuture != null) {
+            MediaController.releaseFuture(controllerFuture!!)
+        }
+        
         stopProgressUpdate()
-        try { getApplication<Application>().unregisterReceiver(volumeReceiver) } catch (e: Exception) { }
+        try {
+            getApplication<Application>().unregisterReceiver(volumeReceiver)
+        } catch (_: Exception) {}
     }
 }
