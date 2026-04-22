@@ -66,9 +66,10 @@ fun TrackCard(
             Box(contentAlignment = Alignment.BottomEnd) {
                 AlbumArt(
                     albumArtUri = track.albumArtUri,
+                    cacheKey = track.id.toString(), // Передаем стабильный ключ для мгновенного кэширования
                     modifier = Modifier.size(56.dp),
                     shape = RoundedCornerShape(14.dp),
-                    isLowRes = true // Оптимизация для списка
+                    isLowRes = true
                 )
                 if (isSelected) {
                     Surface(

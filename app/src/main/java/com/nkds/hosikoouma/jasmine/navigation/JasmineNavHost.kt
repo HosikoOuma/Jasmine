@@ -18,6 +18,7 @@ import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.MaintenanceViewModel
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -97,6 +98,9 @@ fun JasmineNavHost(
         }
         composable(Screen.SettingsLibrary.route) {
             LibrarySettingsScreen(trackViewModel = trackViewModel)
+        }
+        composable(Screen.SettingsMaintenance.route) {
+            MaintenanceScreen()
         }
 
         // --- Библиотека ---

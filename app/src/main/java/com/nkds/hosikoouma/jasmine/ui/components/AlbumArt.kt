@@ -28,10 +28,17 @@ fun AlbumArt(
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.medium,
     contentScale: ContentScale = ContentScale.Crop,
-    isLowRes: Boolean = false 
+    isLowRes: Boolean = false,
+    cacheKey: String? = null // Добавляем ключ для стабильного кэширования
 ) {
     var isSuccess by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    // Формируем ключ: если это URI, добавляем префикс. 
+    // Это поможет Coil отличать обложки разных треков, даже если URI пуст или одинаков.
+    val finalRegistryKey = remember(albumArtUri, cacheKey) {
+        cacheKey ?: albumArtUri?.toString()
+    }
 
     Box(
         modifier = modifier
@@ -42,18 +49,19 @@ fun AlbumArt(
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(albumArtUri)
+                .memoryCacheKey(finalRegistryKey)
+                .diskCacheKey(finalRegistryKey)
                 .error(R.drawable.ison_vec)
                 .fallback(R.drawable.ison_vec)
                 .crossfade(true)
                 .apply {
                     if (isLowRes) {
                         precision(Precision.INEXACT)
-                        size(100, 100)
+                        size(200, 200) // Немного увеличим для четкости на современных экранах
                         bitmapConfig(Bitmap.Config.RGB_565)
                     } else {
-                        // Снижаем разрешение до 600x600 для плеера (в 3 раза меньше памяти, чем 1024)
                         precision(Precision.INEXACT)
-                        size(600, 600) 
+                        size(800, 800) 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             bitmapConfig(Bitmap.Config.HARDWARE)
                         }
@@ -69,7 +77,7 @@ fun AlbumArt(
             contentScale = if (isSuccess) contentScale else ContentScale.Fit,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (isSuccess) 0.dp else 8.dp)
+                .padding(if (isSuccess) 0.dp else 12.dp)
         )
     }
 }

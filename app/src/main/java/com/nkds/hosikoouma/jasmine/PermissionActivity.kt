@@ -16,15 +16,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
+import kotlinx.coroutines.delay
 
 class PermissionActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,7 +86,19 @@ class PermissionActivity : ComponentActivity() {
 
 @Composable
 fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: () -> Unit) {
-    val context = LocalContext.current
+    var showWarning by remember { mutableStateOf(true) }
+    var secondsLeft by remember { mutableIntStateOf(5) }
+
+    // Таймер для предупреждения
+    LaunchedEffect(showWarning) {
+        if (showWarning) {
+            while (secondsLeft > 0) {
+                delay(1000)
+                secondsLeft--
+            }
+        }
+    }
+
     val permissionsToRequest = mutableListOf<String>().apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.READ_MEDIA_AUDIO)
@@ -107,6 +121,32 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
         } else if (permissions.values.all { it }) {
             onPermissionsGranted()
         }
+    }
+
+    if (showWarning) {
+        AlertDialog(
+            onDismissRequest = { /* Не позволяем закрыть тапом вне */ },
+            icon = { Icon(Icons.Rounded.Warning, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("ПРИЛОЖЕНИЕ\nНЕСТАБИЛЬНО") },
+            text = {
+                Text(
+                    "Приложение навайбкожено через Gemini и сделано для личного пользования. Оно нестабильно и нуждается в проверке, потому Jasmine может выкинуть баги, лаги и прочие невкусные приколы.\n\nО проблемах писать @NekoDosi.",
+                    textAlign = TextAlign.Center
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showWarning = false },
+                    enabled = secondsLeft == 0,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text(if (secondsLeft > 0) "Подожди $secondsLeft..." else "Смириться")
+                }
+            }
+        )
     }
 
     Box(

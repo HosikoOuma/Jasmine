@@ -47,6 +47,13 @@ fun SettingsScreen(
             onClick = { navController.navigate(Screen.SettingsLibrary.route) }
         )
 
+        SettingsCategoryItem(
+            title = "Maintenance",
+            subtitle = "Cache cleanup, storage info",
+            icon = Icons.Rounded.Build,
+            onClick = { navController.navigate(Screen.SettingsMaintenance.route) }
+        )
+
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
         Text(
@@ -58,7 +65,7 @@ fun SettingsScreen(
         
         ListItem(
             headlineContent = { Text("Version") },
-            supportingContent = { Text("1.0.0 (Jasmine)") },
+            supportingContent = { Text("1.1.0 (Jasmine)") },
             leadingContent = { Icon(Icons.Rounded.Info, null) }
         )
 

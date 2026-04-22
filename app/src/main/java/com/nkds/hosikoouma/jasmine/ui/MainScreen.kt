@@ -100,6 +100,11 @@ fun MainScreen(
                     currentRoute == Screen.LibraryArtists.route -> "Artists"
                     currentRoute == Screen.LibraryFolders.route -> "Folders"
                     currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
+                    // Названия для настроек
+                    currentRoute == Screen.SettingsPlayback.route -> "Playback"
+                    currentRoute == Screen.SettingsAppearance.route -> "Appearance"
+                    currentRoute == Screen.SettingsLibrary.route -> "Library Settings"
+                    currentRoute == Screen.SettingsMaintenance.route -> "Maintenance"
                     else -> Screen.items.find { it.route == currentRoute }?.title ?: "Jasmine"
                 }
             }
@@ -113,7 +118,6 @@ fun MainScreen(
     LaunchedEffect(currentRoute) { 
         selectedTracks = emptySet()
         selectedStations = emptySet() 
-        // При переходе между экранами сбрасываем поиск
         if (isSearching) {
             isSearching = false
             trackViewModel.setSearchQuery("")
@@ -565,6 +569,7 @@ private fun MainDialogs(
                 onDismissRequest = onDismissRenamePlaylist,
                 title = { Text("Edit Playlist Details") },
                 text = {
+                    val context = LocalContext.current
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,

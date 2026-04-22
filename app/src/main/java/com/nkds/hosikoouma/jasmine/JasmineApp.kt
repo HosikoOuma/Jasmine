@@ -12,19 +12,23 @@ class JasmineApp : Application() {
     override fun onCreate() {
         super.onCreate()
         
-        // Глобальная настройка Coil для всего приложения
         val imageLoader = ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.25)
+                    // Увеличиваем кэш в памяти до 30% (было 25%)
+                    .maxSizePercent(0.30)
+                    .strongReferencesEnabled(true)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(this.cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(50L * 1024 * 1024) // 50 MB
+                    // Увеличиваем дисковый кэш до 250 МБ (было 50 МБ)
+                    .maxSizeBytes(250L * 1024 * 1024)
                     .build()
             }
+            // Включаем поддержку работы с MediaStore и метаданными
+            .allowHardware(true)
             .crossfade(true)
             .build()
         Coil.setImageLoader(imageLoader)

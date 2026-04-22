@@ -6,21 +6,28 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import com.nkds.hosikoouma.jasmine.data.CoverCacheManager
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class TrackScanner(private val context: Context) {
+@Singleton
+class TrackScanner @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val coverCacheManager: CoverCacheManager
+) {
     
     private val baseAudioUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
     private val baseAlbumArtUri = Uri.parse("content://media/external/audio/albumart")
 
-    /**
-     * Сканирует медиа-хранилище и возвращает поток списков треков.
-     * Эмитит промежуточные результаты каждые 50 треков для отзывчивости UI.
-     */
     fun scanTracksFlow(): Flow<List<Track>> = flow {
         val tracks = mutableListOf<Track>()
+        // Кэшируем ID альбомов, которые уже проверили в текущем сеансе, чтобы не дергать File.exists()
+        val checkedAlbumIds = mutableSetOf<Long>()
+        
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
@@ -37,18 +44,11 @@ class TrackScanner(private val context: Context) {
             MediaStore.Audio.Media.DATA
         )
 
-        // Исключаем системные звуки, уведомления и слишком короткие файлы на уровне запроса
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} > 0"
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
 
         try {
-            context.contentResolver.query(
-                collection,
-                projection,
-                selection,
-                null,
-                sortOrder
-            )?.use { cursor ->
+            context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
                 val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
                 val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -60,25 +60,32 @@ class TrackScanner(private val context: Context) {
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
                     val albumId = cursor.getLong(albumIdCol)
+                    val contentUri = ContentUris.withAppendedId(baseAudioUri, id)
                     
-                    val track = Track(
+                    // Оптимизация: проверяем только если еще не видели этот альбом в текущем цикле
+                    if (!checkedAlbumIds.contains(albumId)) {
+                        coverCacheManager.saveCoverIfMissing(albumId, contentUri)
+                        checkedAlbumIds.add(albumId)
+                    }
+                    
+                    val artUri = coverCacheManager.getCoverUri(albumId) ?: ContentUris.withAppendedId(baseAlbumArtUri, albumId)
+
+                    tracks.add(Track(
                         id = id,
                         title = cursor.getString(titleCol) ?: "Unknown Title",
                         artist = cursor.getString(artistCol) ?: "Unknown Artist",
                         album = cursor.getString(albumCol) ?: "Unknown Album",
                         duration = cursor.getLong(durationCol),
-                        contentUri = ContentUris.withAppendedId(baseAudioUri, id),
-                        albumArtUri = ContentUris.withAppendedId(baseAlbumArtUri, albumId),
+                        contentUri = contentUri,
+                        albumArtUri = artUri,
                         path = cursor.getString(dataCol) ?: ""
-                    )
-                    tracks.add(track)
+                    ))
 
-                    // Эмитим пачку данных для мгновенного появления в списке
-                    if (tracks.size % 50 == 0) {
+                    // Эмитим реже (раз в 100 треков), чтобы снизить нагрузку на UI и ViewModel
+                    if (tracks.size % 100 == 0) {
                         emit(tracks.toList())
                     }
                 }
-                // Финальная эмиссия полного списка
                 emit(tracks.toList())
             }
         } catch (e: Exception) {
@@ -87,11 +94,10 @@ class TrackScanner(private val context: Context) {
         }
     }
 
-    /**
-     * Синхронная версия сканирования (для фоновых задач или виджетов).
-     */
     fun scanTracks(): List<Track> {
         val tracks = mutableListOf<Track>()
+        val checkedAlbumIds = mutableSetOf<Long>()
+        
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
@@ -123,14 +129,23 @@ class TrackScanner(private val context: Context) {
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
                     val albumId = cursor.getLong(albumIdCol)
+                    val contentUri = ContentUris.withAppendedId(baseAudioUri, id)
+                    
+                    if (!checkedAlbumIds.contains(albumId)) {
+                        coverCacheManager.saveCoverIfMissing(albumId, contentUri)
+                        checkedAlbumIds.add(albumId)
+                    }
+
+                    val artUri = coverCacheManager.getCoverUri(albumId) ?: ContentUris.withAppendedId(baseAlbumArtUri, albumId)
+
                     tracks.add(Track(
                         id = id,
                         title = cursor.getString(titleCol) ?: "Unknown Title",
                         artist = cursor.getString(artistCol) ?: "Unknown Artist",
                         album = cursor.getString(albumCol) ?: "Unknown Album",
                         duration = cursor.getLong(durationCol),
-                        contentUri = ContentUris.withAppendedId(baseAudioUri, id),
-                        albumArtUri = ContentUris.withAppendedId(baseAlbumArtUri, albumId),
+                        contentUri = contentUri,
+                        albumArtUri = artUri,
                         path = cursor.getString(dataCol) ?: ""
                     ))
                 }

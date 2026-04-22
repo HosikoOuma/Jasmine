@@ -22,8 +22,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTrackScanner(@ApplicationContext context: Context): TrackScanner {
-        return TrackScanner(context)
+    fun provideTrackScanner(
+        @ApplicationContext context: Context,
+        coverCacheManager: CoverCacheManager
+    ): TrackScanner {
+        return TrackScanner(context, coverCacheManager)
     }
 
     @Provides
