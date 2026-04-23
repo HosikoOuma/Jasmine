@@ -26,7 +26,8 @@ data class SettingsState(
     val amoledDarkMode: Boolean = false,
     val useDynamicColor: Boolean = true,
     val useAlbumArtColor: Boolean = true,
-    val seedColor: Int = 0xFF6750A4.toInt()
+    val seedColor: Int = 0xFF6750A4.toInt(),
+    val navigationItems: List<String> = listOf("tracks", "radio", "library", "settings")
 )
 
 @HiltViewModel
@@ -48,7 +49,8 @@ class SettingsViewModel @Inject constructor(
         repository.amoledDarkMode,
         repository.useDynamicColor,
         repository.useAlbumArtColor,
-        repository.seedColor
+        repository.seedColor,
+        repository.navigationItems
     ) { args ->
         SettingsState(
             isCrossfadeEnabled = args[0] as Boolean,
@@ -63,7 +65,8 @@ class SettingsViewModel @Inject constructor(
             amoledDarkMode = args[9] as Boolean,
             useDynamicColor = args[10] as Boolean,
             useAlbumArtColor = args[11] as Boolean,
-            seedColor = args[12] as Int
+            seedColor = args[12] as Int,
+            navigationItems = (args[13] as String).split(",").filter { it.isNotBlank() }
         )
     }.stateIn(
         scope = viewModelScope,
@@ -85,6 +88,10 @@ class SettingsViewModel @Inject constructor(
     fun setUseDynamicColor(enabled: Boolean) = launchUpdate { repository.setUseDynamicColor(enabled) }
     fun setUseAlbumArtColor(enabled: Boolean) = launchUpdate { repository.setUseAlbumArtColor(enabled) }
     fun setSeedColor(color: Int) = launchUpdate { repository.setSeedColor(color) }
+    
+    fun setNavigationItems(items: List<String>) = launchUpdate { 
+        repository.setNavigationItems(items.joinToString(",")) 
+    }
 
     private fun launchUpdate(block: suspend () -> Unit) = viewModelScope.launch { block() }
 

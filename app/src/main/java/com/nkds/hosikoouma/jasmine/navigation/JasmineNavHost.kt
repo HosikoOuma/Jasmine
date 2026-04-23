@@ -27,6 +27,7 @@ fun JasmineNavHost(
     navController: NavHostController,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
+    radioViewModel: RadioViewModel,
     onNavigateToPlayer: () -> Unit,
     onNavigateToRadioPlayer: () -> Unit,
     selectedTracks: Set<Track>,
@@ -65,7 +66,6 @@ fun JasmineNavHost(
             ) 
         }
         composable(Screen.Radio.route) {
-            val radioViewModel: RadioViewModel = hiltViewModel()
             RadioScreen(
                 viewModel = radioViewModel,
                 playerViewModel = playerViewModel,

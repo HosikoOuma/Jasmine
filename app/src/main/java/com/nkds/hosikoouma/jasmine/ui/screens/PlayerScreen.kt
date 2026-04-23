@@ -582,7 +582,6 @@ fun PlayerContent(
                 onPlaylistSelected = { playlistId ->
                     onAddTrackToPlaylist(playlistId, uiState.currentTrack.id)
                     showAddToPlaylistDialog = false
-                    onShowToast(null, ToastType.ADDED, "Added to playlist")
                 },
                 trackViewModel = trackViewModel
             )
@@ -715,7 +714,7 @@ fun PlaybackControlsSection(
 
         val playPauseInteractionSource = remember { MutableInteractionSource() }
         val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
-        val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.9f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
+        val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.7f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
         val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
 
         Surface(

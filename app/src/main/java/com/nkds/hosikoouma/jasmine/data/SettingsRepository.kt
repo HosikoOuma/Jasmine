@@ -38,6 +38,9 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
         val LAST_PLAYBACK_POSITION = longPreferencesKey("last_playback_position")
         val IS_RADIO_MODE = booleanPreferencesKey("is_radio_mode")
         val LAST_RADIO_STATION_ID = longPreferencesKey("last_radio_station_id")
+
+        // Навигация
+        val NAVIGATION_ITEMS = stringPreferencesKey("navigation_items")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -57,6 +60,10 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     
     val blacklistedFolders: Flow<Set<String>> = context.dataStore.data.map { it[BLACKLISTED_FOLDERS] ?: emptySet() }
     val isPlaylistsGridView: Flow<Boolean> = context.dataStore.data.map { it[PLAYLISTS_GRID_VIEW] ?: false }
+
+    val navigationItems: Flow<String> = context.dataStore.data.map { 
+        it[NAVIGATION_ITEMS] ?: "tracks,radio,library,settings" 
+    }
 
     // Состояние плеера
     val lastMediaItemIndex: Flow<Int> = context.dataStore.data.map { it[LAST_MEDIA_ITEM_INDEX] ?: 0 }
@@ -79,6 +86,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     suspend fun setUseAlbumArtColor(enabled: Boolean) = context.dataStore.edit { it[USE_ALBUM_ART_COLOR] = enabled }
     suspend fun setSeedColor(color: Int) = context.dataStore.edit { it[SEED_COLOR] = color }
     
+    suspend fun setNavigationItems(items: String) = context.dataStore.edit { it[NAVIGATION_ITEMS] = items }
+
     suspend fun addFolderToBlacklist(path: String) = context.dataStore.edit { 
         val current = it[BLACKLISTED_FOLDERS] ?: emptySet()
         it[BLACKLISTED_FOLDERS] = current + path

@@ -7,13 +7,14 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.TrackScanner
 import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.data.*
 import com.nkds.hosikoouma.jasmine.datamodels.*
+import com.nkds.hosikoouma.jasmine.ui.components.ToastData
+import com.nkds.hosikoouma.jasmine.ui.components.ToastType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -63,6 +64,9 @@ class TrackViewModel @Inject constructor(
 
     private val _pendingDeleteIntent = MutableSharedFlow<IntentSender>()
     val pendingDeleteIntent = _pendingDeleteIntent.asSharedFlow()
+
+    private val _appToast = MutableStateFlow<ToastData?>(null)
+    val appToast = _appToast.asStateFlow()
 
     // Filter Aggregation
     val minDurationLimit = settingsRepository.minTrackDuration
@@ -181,6 +185,14 @@ class TrackViewModel @Inject constructor(
 
     // --- Actions ---
 
+    fun showToast(track: Track?, type: ToastType, message: String? = null) {
+        _appToast.value = ToastData(track, type, message)
+    }
+
+    fun clearToast() {
+        _appToast.value = null
+    }
+
     fun toggleFavorite(track: Track) = viewModelScope.launch { favoritesRepository.toggleFavorite(track.id.toString()) }
     fun setSearchQuery(query: String) { _searchQuery.value = query }
     fun setSortType(type: SortType) { _sortType.value = type }
@@ -210,22 +222,38 @@ class TrackViewModel @Inject constructor(
     
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
         val track = _tracks.value.find { it.id == trackId } ?: return@launch
+        val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
+        
         if (!playlistRepository.addTrackToPlaylist(playlistId, track)) {
-            withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Already in playlist", Toast.LENGTH_SHORT).show() }
+            showToast(track, ToastType.PLAYLIST_ADDED, "Already in $playlistName")
         } else {
             updateM3U(playlistId)
+            showToast(track, ToastType.PLAYLIST_ADDED, "Added to $playlistName")
         }
     }
 
     fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>) = viewModelScope.launch {
         val added = playlistRepository.addTracksToPlaylist(playlistId, tracks)
+        val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         updateM3U(playlistId)
-        withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Added $added tracks", Toast.LENGTH_SHORT).show() }
+        
+        if (tracks.size == 1) {
+            showToast(tracks.first(), ToastType.PLAYLIST_ADDED, "Added to $playlistName")
+        } else {
+            showToast(null, ToastType.PLAYLIST_ADDED, "Added $added tracks to $playlistName")
+        }
     }
 
     fun removeTracksFromPlaylist(playlistId: Long, tracks: List<Track>) = viewModelScope.launch {
         playlistRepository.removeTracksFromPlaylist(playlistId, tracks.map { it.id })
+        val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         updateM3U(playlistId)
+        
+        if (tracks.size == 1) {
+            showToast(tracks.first(), ToastType.PLAYLIST_REMOVED, "Removed from $playlistName")
+        } else {
+            showToast(null, ToastType.PLAYLIST_REMOVED, "Removed ${tracks.size} tracks from $playlistName")
+        }
     }
 
     private suspend fun updateM3U(playlistId: Long) {
@@ -242,9 +270,9 @@ class TrackViewModel @Inject constructor(
             getApplication<Application>().contentResolver.openFileDescriptor(uri, "w")?.use { fd ->
                 FileOutputStream(fd.fileDescriptor).use { it.write(content.toString().toByteArray()) }
             }
-            withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Exported", Toast.LENGTH_SHORT).show() }
+            withContext(Dispatchers.Main) { showToast(null, ToastType.DELETE_SUCCESS, "Playlist exported") }
         } catch (e: Exception) {
-            withContext(Dispatchers.Main) { Toast.makeText(getApplication(), "Export failed", Toast.LENGTH_SHORT).show() }
+            withContext(Dispatchers.Main) { showToast(null, ToastType.DELETE_FAILED, "Export failed") }
         }
     }
 

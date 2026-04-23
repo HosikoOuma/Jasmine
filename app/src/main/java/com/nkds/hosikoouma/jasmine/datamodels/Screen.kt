@@ -33,6 +33,16 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object PlaylistDetail : Screen("playlist_detail/{playlistId}", "Playlist", Icons.Rounded.LibraryMusic)
 
     companion object {
-        val items get() = listOf(Tracks, Radio, Library, Settings)
+        val allMainItems = listOf(Tracks, Radio, Library, Settings)
+        
+        fun getNavigationItems(routes: List<String>): List<Screen> {
+            val baseItems = allMainItems.filter { routes.contains(it.route) }
+            // Сортируем в соответствии с порядком в routes
+            return routes.mapNotNull { route -> 
+                allMainItems.find { it.route == route }
+            }
+        }
+
+        val items get() = allMainItems
     }
 }

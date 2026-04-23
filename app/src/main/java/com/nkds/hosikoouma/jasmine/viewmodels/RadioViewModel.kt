@@ -7,6 +7,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nkds.hosikoouma.jasmine.data.RadioRepository
 import com.nkds.hosikoouma.jasmine.data.RadioStation
+import com.nkds.hosikoouma.jasmine.ui.components.ToastData
+import com.nkds.hosikoouma.jasmine.ui.components.ToastType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -39,12 +41,24 @@ class RadioViewModel @Inject constructor(
     private val _errorEvent = MutableSharedFlow<String>()
     val errorEvent = _errorEvent.asSharedFlow()
 
+    private val _appToast = MutableStateFlow<ToastData?>(null)
+    val appToast = _appToast.asStateFlow()
+
+    fun showToast(type: ToastType, message: String? = null) {
+        _appToast.value = ToastData(track = null, type = type, message = message)
+    }
+
+    fun clearToast() {
+        _appToast.value = null
+    }
+
     fun addStation(name: String, url: String) {
         if (name.isBlank() || url.isBlank()) return
         
         viewModelScope.launch {
             try {
                 repository.addStation(name, url)
+                showToast(ToastType.RADIO_ADDED, "Added: $name")
             } catch (e: Exception) {
                 _errorEvent.emit("Failed to add station: ${e.message}")
             }
@@ -55,6 +69,7 @@ class RadioViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.deleteStation(station)
+                showToast(ToastType.RADIO_REMOVED, "Deleted: ${station.name}")
             } catch (e: Exception) {
                 _errorEvent.emit("Failed to delete station")
             }

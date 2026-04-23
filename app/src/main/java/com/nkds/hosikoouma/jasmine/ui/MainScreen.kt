@@ -60,7 +60,8 @@ import java.nio.charset.StandardCharsets
 @Composable
 fun MainScreen(
     trackViewModel: TrackViewModel = viewModel(),
-    playerViewModel: PlayerViewModel = viewModel()
+    playerViewModel: PlayerViewModel = viewModel(),
+    radioViewModel: RadioViewModel = viewModel()
 ) {
     val navController = rememberNavController()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -149,6 +150,7 @@ fun MainScreen(
         navController = navController,
         trackViewModel = trackViewModel,
         playerViewModel = playerViewModel,
+        radioViewModel = radioViewModel,
         scrollBehavior = scrollBehavior,
         currentRoute = currentRoute,
         dynamicTitle = dynamicTitle,
@@ -185,6 +187,7 @@ private fun MainContent(
     navController: androidx.navigation.NavHostController,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
+    radioViewModel: RadioViewModel,
     scrollBehavior: TopAppBarScrollBehavior,
     currentRoute: String?,
     dynamicTitle: String,
@@ -306,7 +309,8 @@ private fun MainContent(
                                 trackViewModel.getFolderTracksSync(folderPath).let { onSelectTracks(it) }
                             }
                         },
-                        playerViewModel = playerViewModel
+                        playerViewModel = playerViewModel,
+                        radioViewModel = radioViewModel
                     )
                 },
                 scrollBehavior = scrollBehavior
@@ -327,6 +331,7 @@ private fun MainContent(
                 navController = navController,
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
+                radioViewModel = radioViewModel,
                 onNavigateToPlayer = { /* Пусто */ },
                 onNavigateToRadioPlayer = { onToggleRadioPlayer(true) },
                 selectedTracks = selectedTracks,
@@ -386,6 +391,7 @@ private fun MainContent(
         playlistId = playlistId,
         trackViewModel = trackViewModel,
         playerViewModel = playerViewModel,
+        radioViewModel = radioViewModel,
         navController = navController,
         onDismissTrackPicker = { showTrackPickerDialog = false },
         onDismissDeletePlaylist = { showDeletePlaylistDialog = false },
@@ -425,7 +431,8 @@ private fun MainActionsSection(
     onAddToPlaylist: () -> Unit,
     onShowTrackInfo: (Track) -> Unit,
     onSelectAll: () -> Unit,
-    playerViewModel: PlayerViewModel
+    playerViewModel: PlayerViewModel,
+    radioViewModel: RadioViewModel
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -500,6 +507,7 @@ private fun MainDialogs(
     playlistId: Long,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
+    radioViewModel: RadioViewModel,
     navController: androidx.navigation.NavController,
     onDismissTrackPicker: () -> Unit,
     onDismissDeletePlaylist: () -> Unit,
@@ -625,7 +633,6 @@ private fun MainDialogs(
     }
 
     if (showDeleteStationsDialog) {
-        val radioViewModel: RadioViewModel = viewModel()
         AlertDialog(onDismissRequest = onDismissDeleteStations, title = { Text("Delete Stations") }, text = { Text("Delete ${selectedStations.size} stations?") }, confirmButton = { TextButton(onClick = { selectedStations.forEach { radioViewModel.deleteStation(it) }; onClearSelection(); onDismissDeleteStations() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeleteStations() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
     }
 

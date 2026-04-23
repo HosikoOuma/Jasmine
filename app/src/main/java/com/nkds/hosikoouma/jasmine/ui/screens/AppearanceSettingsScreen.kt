@@ -1,23 +1,28 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.os.Build
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.TextFields
-import androidx.compose.material.icons.rounded.Timeline
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nkds.hosikoouma.jasmine.core.models.AppFontFamily
 import com.nkds.hosikoouma.jasmine.core.models.DarkMode
 import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
+import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
 import com.nkds.hosikoouma.jasmine.ui.components.SettingsClickableItem
 import com.nkds.hosikoouma.jasmine.ui.components.SettingsSelectionDialog
@@ -34,6 +40,8 @@ import com.nkds.hosikoouma.jasmine.ui.components.SettingsSwitchItem
 import com.nkds.hosikoouma.jasmine.ui.theme.getTypography
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsState
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @Composable
 fun AppearanceSettingsScreen(
@@ -49,7 +57,8 @@ fun AppearanceSettingsScreen(
         onSetUseAlbumArtColor = viewModel::setUseAlbumArtColor,
         onSetPaletteStyle = viewModel::setPaletteStyle,
         onSetAppFontFamily = viewModel::setAppFontFamily,
-        onSetProgressBarStyle = viewModel::setProgressBarStyle
+        onSetProgressBarStyle = viewModel::setProgressBarStyle,
+        onUpdateNavigationItems = viewModel::setNavigationItems
     )
 }
 
@@ -63,12 +72,14 @@ fun AppearanceSettingsContent(
     onSetUseAlbumArtColor: (Boolean) -> Unit,
     onSetPaletteStyle: (String) -> Unit,
     onSetAppFontFamily: (AppFontFamily) -> Unit,
-    onSetProgressBarStyle: (ProgressBarStyle) -> Unit
+    onSetProgressBarStyle: (ProgressBarStyle) -> Unit,
+    onUpdateNavigationItems: (List<String>) -> Unit
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showFontDialog by remember { mutableStateOf(false) }
     var showPaletteDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf(false) }
+    var showNavDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -106,7 +117,6 @@ fun AppearanceSettingsContent(
             onClick = { showStyleDialog = true }
         ) {
             if (settings.progressBarStyle == ProgressBarStyle.STANDARD) {
-                // В плеере используется обычный M3 Slider для стиля STANDARD
                 Slider(
                     value = 0.6f,
                     onValueChange = {},
@@ -125,7 +135,7 @@ fun AppearanceSettingsContent(
             }
         }
 
-        // --- ПРЕВЬЮ ПАЛИТРЫ (Цветовая схема) ---
+        // --- ПРЕВЬЮ ПАЛИТРЫ ---
         PreviewCard(
             title = "Palette Style",
             icon = Icons.Rounded.Palette,
@@ -143,7 +153,23 @@ fun AppearanceSettingsContent(
             }
         }
 
-        // --- ОСТАЛЬНЫЕ НАСТРОЙКИ ---
+        // --- НАСТРОЙКИ НАВИГАЦИИ ---
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Navigation",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+            )
+
+            SettingsClickableItem(
+                title = "Navigation Bar Items",
+                subtitle = "Long press and drag cards to reorder",
+                onClick = { showNavDialog = true }
+            )
+        }
+
+        // --- ТЕМА ---
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = "System Theme",
@@ -182,11 +208,18 @@ fun AppearanceSettingsContent(
             )
         }
 
-        // Отступ снизу для доступа к пунктам под миниплеером
         Spacer(modifier = Modifier.height(180.dp))
     }
 
-    // --- ДИАЛОГИ ВЫБОРА ---
+    // --- ДИАЛОГИ ---
+
+    if (showNavDialog) {
+        NavigationItemsDialog(
+            currentItems = settings.navigationItems,
+            onDismiss = { showNavDialog = false },
+            onSave = onUpdateNavigationItems
+        )
+    }
 
     if (showThemeDialog) {
         SettingsSelectionDialog(
@@ -243,6 +276,137 @@ fun AppearanceSettingsContent(
             confirmButton = { TextButton(onClick = { showPaletteDialog = false }) { Text("Done") } }
         )
     }
+}
+
+@Composable
+fun NavigationItemsDialog(
+    currentItems: List<String>,
+    onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit
+) {
+    val allPossibleItems = Screen.allMainItems
+    var itemsState by remember { 
+        mutableStateOf(
+            allPossibleItems.map { screen ->
+                screen to currentItems.contains(screen.route)
+            }.sortedBy { (screen, _) -> 
+                val index = currentItems.indexOf(screen.route)
+                if (index != -1) index else 100 
+            }
+        )
+    }
+
+    val lazyListState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        itemsState = itemsState.toMutableList().apply {
+            add(to.index, removeAt(from.index))
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Navigation Bar Items") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Long press and drag cards to reorder. Settings cannot be hidden. Min 2 items.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    itemsIndexed(itemsState, key = { _, (screen, _) -> screen.route }) { index, (screen, isVisible) ->
+                        ReorderableItem(reorderableState, key = screen.route) { isDragging ->
+                            val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp)
+                            val isSettings = screen.route == "settings"
+                            val visibleCount = itemsState.count { it.second }
+                            
+                            val cardColor by animateColorAsState(
+                                targetValue = if (isVisible) MaterialTheme.colorScheme.surfaceVariant 
+                                             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                label = "cardColor"
+                            )
+
+                            // Обертка для устранения эффекта "тени под тенью" и корректного перетаскивания
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .draggableHandle() // Теперь вся карточка - область для захвата
+                                    .graphicsLayer { 
+                                        shadowElevation = elevation.toPx()
+                                        shape = RoundedCornerShape(20.dp)
+                                        clip = true
+                                    }
+                            ) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = screen.icon, 
+                                            contentDescription = null, 
+                                            modifier = Modifier.size(24.dp),
+                                            tint = if (isVisible) MaterialTheme.colorScheme.onSurface 
+                                                   else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                        
+                                        Spacer(Modifier.width(16.dp))
+                                        
+                                        Text(
+                                            text = screen.title, 
+                                            modifier = Modifier.weight(1f),
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = if (isVisible) MaterialTheme.colorScheme.onSurface 
+                                                   else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+
+                                        Switch(
+                                            checked = isVisible,
+                                            enabled = !isSettings && (!isVisible || visibleCount > 2),
+                                            onCheckedChange = { checked ->
+                                                itemsState = itemsState.toMutableList().apply {
+                                                    this[index] = screen to checked
+                                                }
+                                            },
+                                            thumbContent = if (isVisible) {
+                                                { Icon(Icons.Rounded.Check, null, Modifier.size(16.dp)) }
+                                            } else null
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val finalRoutes = itemsState
+                        .filter { it.second }
+                        .map { it.first.route }
+                    onSave(finalRoutes)
+                    onDismiss()
+                }
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

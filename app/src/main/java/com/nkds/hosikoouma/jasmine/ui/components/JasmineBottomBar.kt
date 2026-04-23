@@ -19,17 +19,28 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 
 @Composable
-fun JasmineBottomBar(navController: NavController) {
+fun JasmineBottomBar(
+    navController: NavController,
+    settingsViewModel: SettingsViewModel = viewModel()
+) {
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    
+    val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
+    val navItems = remember(settings.navigationItems) {
+        Screen.getNavigationItems(settings.navigationItems)
+    }
 
     Box(
         modifier = Modifier
@@ -50,13 +61,12 @@ fun JasmineBottomBar(navController: NavController) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Screen.items.forEach { screen ->
+                navItems.forEach { screen ->
                     val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     
                     val interactionSource = remember { MutableInteractionSource() }
                     val isPressed by interactionSource.collectIsPressedAsState()
                     
-                    // Анимация масштаба при нажатии
                     val scale by animateFloatAsState(
                         targetValue = if (isPressed) 0.88f else 1f,
                         animationSpec = spring(stiffness = Spring.StiffnessMedium),

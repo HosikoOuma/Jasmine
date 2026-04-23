@@ -77,7 +77,7 @@ fun TracksScreen(
     val searchQuery by trackViewModel.searchQuery.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
-    
+
     LaunchedEffect(Unit) {
         playerViewModel.toastEvent.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()

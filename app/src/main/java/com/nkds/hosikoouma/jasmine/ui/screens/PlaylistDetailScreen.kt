@@ -1,6 +1,10 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.net.Uri
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -13,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -32,16 +38,6 @@ import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
-// --- UI State ---
-data class PlaylistDetailUiState(
-    val playlist: PlaylistEntity? = null,
-    val tracks: List<Track> = emptyList(),
-    val currentTrack: Track? = null,
-    val isPlaying: Boolean = false,
-    val selectedTracks: Set<Track> = emptySet()
-)
-
-// --- Stateful Screen ---
 @Composable
 fun PlaylistDetailScreen(
     playlistId: Long,
@@ -61,7 +57,6 @@ fun PlaylistDetailScreen(
     
     val currentTrack by playerViewModel.currentTrack.collectAsStateWithLifecycle()
     val isPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
-    
     val searchQuery by trackViewModel.searchQuery.collectAsStateWithLifecycle()
 
     val filteredTracks = remember(playlistTracks, searchQuery) {
@@ -71,16 +66,8 @@ fun PlaylistDetailScreen(
         }
     }
 
-    val uiState = PlaylistDetailUiState(
-        playlist = playlist,
-        tracks = playlistTracks,
-        currentTrack = currentTrack,
-        isPlaying = isPlaying,
-        selectedTracks = selectedTracks
-    )
-
     PlaylistDetailContent(
-        uiState = uiState,
+        uiState = PlaylistDetailUiState(playlist, playlistTracks, currentTrack, isPlaying, selectedTracks),
         filteredTracks = filteredTracks,
         onAddTracksClick = onAddTracksClick,
         onTrackClick = { track ->
@@ -103,7 +90,6 @@ fun PlaylistDetailScreen(
     )
 }
 
-// --- Stateless Content ---
 @Composable
 fun PlaylistDetailContent(
     uiState: PlaylistDetailUiState,
@@ -116,7 +102,6 @@ fun PlaylistDetailContent(
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
-    val isInSelectionMode = uiState.selectedTracks.isNotEmpty()
     val listState = rememberLazyListState()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -127,9 +112,7 @@ fun PlaylistDetailContent(
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .simpleVerticalScrollbar(listState),
+                modifier = Modifier.fillMaxSize().simpleVerticalScrollbar(listState),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -138,39 +121,25 @@ fun PlaylistDetailContent(
                         playlist = uiState.playlist,
                         tracksCount = uiState.tracks.size,
                         firstTrackArt = uiState.tracks.firstOrNull()?.albumArtUri,
-                        onShuffleClick = {
-                            vibrateClick(context)
-                            onShufflePlay()
-                        },
-                        showShuffle = !isInSelectionMode && uiState.tracks.isNotEmpty()
+                        onShuffleClick = { vibrateClick(context); onShufflePlay() },
+                        showShuffle = uiState.selectedTracks.isEmpty() && uiState.tracks.isNotEmpty()
                     )
                 }
 
                 if (uiState.tracks.isEmpty()) {
-                    item {
-                        Box(modifier = Modifier.fillParentMaxHeight(0.6f)) {
-                            EmptyPlaylistPlaceholder(onAddTracksClick)
-                        }
-                    }
+                    item { Box(modifier = Modifier.fillParentMaxHeight(0.6f)) { EmptyPlaylistPlaceholder(onAddTracksClick) } }
                 } else {
-                    itemsIndexed(
-                        items = filteredTracks,
-                        key = { _, track -> track.id }
-                    ) { _, track ->
-                        val isSelected = uiState.selectedTracks.contains(track)
+                    itemsIndexed(filteredTracks, key = { _, track -> track.id }) { _, track ->
                         SwipeableTrackCard(
                             track = track,
                             isCurrent = uiState.currentTrack?.id == track.id,
                             isPlaying = uiState.isPlaying,
-                            isSelected = isSelected,
+                            isSelected = uiState.selectedTracks.contains(track),
                             isManualMarkingEnabled = true,
-                            enabled = !isInSelectionMode,
+                            enabled = uiState.selectedTracks.isEmpty(),
                             onSwipeAction = { onSwipeAction(track) },
                             onClick = { onTrackClick(track) },
-                            onLongClick = {
-                                VibrationUtils.performLongPressHaptic(haptic)
-                                onTrackLongClick(track)
-                            }
+                            onLongClick = { VibrationUtils.performLongPressHaptic(haptic); onTrackLongClick(track) }
                         )
                     }
                 }
@@ -187,52 +156,125 @@ private fun PlaylistHeader(
     onShuffleClick: () -> Unit,
     showShuffle: Boolean
 ) {
-    Row(
+    var isExpanded by remember { mutableStateOf(false) }
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    
+    val expandProgress by animateFloatAsState(
+        targetValue = if (isExpanded) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f),
+        label = "expandProgress"
+    )
+
+    val artSize = (150.dp + (screenWidth - 32.dp - 150.dp) * expandProgress).coerceAtLeast(0.dp)
+    
+    // Вместо использования offsets, которые заставляют элементы "летать" над другими,
+    // используем Column, где элементы просто меняют свои размеры и веса.
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = 16.dp)
+            .animateContentSize(animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Контейнер, который может быть либо Row (когда свернуто), либо Column (когда развернуто)
+        // Но чтобы анимация была плавной, мы всегда используем одну структуру.
+        
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val displayArt = remember(playlist.coverUri, firstTrackArt) {
-                playlist.coverUri?.let { Uri.parse(it) } ?: firstTrackArt
-            }
+            // Обложка
+            PlaylistArt(
+                playlist = playlist,
+                firstTrackArt = firstTrackArt,
+                size = artSize,
+                onClick = { isExpanded = !isExpanded }
+            )
 
-            AlbumArt(
-                albumArtUri = displayArt,
+            // Если не расширено, показываем текст справа
+            if (expandProgress < 0.5f) {
+                Spacer(modifier = Modifier.width((20.dp * (1f - expandProgress * 2)).coerceAtLeast(0.dp)))
+                
+                PlaylistInfo(
+                    tracksCount = tracksCount,
+                    modifier = Modifier.weight(1f).graphicsLayer { alpha = 1f - expandProgress * 2 }
+                )
+
+                if (showShuffle) {
+                    ShuffleButton(
+                        modifier = Modifier.padding(start = 8.dp).graphicsLayer { alpha = 1f - expandProgress * 2 },
+                        onShuffle = onShuffleClick
+                    )
+                }
+            }
+        }
+
+        // Если расширено, показываем текст снизу
+        if (expandProgress >= 0.5f) {
+            Spacer(modifier = Modifier.height((16.dp * ((expandProgress - 0.5f) * 2)).coerceAtLeast(0.dp)))
+            
+            Row(
                 modifier = Modifier
-                    .size(150.dp)
-                    .clip(RoundedCornerShape(24.dp)),
-                isLowRes = false
-            )
-
-            Spacer(modifier = Modifier.width(20.dp))
-
-            Column {
-                Text(
-                    text = "$tracksCount tracks",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Playlist",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+                    .graphicsLayer { alpha = (expandProgress - 0.5f) * 2 },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                PlaylistInfo(tracksCount = tracksCount, modifier = Modifier.weight(1f))
+                
+                if (showShuffle) {
+                    ShuffleButton(
+                        modifier = Modifier,
+                        onShuffle = onShuffleClick
+                    )
+                }
             }
         }
+    }
+}
 
-        if (showShuffle) {
-            ShuffleButton(
-                modifier = Modifier.padding(start = 8.dp),
-                onShuffle = onShuffleClick
-            )
-        }
+@Composable
+private fun PlaylistArt(
+    playlist: PlaylistEntity,
+    firstTrackArt: Uri?,
+    size: androidx.compose.ui.unit.Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val displayArt = remember(playlist.coverUri, firstTrackArt) {
+        playlist.coverUri?.let { Uri.parse(it) } ?: firstTrackArt
+    }
+
+    AlbumArt(
+        albumArtUri = displayArt,
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        isLowRes = false
+    )
+}
+
+@Composable
+private fun PlaylistInfo(tracksCount: Int, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = "$tracksCount tracks",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "Playlist",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -281,3 +323,12 @@ fun PlaylistDetailPreview() {
         )
     }
 }
+
+// --- UI State ---
+data class PlaylistDetailUiState(
+    val playlist: PlaylistEntity? = null,
+    val tracks: List<Track> = emptyList(),
+    val currentTrack: Track? = null,
+    val isPlaying: Boolean = false,
+    val selectedTracks: Set<Track> = emptySet()
+)
