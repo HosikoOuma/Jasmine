@@ -102,6 +102,12 @@ fun JasmineNavHost(
         composable(Screen.SettingsMaintenance.route) {
             MaintenanceScreen()
         }
+        composable(Screen.Statistics.route) {
+            StatisticsScreen()
+        }
+        composable(Screen.About.route) {
+            AboutScreen()
+        }
 
         // --- Библиотека ---
         composable(Screen.LibraryAlbums.route) { 

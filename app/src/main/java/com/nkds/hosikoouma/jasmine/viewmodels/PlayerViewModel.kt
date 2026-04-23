@@ -24,10 +24,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.nkds.hosikoouma.jasmine.PlaybackService
 import com.nkds.hosikoouma.jasmine.core.utils.QueueUtils
-import com.nkds.hosikoouma.jasmine.data.FavoritesRepository
-import com.nkds.hosikoouma.jasmine.data.LyricsHelper
-import com.nkds.hosikoouma.jasmine.data.LyricsRepository
-import com.nkds.hosikoouma.jasmine.data.RadioStation
+import com.nkds.hosikoouma.jasmine.data.*
 import com.nkds.hosikoouma.jasmine.datamodels.Lyrics
 import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
 import com.nkds.hosikoouma.jasmine.datamodels.Track
@@ -206,7 +203,6 @@ class PlayerViewModel @Inject constructor(
         _duration.value = if (controller.duration > 0) controller.duration else 0L
         _progress.value = if (controller.currentPosition > 0) controller.currentPosition else 0L
         
-        // Сначала обновляем плейлист и текущий трек
         updatePlaylist()
         updateCurrentTrack(controller.currentMediaItem)
         
@@ -281,19 +277,12 @@ class PlayerViewModel @Inject constructor(
             }
             parseRadioMetadata(mediaItem.mediaMetadata)
         } else {
-            val uid = mediaItem.mediaId
-            val trackFromMedia = mediaToTrack(mediaItem).copy(uid = uid)
+            val uid = mediaIdToIdString(mediaItem.mediaId)
+            val trackFromMedia = mediaToTrack(mediaItem).copy(uid = mediaItem.mediaId)
             
-            // Пытаемся найти трек в текущем плейлисте, чтобы получить полные данные 
-            // (если метаданные MediaItem еще пустые при восстановлении сессии)
-            val trackFromPlaylist = _playlist.value.find { it.uid == uid }
-            val newTrack = if (trackFromMedia.title == "Unknown" && trackFromPlaylist != null) {
-                trackFromPlaylist
-            } else {
-                trackFromMedia
-            }
+            val trackFromPlaylist = _playlist.value.find { it.uid == mediaItem.mediaId }
+            val newTrack = if (trackFromMedia.title == "Unknown" && trackFromPlaylist != null) trackFromPlaylist else trackFromMedia
 
-            // Обновляем стейт, если сменился ID/UID или если данные "поправились" (ушли из Unknown)
             val isDataImproved = (_currentTrack.value?.title == "Unknown" || _currentTrack.value?.title == null) && newTrack.title != "Unknown"
             
             if (_currentTrack.value?.uid != newTrack.uid || _currentTrack.value?.id != newTrack.id || isDataImproved) {
@@ -302,7 +291,6 @@ class PlayerViewModel @Inject constructor(
                 _radioTrackTitle.value = null
                 _radioTrackArtist.value = null
                 
-                // Сбрасываем лирику только если сменился физический трек
                 if (lastLoadedTrackId != "${newTrack.id}_${newTrack.title}") {
                     _localLyrics.value = null
                     _remoteLyrics.value = null
@@ -351,8 +339,6 @@ class PlayerViewModel @Inject constructor(
             val items = mediaItemsWithUids.map { (item, uid) -> mediaToTrack(item).copy(uid = uid) }
             if (_playlist.value != items) {
                 _playlist.value = items
-                // После обновления плейлиста еще раз проверяем текущий трек, 
-                // так как теперь мы могли найти для него полные данные
                 withContext(Dispatchers.Main) {
                     updateCurrentTrack(controller.currentMediaItem)
                 }
@@ -578,7 +564,18 @@ class PlayerViewModel @Inject constructor(
 
     fun toggleRepeatMode() { controller?.let { it.repeatMode = when (it.repeatMode) { Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL; Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF } } }
 
-    private fun startProgressUpdate() { progressJob?.cancel(); progressJob = viewModelScope.launch { while (true) { controller?.let { _progress.value = it.currentPosition }; delay(1000) } } }
+    private fun startProgressUpdate() { 
+        progressJob?.cancel()
+        progressJob = viewModelScope.launch { 
+            while (true) { 
+                controller?.let { 
+                    _progress.value = it.currentPosition
+                }
+                delay(1000) 
+            } 
+        } 
+    }
+    
     private fun stopProgressUpdate() { progressJob?.cancel() }
 
     override fun onCleared() {

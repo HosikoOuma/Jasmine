@@ -1,6 +1,8 @@
 package com.nkds.hosikoouma.jasmine.datamodels
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Radio
@@ -19,6 +21,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object SettingsAppearance : Screen("settings_appearance", "Appearance", Icons.Rounded.Settings)
     data object SettingsLibrary : Screen("settings_library", "Library", Icons.Rounded.Settings)
     data object SettingsMaintenance : Screen("settings_maintenance", "Maintenance", Icons.Rounded.Settings)
+    data object Statistics : Screen("statistics", "Statistics", Icons.Rounded.BarChart)
+    data object About : Screen("about", "About", Icons.Rounded.Info)
     
     // Вложенные экраны библиотеки
     data object LibraryAlbums : Screen("library_albums", "Albums", Icons.Rounded.LibraryMusic)

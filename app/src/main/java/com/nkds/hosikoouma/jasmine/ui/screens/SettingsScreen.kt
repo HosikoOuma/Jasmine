@@ -53,20 +53,19 @@ fun SettingsScreen(
             icon = Icons.Rounded.Build,
             onClick = { navController.navigate(Screen.SettingsMaintenance.route) }
         )
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-
-        Text(
-            text = "About",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
         
-        ListItem(
-            headlineContent = { Text("Version") },
-            supportingContent = { Text("1.1.0 (Jasmine)") },
-            leadingContent = { Icon(Icons.Rounded.Info, null) }
+        SettingsCategoryItem(
+            title = "Statistics",
+            subtitle = "Listening time, top tracks, history",
+            icon = Icons.Rounded.BarChart,
+            onClick = { navController.navigate(Screen.Statistics.route) }
+        )
+
+        SettingsCategoryItem(
+            title = "About",
+            subtitle = "App info, developer, version",
+            icon = Icons.Rounded.Info,
+            onClick = { navController.navigate(Screen.About.route) }
         )
 
         Spacer(modifier = Modifier.height(160.dp))

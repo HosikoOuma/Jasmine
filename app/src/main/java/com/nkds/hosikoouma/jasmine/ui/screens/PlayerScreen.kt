@@ -59,13 +59,7 @@ import com.nkds.hosikoouma.jasmine.core.utils.FormatUtils
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.datamodels.Track
-import com.nkds.hosikoouma.jasmine.ui.components.AddToPlaylistDialog
-import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
-import com.nkds.hosikoouma.jasmine.ui.components.JasmineProgressBar
-import com.nkds.hosikoouma.jasmine.ui.components.PlayerBackground
-import com.nkds.hosikoouma.jasmine.ui.components.ToastType
-import com.nkds.hosikoouma.jasmine.ui.components.TrackInfoBottomSheet
-import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
+import com.nkds.hosikoouma.jasmine.ui.components.*
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
@@ -198,6 +192,7 @@ fun PlayerContent(
     var showTrackInfo by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var showShareBottomSheet by remember { mutableStateOf(false) }
 
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showPitchSheet by remember { mutableStateOf(false) }
@@ -239,7 +234,7 @@ fun PlayerContent(
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackingPlayer by remember { mutableStateOf(false) }
 
-    PredictiveBackHandler(enabled = showQueue || showLyrics || showMoreActions || showTrackInfo || showSpeedSheet || showPitchSheet) { progressFlow ->
+    PredictiveBackHandler(enabled = showQueue || showLyrics || showMoreActions || showTrackInfo || showSpeedSheet || showPitchSheet || showShareBottomSheet) { progressFlow ->
         try {
             progressFlow.collect { }
             showQueue = false
@@ -248,10 +243,11 @@ fun PlayerContent(
             showTrackInfo = false
             showSpeedSheet = false
             showPitchSheet = false
+            showShareBottomSheet = false
         } catch (e: Exception) { }
     }
 
-    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet) { progressFlow ->
+    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet && !showShareBottomSheet) { progressFlow ->
         try {
             isBackingPlayer = true
             progressFlow.collect { backEvent -> playerBackProgress = backEvent.progress }
@@ -292,7 +288,7 @@ fun PlayerContent(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        if (!showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet) {
+                        if (!showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet && !showShareBottomSheet) {
                             change.consume()
                             scope.launch { animatedOffset.snapTo(animatedOffset.value + dragAmount) }
                         }
@@ -515,8 +511,8 @@ fun PlayerContent(
                                 icon = Icons.Rounded.Share,
                                 label = "Share",
                                 onClick = {
-                                    uiState.currentTrack?.let { ShareHelper.shareTrack(context, it) }
                                     showMoreActions = false
+                                    showShareBottomSheet = true
                                 }
                             )
                         }
@@ -611,6 +607,13 @@ fun PlayerContent(
 
         if (showTrackInfo && uiState.currentTrack != null) {
             TrackInfoBottomSheet(track = uiState.currentTrack, onDismissRequest = { showTrackInfo = false })
+        }
+
+        if (showShareBottomSheet && uiState.currentTrack != null) {
+            TrackShareBottomSheet(
+                track = uiState.currentTrack,
+                onDismissRequest = { showShareBottomSheet = false }
+            )
         }
     }
 }

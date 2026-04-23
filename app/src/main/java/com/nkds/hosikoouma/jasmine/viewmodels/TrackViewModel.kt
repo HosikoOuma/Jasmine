@@ -36,22 +36,19 @@ data class TrackFilters(
 @HiltViewModel
 class TrackViewModel @Inject constructor(
     application: Application,
-    private val trackScanner: TrackScanner,
+    private val trackRepository: TrackRepository,
     private val favoritesRepository: FavoritesRepository,
     private val settingsRepository: SettingsRepository,
     private val playlistRepository: PlaylistRepository
 ) : AndroidViewModel(application) {
     
-    // Raw Data
-    private val _tracks = MutableStateFlow<List<Track>>(emptyList())
-    val allTracks = _tracks.asStateFlow()
+    // Raw Data from Repository
+    val allTracks = trackRepository.allTracks
+    val isLoaded = trackRepository.isLoaded
 
     // UI States
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
-
-    private val _isLoaded = MutableStateFlow(false)
-    val isLoaded = _isLoaded.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
@@ -89,9 +86,9 @@ class TrackViewModel @Inject constructor(
     val favoriteTrackIds: StateFlow<Set<String>> = favoritesRepository.favoriteTrackIds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    // --- High Performance Filtered Lists ---
+    // --- Filtered Lists ---
 
-    val filteredTracks: StateFlow<List<Track>> = combine(_tracks, filters) { tracks, f ->
+    val filteredTracks: StateFlow<List<Track>> = combine(allTracks, filters) { tracks, f ->
         if (tracks.isEmpty()) return@combine emptyList()
         
         withContext(Dispatchers.Default) {
@@ -131,7 +128,7 @@ class TrackViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val folders: StateFlow<List<Folder>> = _tracks.map { tracks ->
+    val folders: StateFlow<List<Folder>> = allTracks.map { tracks ->
         withContext(Dispatchers.Default) {
             tracks.groupBy { File(it.path).parent ?: "Unknown" }
                 .map { (path, folderTracks) -> Folder(path.substringAfterLast("/"), path, folderTracks) }
@@ -158,7 +155,6 @@ class TrackViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
-        loadTracks()
         loadSortSettings()
     }
 
@@ -171,14 +167,10 @@ class TrackViewModel @Inject constructor(
     }
 
     fun loadTracks() {
+        _isRefreshing.value = true
+        trackRepository.loadTracks()
         viewModelScope.launch {
-            _isRefreshing.value = true
-            trackScanner.scanTracksFlow()
-                .flowOn(Dispatchers.IO)
-                .collect { trackList ->
-                    _tracks.value = trackList
-                    _isLoaded.value = true
-                }
+            trackRepository.isLoaded.filter { it }.first()
             _isRefreshing.value = false
         }
     }
@@ -221,7 +213,7 @@ class TrackViewModel @Inject constructor(
     }
     
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
-        val track = _tracks.value.find { it.id == trackId } ?: return@launch
+        val track = allTracks.value.find { it.id == trackId } ?: return@launch
         val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         
         if (!playlistRepository.addTrackToPlaylist(playlistId, track)) {
@@ -277,18 +269,18 @@ class TrackViewModel @Inject constructor(
     }
 
     fun importPlaylistFromUri(uri: Uri, name: String) = viewModelScope.launch {
-        playlistRepository.importPlaylistFromUri(uri, name, _tracks.value)
+        playlistRepository.importPlaylistFromUri(uri, name, allTracks.value)
     }
 
     fun getTracksForPlaylist(playlistId: Long): Flow<List<Track>> = combine(
-        playlistRepository.getTrackIdsForPlaylist(playlistId), _tracks
+        playlistRepository.getTrackIdsForPlaylist(playlistId), allTracks
     ) { ids, tracks -> 
         withContext(Dispatchers.Default) {
             ids.mapNotNull { id -> tracks.find { it.id == id } }
         }
     }
 
-    // --- Синхронные методы для UI (заголовки, быстрые действия) ---
+    // --- Синхронные методы для UI ---
 
     fun getPlaylistNameSync(playlistId: Long): String? {
         return playlists.value.find { it.id == playlistId }?.name
@@ -297,14 +289,14 @@ class TrackViewModel @Inject constructor(
     fun getPlaylistTracksSync(playlistId: Long): List<Track> {
         return runBlocking(Dispatchers.Default) {
             val ids = playlistRepository.getTrackIdsForPlaylist(playlistId).first()
-            val tracks = _tracks.value
+            val tracks = allTracks.value
             ids.mapNotNull { id -> tracks.find { it.id == id } }
         }
     }
 
     fun getFolderTracksSync(path: String): List<Track> {
         val decodedPath = try { java.net.URLDecoder.decode(path, "UTF-8") } catch (e: Exception) { path }
-        return _tracks.value.filter { it.path.startsWith(decodedPath) }
+        return allTracks.value.filter { it.path.startsWith(decodedPath) }
     }
 
     fun deleteTracks(tracks: List<Track>) {
