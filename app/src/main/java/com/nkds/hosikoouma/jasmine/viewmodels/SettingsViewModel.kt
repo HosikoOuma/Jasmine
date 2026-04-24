@@ -27,7 +27,9 @@ data class SettingsState(
     val useDynamicColor: Boolean = true,
     val useAlbumArtColor: Boolean = true,
     val seedColor: Int = 0xFF6750A4.toInt(),
-    val navigationItems: List<String> = listOf("tracks", "radio", "library", "settings")
+    val navigationItems: List<String> = listOf("tracks", "radio", "library", "settings"),
+    val playerControlsOrder: List<String> = listOf("shuffle", "previous", "play_pause", "next", "repeat"),
+    val manageAudioFocus: Boolean = true
 )
 
 @HiltViewModel
@@ -50,7 +52,9 @@ class SettingsViewModel @Inject constructor(
         repository.useDynamicColor,
         repository.useAlbumArtColor,
         repository.seedColor,
-        repository.navigationItems
+        repository.navigationItems,
+        repository.playerControlsOrder,
+        repository.manageAudioFocus
     ) { args ->
         SettingsState(
             isCrossfadeEnabled = args[0] as Boolean,
@@ -66,7 +70,9 @@ class SettingsViewModel @Inject constructor(
             useDynamicColor = args[10] as Boolean,
             useAlbumArtColor = args[11] as Boolean,
             seedColor = args[12] as Int,
-            navigationItems = (args[13] as String).split(",").filter { it.isNotBlank() }
+            navigationItems = (args[13] as String).split(",").filter { it.isNotBlank() },
+            playerControlsOrder = (args[14] as String).split(",").filter { it.isNotBlank() },
+            manageAudioFocus = args[15] as Boolean
         )
     }.stateIn(
         scope = viewModelScope,
@@ -92,6 +98,12 @@ class SettingsViewModel @Inject constructor(
     fun setNavigationItems(items: List<String>) = launchUpdate { 
         repository.setNavigationItems(items.joinToString(",")) 
     }
+    
+    fun setPlayerControlsOrder(order: List<String>) = launchUpdate {
+        repository.setPlayerControlsOrder(order.joinToString(","))
+    }
+
+    fun setManageAudioFocus(enabled: Boolean) = launchUpdate { repository.setManageAudioFocus(enabled) }
 
     private fun launchUpdate(block: suspend () -> Unit) = viewModelScope.launch { block() }
 

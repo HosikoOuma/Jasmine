@@ -27,13 +27,6 @@ import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-// --- UI State ---
-data class QueueUiState(
-    val playlist: List<Track> = emptyList(),
-    val currentTrack: Track? = null,
-    val isPlaying: Boolean = false
-)
-
 @Composable
 fun QueueScreen(
     viewModel: PlayerViewModel,
@@ -44,7 +37,9 @@ fun QueueScreen(
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
 
     QueueContent(
-        uiState = QueueUiState(playlist, currentTrack, isPlaying),
+        playlist = playlist,
+        currentTrack = currentTrack,
+        isPlaying = isPlaying,
         onClose = onClose,
         onMoveTrack = viewModel::moveTrack,
         onRemoveFromQueue = viewModel::removeFromQueue,
@@ -55,22 +50,26 @@ fun QueueScreen(
 
 @Composable
 fun QueueContent(
-    uiState: QueueUiState,
+    playlist: List<Track>,
+    currentTrack: Track?,
+    isPlaying: Boolean,
     onClose: () -> Unit,
     onMoveTrack: (Int, Int) -> Unit,
     onRemoveFromQueue: (Track) -> Unit,
     onAddToQueue: (Track) -> Unit,
     onSkipToItem: (Int) -> Unit
 ) {
-    val currentIndex = remember(uiState.playlist, uiState.currentTrack) {
-        uiState.playlist.indexOfFirst { it.uid == uiState.currentTrack?.uid }
+    val currentIndex by remember(playlist, currentTrack) {
+        derivedStateOf { playlist.indexOfFirst { it.uid == currentTrack?.uid } }
     }
     
     // Локальный список для мгновенного перемещения без лагов
-    var localUpNext by remember(uiState.playlist, currentIndex) {
+    var localUpNext by remember(playlist, currentIndex) {
         mutableStateOf(
-            if (currentIndex != -1 && currentIndex < uiState.playlist.size - 1) {
-                uiState.playlist.subList(currentIndex + 1, uiState.playlist.size)
+            if (currentIndex != -1 && currentIndex < playlist.size - 1) {
+                playlist.subList(currentIndex + 1, playlist.size)
+            } else if (currentIndex == -1 && playlist.isNotEmpty()) {
+                playlist // Если текущий трек не найден в списке (например, радио), показываем всё
             } else emptyList()
         )
     }
@@ -79,10 +78,10 @@ fun QueueContent(
         Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
             QueueHeader(onClose)
 
-            uiState.currentTrack?.let { track ->
+            currentTrack?.let { track ->
                 SectionLabel("Now Playing", MaterialTheme.colorScheme.primary)
                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    TrackCard(track = track, isCurrent = true, isPlaying = uiState.isPlaying, onClick = {})
+                    TrackCard(track = track, isCurrent = true, isPlaying = isPlaying, onClick = {})
                 }
             }
 
@@ -116,7 +115,6 @@ fun QueueContent(
                                 isManualMarkingEnabled = true,
                                 enabled = true,
                                 onSwipeAction = { 
-                                    // Исправленная логика: удаление если ручной, добавление если нет
                                     if (track.isManual) onRemoveFromQueue(track)
                                     else onAddToQueue(track)
                                 },
@@ -148,7 +146,7 @@ private fun QueueHeader(onClose: () -> Unit) {
             text = "Playing Queue", 
             style = MaterialTheme.typography.titleLarge, 
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface // Явно задаем цвет
+            color = MaterialTheme.colorScheme.onSurface
         )
         TextButton(onClick = onClose) { 
             Text("Done", color = MaterialTheme.colorScheme.primary) 
@@ -171,7 +169,9 @@ private fun QueueDivider() {
 fun QueuePreview() {
     JasmineTheme {
         QueueContent(
-            uiState = QueueUiState(), 
+            playlist = emptyList(),
+            currentTrack = null,
+            isPlaying = false,
             onClose = {}, 
             onMoveTrack = { _, _ -> }, 
             onRemoveFromQueue = {}, 

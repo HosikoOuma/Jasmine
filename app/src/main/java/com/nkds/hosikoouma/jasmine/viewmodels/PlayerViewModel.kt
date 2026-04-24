@@ -36,6 +36,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
@@ -315,7 +317,9 @@ class PlayerViewModel @Inject constructor(
         _remoteLyrics.value = null
     }
 
+    private val playlistUpdateMutex = Mutex()
     private var updatePlaylistJob: Job? = null
+    
     private fun updatePlaylist() {
         val controller = controller ?: return
         val mediaItemsWithUids = mutableListOf<Pair<MediaItem, String>>()
@@ -337,10 +341,13 @@ class PlayerViewModel @Inject constructor(
         updatePlaylistJob?.cancel()
         updatePlaylistJob = viewModelScope.launch(Dispatchers.Default) {
             val items = mediaItemsWithUids.map { (item, uid) -> mediaToTrack(item).copy(uid = uid) }
-            if (_playlist.value != items) {
-                _playlist.value = items
-                withContext(Dispatchers.Main) {
-                    updateCurrentTrack(controller.currentMediaItem)
+            
+            playlistUpdateMutex.withLock {
+                if (_playlist.value != items) {
+                    _playlist.value = items
+                    withContext(Dispatchers.Main) {
+                        updateCurrentTrack(controller.currentMediaItem)
+                    }
                 }
             }
         }
@@ -499,6 +506,16 @@ class PlayerViewModel @Inject constructor(
             controller?.removeMediaItem(index)
             _appToast.value = ToastData(track, ToastType.REMOVED)
         }
+    }
+
+    fun stopAndClearQueue() {
+        controller?.let {
+            it.stop()
+            it.clearMediaItems()
+        }
+        resetCurrentTrackState()
+        _playlist.value = emptyList()
+        originalTrackList = emptyList()
     }
 
     fun prepareForDeletion(tracksToDelete: List<Track>) {

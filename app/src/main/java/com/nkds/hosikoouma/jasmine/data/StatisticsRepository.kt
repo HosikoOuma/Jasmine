@@ -12,6 +12,11 @@ class StatisticsRepository @Inject constructor(
     val topTracks: Flow<List<TrackPlayCount>> = statisticsDao.getTopTracks(5)
     val totalListeningTime: Flow<Long?> = statisticsDao.getTotalListeningTime()
 
+    fun getTopTracksSince(days: Int, limit: Int = 30): Flow<List<TrackPlayCount>> {
+        val sinceTimestamp = System.currentTimeMillis() - (days.toLong() * 24 * 60 * 60 * 1000)
+        return statisticsDao.getTopTracksSince(sinceTimestamp, limit)
+    }
+
     suspend fun recordPlayback(trackId: Long, durationMs: Long) {
         if (durationMs < 3000) return // Игнорируем меньше 3 секунд (как в Rhythm)
         statisticsDao.insertPlayEvent(PlayHistoryEntity(trackId = trackId, playedDuration = durationMs))

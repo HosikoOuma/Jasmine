@@ -28,6 +28,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -82,6 +83,9 @@ fun MainScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val isMainDestination = remember(currentRoute) { Screen.items.any { it.route == currentRoute } }
+    val canPop = remember(navBackStackEntry, isMainDestination) { navController.previousBackStackEntry != null && !isMainDestination }
+
     // 1. Оптимизация заголовка через derivedStateOf
     val isInSelectionMode = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()
     val dynamicTitle by remember(currentRoute, navBackStackEntry, isInSelectionMode, selectedTracks.size, selectedStations.size) {
@@ -101,19 +105,18 @@ fun MainScreen(
                     currentRoute == Screen.LibraryArtists.route -> "Artists"
                     currentRoute == Screen.LibraryFolders.route -> "Folders"
                     currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
-                    // Названия для настроек
+                    currentRoute == Screen.LibraryOnRepeat.route -> "On Repeat"
                     currentRoute == Screen.SettingsPlayback.route -> "Playback"
                     currentRoute == Screen.SettingsAppearance.route -> "Appearance"
                     currentRoute == Screen.SettingsLibrary.route -> "Library Settings"
                     currentRoute == Screen.SettingsMaintenance.route -> "Maintenance"
+                    currentRoute == Screen.Statistics.route -> "Statistics"
+                    currentRoute == Screen.About.route -> "About"
                     else -> Screen.items.find { it.route == currentRoute }?.title ?: "Jasmine"
                 }
             }
         }
     }
-
-    val isMainDestination = remember(currentRoute) { Screen.items.any { it.route == currentRoute } }
-    val canPop = remember(navBackStackEntry, isMainDestination) { navController.previousBackStackEntry != null && !isMainDestination }
 
     // Side Effects
     LaunchedEffect(currentRoute) { 
@@ -344,14 +347,15 @@ private fun MainContent(
                 modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
             )
             
-            BackHandler(enabled = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty() || isPlayerExpanded || isRadioPlayerExpanded || isSearching || canPop || showAddRadioDialog) {
+            // ВАЖНО: Мы убираем canPop из BackHandler, чтобы системный жест Predictive Back 
+            // мог обработать переходы между экранами самостоятельно через NavHost.
+            BackHandler(enabled = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty() || isPlayerExpanded || isRadioPlayerExpanded || isSearching || showAddRadioDialog) {
                 when {
                     showAddRadioDialog -> onToggleAddRadioDialog(false)
                     isRadioPlayerExpanded -> onToggleRadioPlayer(false)
                     selectedTracks.isNotEmpty() || selectedStations.isNotEmpty() -> onClearSelection()
                     isPlayerExpanded -> onTogglePlayer(false)
                     isSearching -> { onToggleSearch(); onSearchQueryChange("") }
-                    canPop -> navController.popBackStack()
                 }
             }
 

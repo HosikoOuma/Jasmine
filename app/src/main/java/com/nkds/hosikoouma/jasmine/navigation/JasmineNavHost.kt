@@ -122,6 +122,14 @@ fun JasmineNavHost(
         composable(Screen.LibraryPlaylists.route) { 
             PlaylistListScreen(navController = navController, trackViewModel = trackViewModel) 
         }
+        composable(Screen.LibraryOnRepeat.route) {
+            OnRepeatScreen(
+                navController = navController,
+                trackViewModel = trackViewModel,
+                playerViewModel = playerViewModel,
+                onNavigateToPlayer = onNavigateToPlayer
+            )
+        }
 
         composable(
             route = Screen.AlbumDetail.route,

@@ -69,7 +69,8 @@ fun LibraryContent(
             LibraryCategory("Playlists", Icons.AutoMirrored.Rounded.PlaylistPlay, uiState.playlistCount, Screen.LibraryPlaylists.route),
             LibraryCategory("Albums", Icons.Rounded.Album, uiState.albumCount, Screen.LibraryAlbums.route),
             LibraryCategory("Artists", Icons.Rounded.Person, uiState.artistCount, Screen.LibraryArtists.route),
-            LibraryCategory("Folders", Icons.Rounded.Folder, uiState.folderCount, Screen.LibraryFolders.route)
+            LibraryCategory("Folders", Icons.Rounded.Folder, uiState.folderCount, Screen.LibraryFolders.route),
+            LibraryCategory("On Repeat", Icons.Rounded.Repeat, -1, Screen.LibraryOnRepeat.route)
         )
     }
 
@@ -141,11 +142,19 @@ fun LibraryCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = "${category.count} items",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (category.count >= 0) {
+                    Text(
+                        text = "${category.count} items",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "Your favorites",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

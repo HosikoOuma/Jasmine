@@ -58,8 +58,10 @@ class PlaybackService : MediaSessionService() {
     private var audioManager: AudioManager? = null
     private var playOnFocusGain = false
     private lateinit var focusRequest: AudioFocusRequest
+    private var manageAudioFocus = true
     
     private var saveStateJob: Job? = null
+    private var saveQueueJob: Job? = null
 
     // --- Statistics Tracking ---
     private var trackingTrackId: Long? = null
@@ -86,7 +88,6 @@ class PlaybackService : MediaSessionService() {
             processorB = processorB,
             onPlayerSwapped = { newPlayer ->
                 mediaSession?.setPlayer(newPlayer)
-                // При смене плеера (кроссфейд) финализируем старый и начинаем новый трек
                 handleTrackTransition(newPlayer.currentMediaItem)
             }
         )
@@ -114,8 +115,6 @@ class PlaybackService : MediaSessionService() {
 
         restoreQueueToPlayer()
     }
-
-    // --- Statistics Methods ---
 
     private fun handleTrackTransition(mediaItem: MediaItem?) {
         val trackId = mediaItem?.mediaId?.split("_")?.firstOrNull()?.toLongOrNull()
@@ -159,7 +158,7 @@ class PlaybackService : MediaSessionService() {
         }
         
         val finalTime = trackingAccumulatedTime
-        if (finalTime >= 1000) { // Минимум 1 секунда
+        if (finalTime >= 1000) {
             serviceScope.launch(Dispatchers.IO) {
                 statisticsRepository.recordPlayback(trackId, finalTime)
             }
@@ -184,7 +183,6 @@ class PlaybackService : MediaSessionService() {
 
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                // Учитываем события только если этот плеер сейчас активен
                 if (player == crossfadeManager.getCurrentPlayer()) {
                     if (isPlaying) resumeTracking() else pauseTracking()
                 }
@@ -193,12 +191,9 @@ class PlaybackService : MediaSessionService() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (player == crossfadeManager.getCurrentPlayer()) {
                     handleTrackTransition(mediaItem)
-                    
-                    // Старая логика очистки второго плеера
                     val otherPlayer = if (player == playerA) playerB else playerA
-                    if (otherPlayer.isPlaying) {
+                    if (otherPlayer.isPlaying && !crossfadeManager.isCrossfading) {
                         otherPlayer.pause()
-                        otherPlayer.stop()
                     }
                     saveCurrentState(immediate = true)
                 }
@@ -214,9 +209,15 @@ class PlaybackService : MediaSessionService() {
                 crossfadeManager.scheduleCrossfade()
             }
 
-            // ... остальные методы (onTimelineChanged, onPlayerError и т.д.)
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-                if (player == crossfadeManager.getCurrentPlayer()) saveQueueToDb(player)
+                if (player == crossfadeManager.getCurrentPlayer()) {
+                    // Оптимизация: дебаунс сохранения очереди в БД (500мс)
+                    saveQueueJob?.cancel()
+                    saveQueueJob = serviceScope.launch {
+                        delay(500)
+                        saveQueueToDb(player)
+                    }
+                }
             }
             
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -239,7 +240,6 @@ class PlaybackService : MediaSessionService() {
         return player
     }
 
-    // --- Остальные вспомогательные методы (прежние) ---
     private fun restoreQueueToPlayer() {
         serviceScope.launch {
             try {
@@ -261,6 +261,7 @@ class PlaybackService : MediaSessionService() {
     private fun observeSettings() {
         serviceScope.launch { settingsRepository.isCrossfadeEnabled.collectLatest { crossfadeManager.isEnabled = it } }
         serviceScope.launch { settingsRepository.crossfadeDuration.collectLatest { crossfadeManager.durationMs = it } }
+        serviceScope.launch { settingsRepository.manageAudioFocus.collectLatest { manageAudioFocus = it } }
     }
 
     private fun saveCurrentState(immediate: Boolean = false) {
@@ -268,7 +269,7 @@ class PlaybackService : MediaSessionService() {
         val index = player.currentMediaItemIndex
         val pos = player.currentPosition
         val isRadio = player.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio", false) ?: false
-        if (index < 0) return
+        
         saveStateJob?.cancel()
         saveStateJob = serviceScope.launch {
             if (!immediate) delay(1000)
@@ -278,8 +279,9 @@ class PlaybackService : MediaSessionService() {
 
     private fun saveQueueToDb(player: Player) {
         val items = List(player.mediaItemCount) { player.getMediaItemAt(it) }
-        if (items.isEmpty()) return
-        serviceScope.launch(Dispatchers.IO) { playlistDao.updateQueue(items.mapIndexed { i, m -> mediaItemToEntity(m, i) }) }
+        serviceScope.launch(Dispatchers.IO) { 
+            playlistDao.updateQueue(items.mapIndexed { i, m -> mediaItemToEntity(m, i) }) 
+        }
     }
 
     private fun mediaItemToEntity(item: MediaItem, index: Int): QueueTrackEntity {
@@ -356,6 +358,8 @@ class PlaybackService : MediaSessionService() {
     private fun setupAudioFocus() {
         val attr = AndroidAudioAttributes.Builder().setUsage(AndroidAudioAttributes.USAGE_MEDIA).setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC).build()
         focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attr).setAcceptsDelayedFocusGain(true).setOnAudioFocusChangeListener { 
+            if (!manageAudioFocus) return@setOnAudioFocusChangeListener
+            
             when (it) {
                 AudioManager.AUDIOFOCUS_LOSS -> { crossfadeManager.cancelActiveCrossfade(); crossfadeManager.getCurrentPlayer().pause(); finalizeTracking() }
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { if (crossfadeManager.getCurrentPlayer().isPlaying) { playOnFocusGain = true; crossfadeManager.getCurrentPlayer().pause() } }
@@ -365,13 +369,17 @@ class PlaybackService : MediaSessionService() {
         }.build()
     }
 
-    private fun requestManualAudioFocus() = audioManager?.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    private fun requestManualAudioFocus(): Boolean {
+        if (!manageAudioFocus) return true
+        return audioManager?.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
 
     override fun onGetSession(info: MediaSession.ControllerInfo) = mediaSession
 
     override fun onDestroy() {
         finalizeTracking()
         saveStateJob?.cancel()
+        saveQueueJob?.cancel()
         serviceScope.cancel()
         audioManager?.abandonAudioFocusRequest(focusRequest)
         crossfadeManager.release()

@@ -60,6 +60,7 @@ fun MiniPlayer(
     val offsetY = remember { Animatable(0f) }
 
     val maxDragUpPx = with(density) { 16.dp.toPx() }
+    val maxDragDownPx = with(density) { 80.dp.toPx() }
     var hasVibratedOnLimit by remember { mutableStateOf(false) }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -95,8 +96,19 @@ fun MiniPlayer(
                     },
                     onDragEnd = {
                         scope.launch {
-                            if (isVerticalDrag && offsetY.value <= -maxDragUpPx * 0.8f) {
-                                onClick() // Открываем плеер
+                            if (isVerticalDrag) {
+                                if (offsetY.value <= -maxDragUpPx * 0.8f) {
+                                    onClick() // Открываем плеер
+                                } else if (offsetY.value >= maxDragDownPx * 0.6f) {
+                                    // Жест вниз: закрываем плеер полностью
+                                    vibrateClick(context)
+                                    launch { 
+                                        offsetY.animateTo(500f, tween(300))
+                                        viewModel.stopAndClearQueue()
+                                        offsetY.snapTo(0f)
+                                    }
+                                    return@launch
+                                }
                             } else if (isHorizontalDrag && !isRadioMode) {
                                 if (offsetX.value > 150f) {
                                     viewModel.skipToPrevious()
@@ -131,12 +143,14 @@ fun MiniPlayer(
 
                         scope.launch {
                             if (isVerticalDrag) {
-                                val newY = (offsetY.value + dragAmount.y).coerceIn(-maxDragUpPx, 0f)
+                                val newY = (offsetY.value + dragAmount.y).coerceIn(-maxDragUpPx, maxDragDownPx)
                                 
-                                // Вызываем вибрацию при достижении лимита
-                                if (newY <= -maxDragUpPx && !hasVibratedOnLimit) {
+                                // Вызываем вибрацию при достижении лимита (вверх или вниз)
+                                if ((newY <= -maxDragUpPx || newY >= maxDragDownPx * 0.8f) && !hasVibratedOnLimit) {
                                     vibrateClick(context)
                                     hasVibratedOnLimit = true
+                                } else if (newY > -maxDragUpPx && newY < maxDragDownPx * 0.8f) {
+                                    hasVibratedOnLimit = false
                                 }
 
                                 offsetY.snapTo(newY)
@@ -152,6 +166,10 @@ fun MiniPlayer(
                 translationY = offsetY.value
                 scaleX = scale
                 scaleY = scale
+                // Эффект исчезновения при свайпе вниз
+                if (offsetY.value > 0) {
+                    alpha = (1f - (offsetY.value / maxDragDownPx)).coerceIn(0f, 1f)
+                }
             }
             .clip(RoundedCornerShape(dynamicCornerRadius))
             .bouncingClickable(onClick = onClick),

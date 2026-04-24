@@ -49,7 +49,6 @@ class CrossfadeManager(
         val player = currentPlayer
         crossfadeCheckJob?.cancel()
 
-        // ПРОВЕРКА: Не планируем кроссфейд, если плеер буферизуется (идет перемотка) или не играет
         if (!isEnabled || isCrossfading || !player.isPlaying || player.playbackState != Player.STATE_READY) return
         
         val isRadio = player.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio") ?: false
@@ -59,17 +58,24 @@ class CrossfadeManager(
         if (duration == C.TIME_UNSET || duration <= 0) return
 
         val remaining = duration - player.currentPosition
+        
+        // Если осталось слишком мало времени, не планируем
         if (remaining < 200) return 
 
         val delayMs = remaining - durationMs
 
         crossfadeCheckJob = serviceScope.launch {
-            if (delayMs > 0) delay(delayMs)
+            // Если мы УЖЕ в зоне кроссфейда (например, после перемотки), 
+            // мы НЕ запускаем его, чтобы избежать наложения "самого на себя" или 
+            // двойного срабатывания. Кроссфейд должен быть запланирован заранее.
+            if (delayMs <= 0) return@launch
             
-            // Повторная проверка перед самим стартом
+            delay(delayMs)
+            
             if (player == currentPlayer && player.isPlaying && !isCrossfading && player.playbackState == Player.STATE_READY) {
                 val hasNext = player.nextMediaItemIndex != C.INDEX_UNSET || 
                              player.repeatMode != Player.REPEAT_MODE_OFF
+                
                 if (hasNext) startOverlappingCrossfade()
             }
         }
@@ -100,7 +106,7 @@ class CrossfadeManager(
         val allItems = List(oldPlayer.mediaItemCount) { oldPlayer.getMediaItemAt(it) }
         
         serviceScope.launch {
-            delay(150) // Даем время UI и системе стабилизироваться
+            delay(150) // Стабилизация
             
             if (!isActive || oldPlayer != currentPlayer || !oldPlayer.isPlaying) {
                 isCrossfading = false
@@ -113,10 +119,11 @@ class CrossfadeManager(
                 nextPlayer.shuffleModeEnabled = currentShuffleMode
                 nextPlayer.repeatMode = currentRepeatMode
                 nextPlayer.prepare()
-                nextPlayer.play()
-
+                
                 currentPlayer = nextPlayer
                 onPlayerSwapped(nextPlayer)
+                
+                nextPlayer.play()
 
                 startFadeAnimation(oldPlayer, oldProcessor, nextProcessor)
             }

@@ -18,6 +18,9 @@ interface StatisticsDao {
     @Query("SELECT trackId, COUNT(*) as playCount FROM play_history WHERE playedDuration >= 10000 GROUP BY trackId ORDER BY playCount DESC LIMIT :limit")
     fun getTopTracks(limit: Int): Flow<List<TrackPlayCount>>
 
+    @Query("SELECT trackId, COUNT(*) as playCount FROM play_history WHERE playedDuration >= 10000 AND timestamp >= :sinceTimestamp GROUP BY trackId ORDER BY playCount DESC LIMIT :limit")
+    fun getTopTracksSince(sinceTimestamp: Long, limit: Int): Flow<List<TrackPlayCount>>
+
     @Query("SELECT SUM(playedDuration) FROM play_history")
     fun getTotalListeningTime(): Flow<Long?>
 

@@ -41,6 +41,15 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
         // Навигация
         val NAVIGATION_ITEMS = stringPreferencesKey("navigation_items")
+        
+        // Кнопки управления плеером
+        val PLAYER_CONTROLS_ORDER = stringPreferencesKey("player_controls_order")
+
+        // Аудиофокус
+        val MANAGE_AUDIO_FOCUS = booleanPreferencesKey("manage_audio_focus")
+
+        // On Repeat
+        val ON_REPEAT_INTERVAL_DAYS = intPreferencesKey("on_repeat_interval_days")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -64,12 +73,22 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     val navigationItems: Flow<String> = context.dataStore.data.map { 
         it[NAVIGATION_ITEMS] ?: "tracks,radio,library,settings" 
     }
+    
+    val playerControlsOrder: Flow<String> = context.dataStore.data.map {
+        it[PLAYER_CONTROLS_ORDER] ?: "shuffle,previous,play_pause,next,repeat"
+    }
 
     // Состояние плеера
     val lastMediaItemIndex: Flow<Int> = context.dataStore.data.map { it[LAST_MEDIA_ITEM_INDEX] ?: 0 }
     val lastPlaybackPosition: Flow<Long> = context.dataStore.data.map { it[LAST_PLAYBACK_POSITION] ?: 0L }
     val isRadioMode: Flow<Boolean> = context.dataStore.data.map { it[IS_RADIO_MODE] ?: false }
     val lastRadioStationId: Flow<Long> = context.dataStore.data.map { it[LAST_RADIO_STATION_ID] ?: -1L }
+
+    // Аудиофокус
+    val manageAudioFocus: Flow<Boolean> = context.dataStore.data.map { it[MANAGE_AUDIO_FOCUS] ?: true }
+
+    // On Repeat
+    val onRepeatIntervalDays: Flow<Int> = context.dataStore.data.map { it[ON_REPEAT_INTERVAL_DAYS] ?: 7 }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) = context.dataStore.edit { it[CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeDuration(duration: Long) = context.dataStore.edit { it[CROSSFADE_DURATION] = duration }
@@ -87,6 +106,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     suspend fun setSeedColor(color: Int) = context.dataStore.edit { it[SEED_COLOR] = color }
     
     suspend fun setNavigationItems(items: String) = context.dataStore.edit { it[NAVIGATION_ITEMS] = items }
+    
+    suspend fun setPlayerControlsOrder(order: String) = context.dataStore.edit { it[PLAYER_CONTROLS_ORDER] = order }
 
     suspend fun addFolderToBlacklist(path: String) = context.dataStore.edit { 
         val current = it[BLACKLISTED_FOLDERS] ?: emptySet()
@@ -106,4 +127,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
         it[IS_RADIO_MODE] = isRadio
         it[LAST_RADIO_STATION_ID] = radioStationId
     }
+
+    suspend fun setManageAudioFocus(enabled: Boolean) = context.dataStore.edit { it[MANAGE_AUDIO_FOCUS] = enabled }
+
+    suspend fun setOnRepeatIntervalDays(days: Int) = context.dataStore.edit { it[ON_REPEAT_INTERVAL_DAYS] = days }
 }

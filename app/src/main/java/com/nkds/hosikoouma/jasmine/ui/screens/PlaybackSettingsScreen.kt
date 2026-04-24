@@ -23,7 +23,8 @@ fun PlaybackSettingsScreen(
     PlaybackSettingsContent(
         settings = settings,
         onSetCrossfadeEnabled = viewModel::setCrossfadeEnabled,
-        onSetCrossfadeDuration = viewModel::setCrossfadeDuration
+        onSetCrossfadeDuration = viewModel::setCrossfadeDuration,
+        onSetManageAudioFocus = viewModel::setManageAudioFocus
     )
 }
 
@@ -32,7 +33,8 @@ fun PlaybackSettingsScreen(
 fun PlaybackSettingsContent(
     settings: SettingsState,
     onSetCrossfadeEnabled: (Boolean) -> Unit,
-    onSetCrossfadeDuration: (Long) -> Unit
+    onSetCrossfadeDuration: (Long) -> Unit,
+    onSetManageAudioFocus: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -61,5 +63,19 @@ fun PlaybackSettingsContent(
                 onValueChange = { onSetCrossfadeDuration(it.roundToLong()) }
             )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        ListItem(
+            headlineContent = { Text("Manage Audio Focus") },
+            supportingContent = { Text("Pause playback when another app plays sound (calls, notifications, etc.)") },
+            trailingContent = {
+                Switch(
+                    checked = settings.manageAudioFocus,
+                    onCheckedChange = onSetManageAudioFocus
+                )
+            }
+        )
     }
 }

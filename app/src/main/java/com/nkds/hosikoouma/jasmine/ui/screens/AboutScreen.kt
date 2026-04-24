@@ -1,28 +1,49 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Code
-import androidx.compose.material.icons.rounded.Email
-import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nkds.hosikoouma.jasmine.R
 
 @Composable
 fun AboutScreen() {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    
+    var clickCount by remember { mutableIntStateOf(0) }
+    val showEasterEgg = clickCount >= 5
+
+    val version = remember {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0)).versionName
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            }
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -32,18 +53,25 @@ fun AboutScreen() {
     ) {
         Spacer(modifier = Modifier.height(48.dp))
 
-        // App Logo
+        // App Logo with Easter Egg logic
         Surface(
             modifier = Modifier
                 .size(120.dp)
-                .clip(CircleShape),
+                .clip(CircleShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (clickCount < 5) clickCount++
+                },
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Image(
-                    painter = painterResource(id = R.drawable.ison_vec),
+                    painter = painterResource(id = if (showEasterEgg) R.drawable.jasmine1 else R.drawable.ison_vec),
                     contentDescription = "Jasmine Logo",
-                    modifier = Modifier.size(80.dp)
+                    modifier = Modifier.size(if (showEasterEgg) 120.dp else 80.dp),
+                    contentScale = if (showEasterEgg) ContentScale.Crop else ContentScale.Fit
                 )
             }
         }
@@ -57,72 +85,67 @@ fun AboutScreen() {
         )
         
         Text(
-            text = "Version 1.1.0",
+            text = "Version $version",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(64.dp))
+
+        // Developer Section
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.neko1),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(24.dp)),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Image(
+                painter = painterResource(id = R.drawable.neko2),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(24.dp)),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "A modern, minimalist music player designed for the best listening experience. Built with Jetpack Compose and Media3.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 8.dp)
+            text = "NekoDosi | NKDS",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Info Sections
-        AboutLinkItem(
-            title = "Developer",
-            value = "nkds",
-            icon = Icons.Rounded.Code
-        )
-        
-        AboutLinkItem(
-            title = "Contact",
-            value = "support@jasmine.app",
-            icon = Icons.Rounded.Email
-        )
+        TextButton(
+            onClick = { uriHandler.openUri("https://t.me/NekoDosi") }
+        ) {
+            Text(
+                text = "@NekoDosi",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium
+            )
+        }
 
-        AboutLinkItem(
-            title = "Website",
-            value = "jasmine-player.com",
-            icon = Icons.Rounded.Language
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(64.dp))
         
         Text(
-            text = "Made with ❤️ in Android Studio",
+            text = "Made with ❤️",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(vertical = 16.dp)
+            color = MaterialTheme.colorScheme.outline
         )
 
-        // Добавляем отступ снизу
         Spacer(modifier = Modifier.height(140.dp))
     }
-}
-
-@Composable
-private fun AboutLinkItem(
-    title: String,
-    value: String,
-    icon: ImageVector
-) {
-    ListItem(
-        headlineContent = { Text(title, fontWeight = FontWeight.SemiBold) },
-        supportingContent = { Text(value) },
-        leadingContent = { 
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            ) 
-        },
-        modifier = Modifier.padding(vertical = 4.dp),
-        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
-    )
 }

@@ -39,7 +39,8 @@ class TrackViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
     private val favoritesRepository: FavoritesRepository,
     private val settingsRepository: SettingsRepository,
-    private val playlistRepository: PlaylistRepository
+    private val playlistRepository: PlaylistRepository,
+    private val statisticsRepository: StatisticsRepository
 ) : AndroidViewModel(application) {
     
     // Raw Data from Repository
@@ -74,6 +75,9 @@ class TrackViewModel @Inject constructor(
 
     val isPlaylistsGridView = settingsRepository.isPlaylistsGridView
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val onRepeatIntervalDays = settingsRepository.onRepeatIntervalDays
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 7)
 
     val filters: StateFlow<TrackFilters> = combine(
         _searchQuery, _sortType, _isReversed,
@@ -152,6 +156,12 @@ class TrackViewModel @Inject constructor(
             else -> mapped.sortedBy { it.name.lowercase() }
         }
         if (reversed) sorted.reversed() else sorted
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val onRepeatTracks: StateFlow<List<Track>> = onRepeatIntervalDays.flatMapLatest { days ->
+        statisticsRepository.getTopTracksSince(days, limit = 30)
+    }.combine(allTracks) { topTrackCounts, tracks ->
+        topTrackCounts.mapNotNull { tc -> tracks.find { it.id == tc.trackId } }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
@@ -309,5 +319,9 @@ class TrackViewModel @Inject constructor(
                 Log.e("TrackViewModel", "Failed to create delete request", e)
             }
         }
+    }
+
+    fun setOnRepeatIntervalDays(days: Int) = viewModelScope.launch {
+        settingsRepository.setOnRepeatIntervalDays(days)
     }
 }

@@ -168,8 +168,6 @@ private fun PlaylistHeader(
 
     val artSize = (150.dp + (screenWidth - 32.dp - 150.dp) * expandProgress).coerceAtLeast(0.dp)
     
-    // Вместо использования offsets, которые заставляют элементы "летать" над другими,
-    // используем Column, где элементы просто меняют свои размеры и веса.
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -177,14 +175,10 @@ private fun PlaylistHeader(
             .animateContentSize(animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Контейнер, который может быть либо Row (когда свернуто), либо Column (когда развернуто)
-        // Но чтобы анимация была плавной, мы всегда используем одну структуру.
-        
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Обложка
             PlaylistArt(
                 playlist = playlist,
                 firstTrackArt = firstTrackArt,
@@ -192,7 +186,6 @@ private fun PlaylistHeader(
                 onClick = { isExpanded = !isExpanded }
             )
 
-            // Если не расширено, показываем текст справа
             if (expandProgress < 0.5f) {
                 Spacer(modifier = Modifier.width((20.dp * (1f - expandProgress * 2)).coerceAtLeast(0.dp)))
                 
@@ -210,7 +203,6 @@ private fun PlaylistHeader(
             }
         }
 
-        // Если расширено, показываем текст снизу
         if (expandProgress >= 0.5f) {
             Spacer(modifier = Modifier.height((16.dp * ((expandProgress - 0.5f) * 2)).coerceAtLeast(0.dp)))
             

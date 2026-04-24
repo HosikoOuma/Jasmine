@@ -83,7 +83,8 @@ data class PlayerUiState(
     val playbackSpeed: Float = 1f,
     val playbackPitch: Float = 1f,
     val playlist: List<Track> = emptyList(),
-    val sourceName: String? = null
+    val sourceName: String? = null,
+    val controlsOrder: List<String> = listOf("shuffle", "previous", "play_pause", "next", "repeat")
 )
 
 // --- Stateful Screen ---
@@ -124,7 +125,8 @@ fun PlayerScreen(
         playbackSpeed = playbackSpeed,
         playbackPitch = playbackPitch,
         playlist = playlist,
-        sourceName = currentSource
+        sourceName = currentSource,
+        controlsOrder = settings.playerControlsOrder
     )
 
     PlayerContent(
@@ -342,7 +344,7 @@ fun PlayerContent(
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 0, // ОПТИМИЗАЦИЯ: держим только 1 обложку в памяти вместо 3
+                    beyondViewportPageCount = 1, // ОПТИМИЗАЦИЯ: держим только 1 обложку в памяти вместо 3
                     pageSpacing = 24.dp,
                     key = { page -> "p_${uiState.playlist.getOrNull(page)?.uid ?: page}" }
                 ) { page ->
@@ -388,6 +390,7 @@ fun PlayerContent(
                 isPlaying = uiState.isPlaying,
                 repeatMode = uiState.repeatMode,
                 shuffleEnabled = uiState.shuffleEnabled,
+                controlsOrder = uiState.controlsOrder,
                 onToggleRepeat = onToggleRepeat,
                 onToggleShuffle = onToggleShuffle,
                 onPrevious = onSkipPrevious,
@@ -702,6 +705,7 @@ fun PlaybackControlsSection(
     isPlaying: Boolean,
     repeatMode: Int,
     shuffleEnabled: Boolean,
+    controlsOrder: List<String>,
     onToggleRepeat: () -> Unit,
     onToggleShuffle: () -> Unit,
     onPrevious: () -> Unit,
@@ -709,29 +713,55 @@ fun PlaybackControlsSection(
     onTogglePlayPause: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        AnimatedControlIcon(icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleRepeat() })
-        AnimatedControlIcon(icon = Icons.Rounded.Shuffle, tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleShuffle() } )
-        AnimatedControlIcon(icon = Icons.Rounded.SkipPrevious, size = 44.dp, onClick = { VibrationUtils.performLongPressHaptic(haptic); onPrevious() })
-        AnimatedControlIcon(icon = Icons.Rounded.SkipNext, size = 44.dp, onClick = { VibrationUtils.performLongPressHaptic(haptic); onNext() })
+    
+    Row(
+        modifier = Modifier.fillMaxWidth(), 
+        horizontalArrangement = Arrangement.SpaceBetween, 
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        controlsOrder.forEach { key ->
+            when (key) {
+                "shuffle" -> AnimatedControlIcon(
+                    icon = Icons.Rounded.Shuffle, 
+                    tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, 
+                    onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleShuffle() } 
+                )
+                "previous" -> AnimatedControlIcon(
+                    icon = Icons.Rounded.SkipPrevious, 
+                    size = 44.dp, 
+                    onClick = { VibrationUtils.performLongPressHaptic(haptic); onPrevious() }
+                )
+                "play_pause" -> {
+                    val playPauseInteractionSource = remember { MutableInteractionSource() }
+                    val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
+                    val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.7f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
+                    val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
 
-        val playPauseInteractionSource = remember { MutableInteractionSource() }
-        val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
-        val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.7f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
-        val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
-
-        Surface(
-            onClick = {
-                VibrationUtils.performLongPressHaptic(haptic)
-                onTogglePlayPause()
-            },
-            interactionSource = playPauseInteractionSource,
-            modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = scaleX },
-            shape = RoundedCornerShape(cornerPercent),
-            color = MaterialTheme.colorScheme.primary
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
+                    Surface(
+                        onClick = {
+                            VibrationUtils.performLongPressHaptic(haptic)
+                            onTogglePlayPause()
+                        },
+                        interactionSource = playPauseInteractionSource,
+                        modifier = Modifier.size(72.dp).graphicsLayer { scaleX = playPauseScale; scaleY = scaleX },
+                        shape = RoundedCornerShape(cornerPercent),
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(36.dp))
+                        }
+                    }
+                }
+                "next" -> AnimatedControlIcon(
+                    icon = Icons.Rounded.SkipNext, 
+                    size = 44.dp, 
+                    onClick = { VibrationUtils.performLongPressHaptic(haptic); onNext() }
+                )
+                "repeat" -> AnimatedControlIcon(
+                    icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, 
+                    tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary, 
+                    onClick = { VibrationUtils.performLongPressHaptic(haptic); onToggleRepeat() }
+                )
             }
         }
     }

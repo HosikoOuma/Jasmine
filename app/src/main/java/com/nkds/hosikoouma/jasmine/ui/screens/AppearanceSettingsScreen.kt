@@ -58,7 +58,8 @@ fun AppearanceSettingsScreen(
         onSetPaletteStyle = viewModel::setPaletteStyle,
         onSetAppFontFamily = viewModel::setAppFontFamily,
         onSetProgressBarStyle = viewModel::setProgressBarStyle,
-        onUpdateNavigationItems = viewModel::setNavigationItems
+        onUpdateNavigationItems = viewModel::setNavigationItems,
+        onUpdatePlayerControls = viewModel::setPlayerControlsOrder
     )
 }
 
@@ -73,13 +74,15 @@ fun AppearanceSettingsContent(
     onSetPaletteStyle: (String) -> Unit,
     onSetAppFontFamily: (AppFontFamily) -> Unit,
     onSetProgressBarStyle: (ProgressBarStyle) -> Unit,
-    onUpdateNavigationItems: (List<String>) -> Unit
+    onUpdateNavigationItems: (List<String>) -> Unit,
+    onUpdatePlayerControls: (List<String>) -> Unit
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showFontDialog by remember { mutableStateOf(false) }
     var showPaletteDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf(false) }
     var showNavDialog by remember { mutableStateOf(false) }
+    var showControlsDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -153,10 +156,10 @@ fun AppearanceSettingsContent(
             }
         }
 
-        // --- НАСТРОЙКИ НАВИГАЦИИ ---
+        // --- НАСТРОЙКИ НАВИГАЦИИ И УПРАВЛЕНИЯ ---
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Navigation",
+                text = "Layout & Customization",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
@@ -164,8 +167,14 @@ fun AppearanceSettingsContent(
 
             SettingsClickableItem(
                 title = "Navigation Bar Items",
-                subtitle = "Long press and drag cards to reorder",
+                subtitle = "Reorder or hide navigation tabs",
                 onClick = { showNavDialog = true }
+            )
+
+            SettingsClickableItem(
+                title = "Player Controls Order",
+                subtitle = "Reorder playback buttons in player screen",
+                onClick = { showControlsDialog = true }
             )
         }
 
@@ -218,6 +227,14 @@ fun AppearanceSettingsContent(
             currentItems = settings.navigationItems,
             onDismiss = { showNavDialog = false },
             onSave = onUpdateNavigationItems
+        )
+    }
+
+    if (showControlsDialog) {
+        PlayerControlsOrderDialog(
+            currentOrder = settings.playerControlsOrder,
+            onDismiss = { showControlsDialog = false },
+            onSave = onUpdatePlayerControls
         )
     }
 
@@ -279,6 +296,100 @@ fun AppearanceSettingsContent(
 }
 
 @Composable
+fun PlayerControlsOrderDialog(
+    currentOrder: List<String>,
+    onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit
+) {
+    val controlMap = mapOf(
+        "shuffle" to ("Shuffle" to Icons.Rounded.Shuffle),
+        "previous" to ("Previous" to Icons.Rounded.SkipPrevious),
+        "play_pause" to ("Play/Pause" to Icons.Rounded.PlayArrow),
+        "next" to ("Next" to Icons.Rounded.SkipNext),
+        "repeat" to ("Repeat" to Icons.Rounded.Repeat)
+    )
+
+    var itemsState by remember { 
+        mutableStateOf(currentOrder.filter { controlMap.containsKey(it) }) 
+    }
+
+    val lazyListState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        itemsState = itemsState.toMutableList().apply {
+            add(to.index, removeAt(from.index))
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Player Controls Order") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Long press and drag cards to reorder playback buttons.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    itemsIndexed(itemsState, key = { _, key -> key }) { _, key ->
+                        val (title, icon) = controlMap[key]!!
+                        ReorderableItem(reorderableState, key = key) { isDragging ->
+                            val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp)
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .draggableHandle()
+                                    .graphicsLayer { 
+                                        shadowElevation = elevation.toPx()
+                                        shape = RoundedCornerShape(20.dp)
+                                        clip = true
+                                    }
+                            ) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(icon, null, modifier = Modifier.size(24.dp))
+                                        Spacer(Modifier.width(16.dp))
+                                        Text(
+                                            text = title, 
+                                            modifier = Modifier.weight(1f),
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Icon(Icons.Rounded.DragHandle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(itemsState); onDismiss() }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
 fun NavigationItemsDialog(
     currentItems: List<String>,
     onDismiss: () -> Unit,
@@ -332,11 +443,10 @@ fun NavigationItemsDialog(
                                 label = "cardColor"
                             )
 
-                            // Обертка для устранения эффекта "тени под тенью" и корректного перетаскивания
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .draggableHandle() // Теперь вся карточка - область для захвата
+                                    .draggableHandle()
                                     .graphicsLayer { 
                                         shadowElevation = elevation.toPx()
                                         shape = RoundedCornerShape(20.dp)
