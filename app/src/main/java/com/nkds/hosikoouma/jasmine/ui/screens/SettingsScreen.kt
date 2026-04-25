@@ -46,6 +46,13 @@ fun SettingsScreen(
             icon = Icons.Rounded.LibraryMusic,
             onClick = { navController.navigate(Screen.SettingsLibrary.route) }
         )
+        
+        SettingsCategoryItem(
+            title = "Telegram Cloud",
+            subtitle = "Stream music from your chats",
+            icon = Icons.Rounded.Cloud,
+            onClick = { navController.navigate(Screen.SettingsTelegram.route) }
+        )
 
         SettingsCategoryItem(
             title = "Maintenance",

@@ -112,6 +112,7 @@ fun MainScreen(
                     currentRoute == Screen.SettingsMaintenance.route -> "Maintenance"
                     currentRoute == Screen.Statistics.route -> "Statistics"
                     currentRoute == Screen.About.route -> "About"
+                    currentRoute == Screen.TelegramCloud.route -> "Telegram Cloud"
                     else -> Screen.items.find { it.route == currentRoute }?.title ?: "Jasmine"
                 }
             }

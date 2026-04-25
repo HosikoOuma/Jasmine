@@ -108,7 +108,11 @@ class PlaylistRepository @Inject constructor(
     private suspend fun importOne(name: String, paths: List<String>, allTracks: List<Track>) {
         val currentPlaylists = allPlaylists.first()
         if (currentPlaylists.none { it.name == name }) {
-            val playlistId = playlistDao.insertPlaylist(PlaylistEntity(name = name))
+            // Ищем обложку в папке Jasmine/Playlists
+            val coverFile = m3uManager.findCoverForPlaylist(name)
+            val coverUri = coverFile?.let { Uri.fromFile(it).toString() }
+            
+            val playlistId = playlistDao.insertPlaylist(PlaylistEntity(name = name, coverUri = coverUri))
             paths.forEach { path ->
                 val track = allTracks.find { it.path == path }
                 if (track != null) {

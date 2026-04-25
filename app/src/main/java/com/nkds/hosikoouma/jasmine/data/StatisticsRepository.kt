@@ -8,8 +8,9 @@ import javax.inject.Singleton
 class StatisticsRepository @Inject constructor(
     private val statisticsDao: StatisticsDao
 ) {
-    val recentHistory: Flow<List<PlayHistoryEntity>> = statisticsDao.getRecentHistory(5)
-    val topTracks: Flow<List<TrackPlayCount>> = statisticsDao.getTopTracks(5)
+    // Увеличиваем лимит выборки до 50, чтобы ViewModel могла корректно отфильтровать топ-5 треков и артистов
+    val recentHistory: Flow<List<PlayHistoryEntity>> = statisticsDao.getRecentHistory(20)
+    val topTracks: Flow<List<TrackPlayCount>> = statisticsDao.getTopTracks(50)
     val totalListeningTime: Flow<Long?> = statisticsDao.getTotalListeningTime()
 
     fun getTopTracksSince(days: Int, limit: Int = 30): Flow<List<TrackPlayCount>> {
@@ -18,7 +19,7 @@ class StatisticsRepository @Inject constructor(
     }
 
     suspend fun recordPlayback(trackId: Long, durationMs: Long) {
-        if (durationMs < 3000) return // Игнорируем меньше 3 секунд (как в Rhythm)
+        if (durationMs < 3000) return // Игнорируем меньше 3 секунд
         statisticsDao.insertPlayEvent(PlayHistoryEntity(trackId = trackId, playedDuration = durationMs))
     }
 

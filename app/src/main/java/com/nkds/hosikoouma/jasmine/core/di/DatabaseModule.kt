@@ -47,4 +47,7 @@ object DatabaseModule {
 
     @Provides
     fun provideLyricsDao(db: LyricsDatabase): LyricsDao = db.lyricsDao()
+
+    @Provides
+    fun provideTelegramDao(db: PlaylistDatabase): TelegramDao = db.telegramDao()
 }

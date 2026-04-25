@@ -37,6 +37,15 @@ class M3UManager @Inject constructor(@ApplicationContext private val context: Co
     fun getCoverFileForPlaylist(name: String): File {
         return File(playlistsDir, "$name.jpg")
     }
+    
+    fun findCoverForPlaylist(name: String): File? {
+        val extensions = listOf("jpg", "jpeg", "png", "webp")
+        for (ext in extensions) {
+            val file = File(playlistsDir, "$name.$ext")
+            if (file.exists()) return file
+        }
+        return null
+    }
 
     fun renamePlaylistFile(oldName: String, newName: String) {
         val oldFile = File(playlistsDir, "$oldName.m3u")
@@ -45,9 +54,10 @@ class M3UManager @Inject constructor(@ApplicationContext private val context: Co
             oldFile.renameTo(newFile)
         }
         
-        val oldCover = File(playlistsDir, "$oldName.jpg")
-        val newCover = File(playlistsDir, "$newName.jpg")
-        if (oldCover.exists()) {
+        // Find and rename any supported image format
+        findCoverForPlaylist(oldName)?.let { oldCover ->
+            val ext = oldCover.extension
+            val newCover = File(playlistsDir, "$newName.$ext")
             oldCover.renameTo(newCover)
         }
     }
@@ -56,8 +66,7 @@ class M3UManager @Inject constructor(@ApplicationContext private val context: Co
         val file = File(playlistsDir, "$name.m3u")
         if (file.exists()) file.delete()
         
-        val coverFile = File(playlistsDir, "$name.jpg")
-        if (coverFile.exists()) coverFile.delete()
+        findCoverForPlaylist(name)?.delete()
     }
 
     fun getAllM3UFiles(): List<File> {

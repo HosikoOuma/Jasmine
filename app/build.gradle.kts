@@ -46,6 +46,14 @@ android {
         compose = true
         resValues = true
     }
+    
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/io.netty.versions.properties"
+        }
+    }
 }
 
 dependencies {
@@ -84,6 +92,11 @@ dependencies {
     implementation(libs.kmpalette.core)
 
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.tdlib)
+    
+    // Ktor for Telegram Streaming
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
 
     // Hilt
     implementation(libs.hilt.android)

@@ -158,14 +158,18 @@ class TrackViewModel @Inject constructor(
         if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val onRepeatTracks: StateFlow<List<Track>> = onRepeatIntervalDays.flatMapLatest { days ->
-        statisticsRepository.getTopTracksSince(days, limit = 30)
-    }.combine(allTracks) { topTrackCounts, tracks ->
-        topTrackCounts.mapNotNull { tc -> tracks.find { it.id == tc.trackId } }
+    val onRepeatTracks: StateFlow<List<Track>> = settingsRepository.onRepeatFixedTracks.combine(allTracks) { fixedIdsStr, tracks ->
+        if (fixedIdsStr.isBlank()) {
+            emptyList<Track>()
+        } else {
+            val ids = fixedIdsStr.split(",").mapNotNull { it.toLongOrNull() }
+            ids.mapNotNull { id -> tracks.find { it.id == id } }
+        }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
         loadSortSettings()
+        checkAndRefreshOnRepeat()
     }
 
     private fun loadSortSettings() {
@@ -173,6 +177,33 @@ class TrackViewModel @Inject constructor(
             val defaultSort = settingsRepository.defaultSortType.first()
             _sortType.value = try { SortType.valueOf(defaultSort) } catch (e: Exception) { SortType.BY_DATE }
             _isReversed.value = settingsRepository.isDefaultSortReversed.first()
+        }
+    }
+
+    private fun checkAndRefreshOnRepeat() {
+        viewModelScope.launch {
+            val lastUpdate = settingsRepository.lastOnRepeatUpdate.first()
+            val intervalDays = settingsRepository.onRepeatIntervalDays.first()
+            val currentTime = System.currentTimeMillis()
+            
+            val intervalMs = intervalDays.toLong() * 24 * 60 * 60 * 1000
+            
+            if (currentTime - lastUpdate >= intervalMs || lastUpdate == 0L) {
+                refreshOnRepeatTracks(intervalDays)
+            }
+        }
+    }
+
+    private suspend fun refreshOnRepeatTracks(days: Int) {
+        val topTracks = statisticsRepository.getTopTracksSince(days, limit = 30).first()
+        val trackIds = topTracks.map { it.trackId }
+        settingsRepository.saveOnRepeatTracks(trackIds)
+    }
+
+    fun forceRefreshOnRepeat() {
+        viewModelScope.launch {
+            val days = settingsRepository.onRepeatIntervalDays.first()
+            refreshOnRepeatTracks(days)
         }
     }
 

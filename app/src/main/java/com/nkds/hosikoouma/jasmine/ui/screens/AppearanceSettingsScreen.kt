@@ -326,7 +326,7 @@ fun PlayerControlsOrderDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Long press and drag cards to reorder playback buttons.",
+                    "Drag the handles to reorder playback buttons.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -345,7 +345,6 @@ fun PlayerControlsOrderDialog(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .draggableHandle()
                                     .graphicsLayer { 
                                         shadowElevation = elevation.toPx()
                                         shape = RoundedCornerShape(20.dp)
@@ -371,7 +370,12 @@ fun PlayerControlsOrderDialog(
                                             fontWeight = FontWeight.Bold,
                                             style = MaterialTheme.typography.titleMedium
                                         )
-                                        Icon(Icons.Rounded.DragHandle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                        Icon(
+                                            Icons.Rounded.DragHandle, 
+                                            null, 
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier.draggableHandle() // Только иконка - область захвата
+                                        )
                                     }
                                 }
                             }
@@ -420,7 +424,7 @@ fun NavigationItemsDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Long press and drag cards to reorder. Settings cannot be hidden. Min 2 items.",
+                    "Drag the handles to reorder. Min 2 items required.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -446,7 +450,6 @@ fun NavigationItemsDialog(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .draggableHandle()
                                     .graphicsLayer { 
                                         shadowElevation = elevation.toPx()
                                         shape = RoundedCornerShape(20.dp)
@@ -493,6 +496,15 @@ fun NavigationItemsDialog(
                                             thumbContent = if (isVisible) {
                                                 { Icon(Icons.Rounded.Check, null, Modifier.size(16.dp)) }
                                             } else null
+                                        )
+                                        
+                                        Spacer(Modifier.width(8.dp))
+                                        
+                                        Icon(
+                                            Icons.Rounded.DragHandle, 
+                                            null, 
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier.draggableHandle() // Теперь перемещаем только за ручку
                                         )
                                     }
                                 }

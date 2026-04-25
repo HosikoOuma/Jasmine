@@ -84,6 +84,14 @@ fun JasmineNavHost(
             LibraryScreen(navController = navController, trackViewModel = trackViewModel) 
         }
         
+        // --- Прямые вкладки (если включены в настройках) ---
+        composable(Screen.TelegramCloud.route) {
+            TelegramCloudScreen(navController = navController)
+        }
+        composable(Screen.LibraryPlaylists.route) {
+            PlaylistListScreen(navController = navController, trackViewModel = trackViewModel)
+        }
+        
         // --- Настройки ---
         composable(Screen.Settings.route) { 
             SettingsScreen(navController = navController) 
@@ -102,6 +110,9 @@ fun JasmineNavHost(
         composable(Screen.SettingsMaintenance.route) {
             MaintenanceScreen()
         }
+        composable(Screen.SettingsTelegram.route) {
+            TelegramAuthScreen(navController = navController)
+        }
         composable(Screen.Statistics.route) {
             StatisticsScreen()
         }
@@ -118,9 +129,6 @@ fun JasmineNavHost(
         }
         composable(Screen.LibraryFolders.route) { 
             FolderListScreen(navController = navController, trackViewModel = trackViewModel) 
-        }
-        composable(Screen.LibraryPlaylists.route) { 
-            PlaylistListScreen(navController = navController, trackViewModel = trackViewModel) 
         }
         composable(Screen.LibraryOnRepeat.route) {
             OnRepeatScreen(
@@ -196,6 +204,19 @@ fun JasmineNavHost(
                 onAddTracksClick = onAddTracksToPlaylist,
                 selectedTracks = selectedTracks,
                 onToggleTrackSelection = onToggleTrackSelection
+            )
+        }
+
+        composable(
+            route = Screen.TelegramChannelDetail.route,
+            arguments = listOf(navArgument("chatId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val chatId = backStackEntry.arguments?.getLong("chatId") ?: 0L
+            TelegramChannelDetailScreen(
+                chatId = chatId,
+                navController = navController,
+                playerViewModel = playerViewModel,
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
     }

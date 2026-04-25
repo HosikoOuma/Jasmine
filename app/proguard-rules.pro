@@ -26,11 +26,24 @@
 -dontwarn androidx.media3.**
 
 # --- Jasmine Specific ---
-# Не обфусцируем модели данных, так как они сериализуются/десериализуются
+# Модели данных храним (важно для сериализации)
 -keep class com.nkds.hosikoouma.jasmine.datamodels.** { *; }
--keep class com.nkds.hosikoouma.jasmine.data.** { *; }
 
-# Jaudiotagger (для тегов)
+# --- Telegram / TDLib ---
+# Сохраняем нативные методы для связи с libtdjni.so
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+# Саму библиотеку TDLib не трогаем (она JNI-зависима)
+-keep class org.drinkless.tdlib.** { *; }
+-dontwarn org.drinkless.tdlib.**
+
+# --- Ktor (Streaming Proxy) ---
+-keep class io.ktor.** { *; }
+-dontwarn io.ktor.**
+-dontwarn kotlinx.coroutines.debug.**
+
+# Jaudiotagger
 -keep class org.jaudiotagger.** { *; }
 -dontwarn org.jaudiotagger.**
 

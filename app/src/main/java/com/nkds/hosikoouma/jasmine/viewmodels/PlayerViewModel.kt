@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.nkds.hosikoouma.jasmine.PlaybackService
 import com.nkds.hosikoouma.jasmine.core.utils.QueueUtils
 import com.nkds.hosikoouma.jasmine.data.*
+import com.nkds.hosikoouma.jasmine.data.telegram.TelegramStreamProxy
 import com.nkds.hosikoouma.jasmine.datamodels.Lyrics
 import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
 import com.nkds.hosikoouma.jasmine.datamodels.Track
@@ -41,12 +42,15 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.math.absoluteValue
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     application: Application,
     private val favoritesRepository: FavoritesRepository,
-    private val lyricsRepository: LyricsRepository
+    private val lyricsRepository: LyricsRepository,
+    private val telegramDao: TelegramDao,
+    private val telegramStreamProxy: TelegramStreamProxy
 ) : AndroidViewModel(application) {
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -63,8 +67,8 @@ class PlayerViewModel @Inject constructor(
     private val _currentRadioStation = MutableStateFlow<RadioStation?>(null)
     val currentRadioStation = _currentRadioStation.asStateFlow()
 
-    private val _radioTrackTitle = MutableStateFlow<String?>(null)
-    private val _radioTrackArtist = MutableStateFlow<String?>(null)
+    private var _radioTrackTitle = MutableStateFlow<String?>(null)
+    private var _radioTrackArtist = MutableStateFlow<String?>(null)
     val radioTrackTitle = _radioTrackTitle.asStateFlow()
     val radioTrackArtist = _radioTrackArtist.asStateFlow()
 
@@ -145,6 +149,7 @@ class PlayerViewModel @Inject constructor(
     init {
         initializeController()
         setupVolumeReceiver()
+        telegramStreamProxy.start()
     }
 
     private fun initializeController() {
@@ -279,10 +284,10 @@ class PlayerViewModel @Inject constructor(
             }
             parseRadioMetadata(mediaItem.mediaMetadata)
         } else {
-            val uid = mediaIdToIdString(mediaItem.mediaId)
-            val trackFromMedia = mediaToTrack(mediaItem).copy(uid = mediaItem.mediaId)
+            val uid = mediaItem.mediaId
+            val trackFromMedia = mediaToTrack(mediaItem).copy(uid = uid)
             
-            val trackFromPlaylist = _playlist.value.find { it.uid == mediaItem.mediaId }
+            val trackFromPlaylist = _playlist.value.find { it.uid == uid }
             val newTrack = if (trackFromMedia.title == "Unknown" && trackFromPlaylist != null) trackFromPlaylist else trackFromMedia
 
             val isDataImproved = (_currentTrack.value?.title == "Unknown" || _currentTrack.value?.title == null) && newTrack.title != "Unknown"
@@ -302,7 +307,14 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun mediaIdToIdString(mediaId: String): String {
-        return if (mediaId.contains("_")) mediaId.split("_")[0] else mediaId
+        return if (mediaId.contains("_")) {
+            val parts = mediaId.split("_")
+            if (parts.size >= 2 && parts[0].all { it.isDigit() || it == '-' }) {
+                mediaId
+            } else {
+                parts[0]
+            }
+        } else mediaId
     }
 
     private fun resetCurrentTrackState() {
@@ -317,9 +329,7 @@ class PlayerViewModel @Inject constructor(
         _remoteLyrics.value = null
     }
 
-    private val playlistUpdateMutex = Mutex()
     private var updatePlaylistJob: Job? = null
-    
     private fun updatePlaylist() {
         val controller = controller ?: return
         val mediaItemsWithUids = mutableListOf<Pair<MediaItem, String>>()
@@ -341,13 +351,13 @@ class PlayerViewModel @Inject constructor(
         updatePlaylistJob?.cancel()
         updatePlaylistJob = viewModelScope.launch(Dispatchers.Default) {
             val items = mediaItemsWithUids.map { (item, uid) -> mediaToTrack(item).copy(uid = uid) }
-            
-            playlistUpdateMutex.withLock {
-                if (_playlist.value != items) {
-                    _playlist.value = items
-                    withContext(Dispatchers.Main) {
-                        updateCurrentTrack(controller.currentMediaItem)
-                    }
+            if (_playlist.value != items) {
+                _playlist.value = items
+                if (!_shuffleModeEnabled.value) {
+                    originalTrackList = items
+                }
+                withContext(Dispatchers.Main) {
+                    updateCurrentTrack(controller.currentMediaItem)
                 }
             }
         }
@@ -369,7 +379,13 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun mediaIdToLong(cleanId: String): Long = try {
-        if (cleanId.startsWith("radio_")) cleanId.substring(6).toLong() else cleanId.toLong()
+        if (cleanId.startsWith("radio_")) {
+            cleanId.substring(6).toLong()
+        } else if (cleanId.contains("_")) {
+            -(cleanId.hashCode().toLong().absoluteValue)
+        } else {
+            cleanId.toLong()
+        }
     } catch (e: Exception) { cleanId.hashCode().toLong() }
 
     fun toggleFavoriteCurrent() {
@@ -435,8 +451,18 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun createMediaItem(track: Track, isManual: Boolean = false, existingUid: String? = null, sourceName: String? = null): MediaItem {
+    private suspend fun createMediaItem(track: Track, isManual: Boolean = false, existingUid: String? = null, sourceName: String? = null): MediaItem {
         val uid = existingUid ?: "${track.id}_${UUID.randomUUID()}"
+        var playbackUri = track.contentUri
+
+        if (track.contentUri.scheme == "telegram") {
+            val song = telegramDao.getSongById(track.uid)
+            if (song != null) {
+                val proxyUrl = telegramStreamProxy.getProxyUrl(song.fileId)
+                playbackUri = Uri.parse(proxyUrl)
+            }
+        }
+
         val extras = Bundle().apply { 
             putString("path", track.path)
             putBoolean("isManual", isManual)
@@ -446,7 +472,7 @@ class PlayerViewModel @Inject constructor(
         }
         return MediaItem.Builder()
             .setMediaId(uid)
-            .setUri(track.contentUri)
+            .setUri(playbackUri)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(track.title)
@@ -557,6 +583,7 @@ class PlayerViewModel @Inject constructor(
             val newList: List<Track>
             
             if (willEnable) {
+                originalTrackList = currentTracks
                 val currentIndex = currentTracks.indexOfFirst { it.uid == currentTrack.uid }.coerceAtLeast(0)
                 newList = QueueUtils.buildAnchoredShuffleQueueSuspending(currentTracks, currentIndex, startAtZero = true)
             } else {
@@ -569,7 +596,9 @@ class PlayerViewModel @Inject constructor(
             }
             
             val newIndex = newList.indexOfFirst { it.uid == currentTrack.uid }.coerceAtLeast(0)
-            val mediaItems = newList.map { createMediaItem(it, it.isManual, existingUid = it.uid, sourceName = _currentSource.value) }
+            val mediaItems = newList.map { track -> 
+                createMediaItem(track, track.isManual, existingUid = track.uid, sourceName = _currentSource.value) 
+            }
             
             withContext(Dispatchers.Main) {
                 controller.setMediaItems(mediaItems, newIndex, currentPos)
@@ -581,18 +610,7 @@ class PlayerViewModel @Inject constructor(
 
     fun toggleRepeatMode() { controller?.let { it.repeatMode = when (it.repeatMode) { Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL; Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF } } }
 
-    private fun startProgressUpdate() { 
-        progressJob?.cancel()
-        progressJob = viewModelScope.launch { 
-            while (true) { 
-                controller?.let { 
-                    _progress.value = it.currentPosition
-                }
-                delay(1000) 
-            } 
-        } 
-    }
-    
+    private fun startProgressUpdate() { progressJob?.cancel(); progressJob = viewModelScope.launch { while (true) { controller?.let { _progress.value = it.currentPosition }; delay(1000) } } }
     private fun stopProgressUpdate() { progressJob?.cancel() }
 
     override fun onCleared() {
@@ -609,5 +627,6 @@ class PlayerViewModel @Inject constructor(
         try {
             getApplication<Application>().unregisterReceiver(volumeReceiver)
         } catch (_: Exception) {}
+        telegramStreamProxy.stop()
     }
 }

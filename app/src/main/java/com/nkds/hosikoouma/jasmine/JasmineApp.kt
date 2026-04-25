@@ -5,17 +5,25 @@ import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.nkds.hosikoouma.jasmine.data.telegram.TelegramArtFetcher
+import com.nkds.hosikoouma.jasmine.data.telegram.TelegramRepository
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
 @HiltAndroidApp
 class JasmineApp : Application() {
+    
+    @Inject lateinit var telegramRepository: TelegramRepository
+
     override fun onCreate() {
         super.onCreate()
         
         val imageLoader = ImageLoader.Builder(this)
+            .components {
+                add(TelegramArtFetcher.Factory(telegramRepository))
+            }
             .memoryCache {
                 MemoryCache.Builder(this)
-                    // Увеличиваем кэш в памяти до 30% (было 25%)
                     .maxSizePercent(0.30)
                     .strongReferencesEnabled(true)
                     .build()
@@ -23,11 +31,9 @@ class JasmineApp : Application() {
             .diskCache {
                 DiskCache.Builder()
                     .directory(this.cacheDir.resolve("image_cache"))
-                    // Увеличиваем дисковый кэш до 250 МБ (было 50 МБ)
                     .maxSizeBytes(250L * 1024 * 1024)
                     .build()
             }
-            // Включаем поддержку работы с MediaStore и метаданными
             .allowHardware(true)
             .crossfade(true)
             .build()

@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DeleteForever
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,9 +24,11 @@ fun MaintenanceScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var showConfirmDialog by remember { mutableStateOf(false) }
+    var showConfirmCoverDialog by remember { mutableStateOf(false) }
+    var showConfirmTelegramDialog by remember { mutableStateOf(false) }
 
-    val formattedSize = Formatter.formatFileSize(context, state.coverSize)
+    val formattedCoverSize = Formatter.formatFileSize(context, state.coverSize)
+    val formattedTelegramSize = Formatter.formatFileSize(context, state.telegramCacheSize)
 
     Column(
         modifier = Modifier
@@ -46,6 +46,7 @@ fun MaintenanceScreen(
                 fontWeight = FontWeight.Bold
             )
 
+            // Cover Art Cache Card
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -66,7 +67,7 @@ fun MaintenanceScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${state.coverCount} files • $formattedSize",
+                                text = "${state.coverCount} files • $formattedCoverSize",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -84,7 +85,7 @@ fun MaintenanceScreen(
                     Spacer(Modifier.height(16.dp))
 
                     Button(
-                        onClick = { showConfirmDialog = true },
+                        onClick = { showConfirmCoverDialog = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -98,6 +99,64 @@ fun MaintenanceScreen(
                             Icon(Icons.Rounded.DeleteForever, null)
                             Spacer(Modifier.width(8.dp))
                             Text("Clear Cover Cache")
+                        }
+                    }
+                }
+            }
+
+            // Telegram Cloud Cache Card
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Rounded.Cloud, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = "Telegram Cloud Cache",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = formattedTelegramSize,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Music streamed from Telegram is cached locally for smooth playback. Clearing this will delete all downloaded cloud tracks.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { showConfirmTelegramDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ),
+                        enabled = !state.isClearing && state.telegramCacheSize > 0
+                    ) {
+                        if (state.isClearing) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Rounded.DeleteForever, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Clear Telegram Cache")
                         }
                     }
                 }
@@ -158,22 +217,43 @@ fun MaintenanceScreen(
                         Text("1 day", style = MaterialTheme.typography.labelSmall)
                         Text("30 days", style = MaterialTheme.typography.labelSmall)
                     }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    // Force Refresh On Repeat
+                    Button(
+                        onClick = { viewModel.forceRefreshOnRepeat() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        enabled = !state.isRefreshingOnRepeat
+                    ) {
+                        if (state.isRefreshingOnRepeat) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Rounded.Refresh, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Refresh \"On Repeat\" Now")
+                        }
+                    }
                 }
             }
         }
         
-        Spacer(modifier = Modifier.height(100.dp))
+        Spacer(modifier = Modifier.height(160.dp))
     }
 
-    if (showConfirmDialog) {
+    if (showConfirmCoverDialog) {
         AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
+            onDismissRequest = { showConfirmCoverDialog = false },
             title = { Text("Clear cache?") },
             text = { Text("This will delete all cached album covers. They will be regenerated the next time you scan your library.") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showConfirmDialog = false
+                        showConfirmCoverDialog = false
                         viewModel.clearCoverCache()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -182,7 +262,31 @@ fun MaintenanceScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) {
+                TextButton(onClick = { showConfirmCoverDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showConfirmTelegramDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmTelegramDialog = false },
+            title = { Text("Clear Telegram cache?") },
+            text = { Text("This will delete all downloaded audio files from Telegram. Your account and channels will remain connected.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmTelegramDialog = false
+                        viewModel.clearTelegramCache()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmTelegramDialog = false }) {
                     Text("Cancel")
                 }
             }
