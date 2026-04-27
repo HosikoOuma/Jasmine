@@ -47,11 +47,6 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
         // Аудиофокус
         val MANAGE_AUDIO_FOCUS = booleanPreferencesKey("manage_audio_focus")
-
-        // On Repeat
-        val ON_REPEAT_INTERVAL_DAYS = intPreferencesKey("on_repeat_interval_days")
-        val LAST_ON_REPEAT_UPDATE = longPreferencesKey("last_on_repeat_update")
-        val ON_REPEAT_FIXED_TRACKS = stringPreferencesKey("on_repeat_fixed_tracks")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -88,11 +83,6 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     // Аудиофокус
     val manageAudioFocus: Flow<Boolean> = context.dataStore.data.map { it[MANAGE_AUDIO_FOCUS] ?: true }
-
-    // On Repeat
-    val onRepeatIntervalDays: Flow<Int> = context.dataStore.data.map { it[ON_REPEAT_INTERVAL_DAYS] ?: 7 }
-    val lastOnRepeatUpdate: Flow<Long> = context.dataStore.data.map { it[LAST_ON_REPEAT_UPDATE] ?: 0L }
-    val onRepeatFixedTracks: Flow<String> = context.dataStore.data.map { it[ON_REPEAT_FIXED_TRACKS] ?: "" }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) = context.dataStore.edit { it[CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeDuration(duration: Long) = context.dataStore.edit { it[CROSSFADE_DURATION] = duration }
@@ -133,11 +123,4 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     }
 
     suspend fun setManageAudioFocus(enabled: Boolean) = context.dataStore.edit { it[MANAGE_AUDIO_FOCUS] = enabled }
-
-    suspend fun setOnRepeatIntervalDays(days: Int) = context.dataStore.edit { it[ON_REPEAT_INTERVAL_DAYS] = days }
-    
-    suspend fun saveOnRepeatTracks(trackIds: List<Long>) = context.dataStore.edit {
-        it[ON_REPEAT_FIXED_TRACKS] = trackIds.joinToString(",")
-        it[LAST_ON_REPEAT_UPDATE] = System.currentTimeMillis()
-    }
 }

@@ -84,7 +84,6 @@ fun JasmineNavHost(
             LibraryScreen(navController = navController, trackViewModel = trackViewModel) 
         }
         
-        // --- Прямые вкладки (если включены в настройках) ---
         composable(Screen.TelegramCloud.route) {
             TelegramCloudScreen(navController = navController)
         }
@@ -92,7 +91,6 @@ fun JasmineNavHost(
             PlaylistListScreen(navController = navController, trackViewModel = trackViewModel)
         }
         
-        // --- Настройки ---
         composable(Screen.Settings.route) { 
             SettingsScreen(navController = navController) 
         }
@@ -102,7 +100,9 @@ fun JasmineNavHost(
         }
         composable(Screen.SettingsAppearance.route) {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
-            AppearanceSettingsScreen(viewModel = settingsViewModel)
+            AppearanceSettingsScreen(
+                viewModel = settingsViewModel
+            )
         }
         composable(Screen.SettingsLibrary.route) {
             LibrarySettingsScreen(trackViewModel = trackViewModel)
@@ -113,14 +113,10 @@ fun JasmineNavHost(
         composable(Screen.SettingsTelegram.route) {
             TelegramAuthScreen(navController = navController)
         }
-        composable(Screen.Statistics.route) {
-            StatisticsScreen()
-        }
         composable(Screen.About.route) {
             AboutScreen()
         }
 
-        // --- Библиотека ---
         composable(Screen.LibraryAlbums.route) { 
             AlbumListScreen(navController = navController, trackViewModel = trackViewModel) 
         }
@@ -129,14 +125,6 @@ fun JasmineNavHost(
         }
         composable(Screen.LibraryFolders.route) { 
             FolderListScreen(navController = navController, trackViewModel = trackViewModel) 
-        }
-        composable(Screen.LibraryOnRepeat.route) {
-            OnRepeatScreen(
-                navController = navController,
-                trackViewModel = trackViewModel,
-                playerViewModel = playerViewModel,
-                onNavigateToPlayer = onNavigateToPlayer
-            )
         }
 
         composable(

@@ -3,7 +3,6 @@ package com.nkds.hosikoouma.jasmine.ui.screens
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -374,7 +373,7 @@ fun PlayerControlsOrderDialog(
                                             Icons.Rounded.DragHandle, 
                                             null, 
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                            modifier = Modifier.draggableHandle() // Только иконка - область захвата
+                                            modifier = Modifier.draggableHandle()
                                         )
                                     }
                                 }
@@ -504,7 +503,7 @@ fun NavigationItemsDialog(
                                             Icons.Rounded.DragHandle, 
                                             null, 
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                            modifier = Modifier.draggableHandle() // Теперь перемещаем только за ручку
+                                            modifier = Modifier.draggableHandle()
                                         )
                                     }
                                 }

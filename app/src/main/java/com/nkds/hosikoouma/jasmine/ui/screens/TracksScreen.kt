@@ -18,7 +18,8 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.ui.components.ExpressiveRefreshIndicator
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.ui.components.simpleVerticalScrollbar
 import com.nkds.hosikoouma.jasmine.ui.components.vibrateClick
@@ -139,82 +141,93 @@ fun TracksContent(
     val context = LocalContext.current
     val listState = rememberLazyListState()
     val vibrator = remember { context.getSystemService(Vibrator::class.java) }
+    
+    val pullToRefreshState = rememberPullToRefreshState()
 
     LaunchedEffect(uiState.isFavoritesMode) { listState.scrollToItem(0) }
     LaunchedEffect(uiState.searchQuery) { if (uiState.searchQuery.isNotEmpty()) listState.scrollToItem(0) }
 
-    PullToRefreshBox(
-        isRefreshing = uiState.isRefreshing,
-        onRefresh = onRefresh,
-        modifier = Modifier.fillMaxSize()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pullToRefresh(
+                isRefreshing = uiState.isRefreshing,
+                state = pullToRefreshState,
+                onRefresh = onRefresh
+            )
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (!uiState.isLoaded && uiState.tracks.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (uiState.tracks.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (uiState.searchQuery.isEmpty()) {
-                        if (uiState.isFavoritesMode) "No favorites yet" else "No tracks found"
-                    } else "Nothing found")
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .simpleVerticalScrollbar(listState),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 70.dp, bottom = 160.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    itemsIndexed(
-                        items = uiState.tracks,
-                        key = { _, track -> track.id },
-                        contentType = { _, _ -> "track" }
-                    ) { index, track ->
-                        val isSelected = uiState.selectedTracks.contains(track)
-                        SwipeableTrackCard(
-                            track = track,
-                            isCurrent = uiState.currentTrack?.id == track.id,
-                            isPlaying = uiState.isPlaying,
-                            isSelected = isSelected,
-                            isManualMarkingEnabled = true,
-                            enabled = uiState.selectedTracks.isEmpty(),
-                            onSwipeAction = { onSwipeAction(track) },
-                            onClick = {
-                                if (uiState.selectedTracks.isNotEmpty()) {
-                                    VibrationUtils.selectionVibrate(vibrator)
-                                }
-                                onTrackClick(index)
-                            },
-                            onLongClick = {
+        if (!uiState.isLoaded && uiState.tracks.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (uiState.tracks.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(if (uiState.searchQuery.isEmpty()) {
+                    if (uiState.isFavoritesMode) "No favorites yet" else "No tracks found"
+                } else "Nothing found")
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .simpleVerticalScrollbar(listState),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 70.dp, bottom = 200.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                itemsIndexed(
+                    items = uiState.tracks,
+                    key = { _, track -> track.id },
+                    contentType = { _, _ -> "track" }
+                ) { index, track ->
+                    val isSelected = uiState.selectedTracks.contains(track)
+                    SwipeableTrackCard(
+                        track = track,
+                        isCurrent = uiState.currentTrack?.id == track.id,
+                        isPlaying = uiState.isPlaying,
+                        isSelected = isSelected,
+                        isManualMarkingEnabled = true,
+                        enabled = uiState.selectedTracks.isEmpty(),
+                        onSwipeAction = { onSwipeAction(track) },
+                        onClick = {
+                            if (uiState.selectedTracks.isNotEmpty()) {
                                 VibrationUtils.selectionVibrate(vibrator)
-                                onTrackLongClick(track)
                             }
-                        )
-                    }
+                            onTrackClick(index)
+                        },
+                        onLongClick = {
+                            VibrationUtils.selectionVibrate(vibrator)
+                            onTrackLongClick(track)
+                        }
+                    )
                 }
             }
+        }
 
-            if (uiState.selectedTracks.isEmpty()) {
-                ShuffleButton(
-                    modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
-                    onShuffle = {
-                        vibrateClick(context)
-                        onShufflePlay()
-                    }
-                )
+        // Кастомный индикатор
+        ExpressiveRefreshIndicator(
+            state = pullToRefreshState,
+            isRefreshing = uiState.isRefreshing,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
 
-                ModeSelector(
-                    modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
-                    isFavoritesMode = uiState.isFavoritesMode,
-                    onModeChange = {
-                        vibrateClick(context)
-                        onToggleFavoritesMode(it)
-                    }
-                )
-            }
+        if (uiState.selectedTracks.isEmpty()) {
+            ShuffleButton(
+                modifier = Modifier.padding(top = 16.dp, start = 16.dp).align(Alignment.TopStart),
+                onShuffle = {
+                    vibrateClick(context)
+                    onShufflePlay()
+                }
+            )
+
+            ModeSelector(
+                modifier = Modifier.padding(top = 16.dp, end = 16.dp).align(Alignment.TopEnd),
+                isFavoritesMode = uiState.isFavoritesMode,
+                onModeChange = {
+                    vibrateClick(context)
+                    onToggleFavoritesMode(it)
+                }
+            )
         }
     }
 }

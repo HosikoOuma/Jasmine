@@ -8,18 +8,15 @@ import androidx.room.*
         PlaylistTrackEntity::class, 
         RadioStation::class, 
         QueueTrackEntity::class,
-        PlayHistoryEntity::class,
-        TrackStatsEntity::class,
         TelegramSongEntity::class,
         TelegramChannelEntity::class,
         TelegramTopicEntity::class
     ],
-    version = 6,
+    version = 7, // Повышаем версию для миграции
     exportSchema = false
 )
 abstract class PlaylistDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
     abstract fun radioDao(): RadioDao
-    abstract fun statisticsDao(): StatisticsDao
     abstract fun telegramDao(): TelegramDao
 }

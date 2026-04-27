@@ -24,7 +24,6 @@ import com.nkds.hosikoouma.jasmine.core.CrossfadeManager
 import com.nkds.hosikoouma.jasmine.data.PlaylistDao
 import com.nkds.hosikoouma.jasmine.data.QueueTrackEntity
 import com.nkds.hosikoouma.jasmine.data.SettingsRepository
-import com.nkds.hosikoouma.jasmine.data.StatisticsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
@@ -51,7 +50,6 @@ class PlaybackService : MediaSessionService() {
     
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var playlistDao: PlaylistDao
-    @Inject lateinit var statisticsRepository: StatisticsRepository
     
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -62,11 +60,6 @@ class PlaybackService : MediaSessionService() {
     
     private var saveStateJob: Job? = null
     private var saveQueueJob: Job? = null
-
-    // --- Statistics Tracking ---
-    private var trackingTrackId: Long? = null
-    private var trackingStartTime: Long = 0L
-    private var trackingAccumulatedTime: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -88,7 +81,6 @@ class PlaybackService : MediaSessionService() {
             processorB = processorB,
             onPlayerSwapped = { newPlayer ->
                 mediaSession?.setPlayer(newPlayer)
-                handleTrackTransition(newPlayer.currentMediaItem)
             }
         )
         
@@ -116,59 +108,6 @@ class PlaybackService : MediaSessionService() {
         restoreQueueToPlayer()
     }
 
-    private fun handleTrackTransition(mediaItem: MediaItem?) {
-        val trackId = mediaItem?.mediaId?.split("_")?.firstOrNull()?.toLongOrNull()
-        val isRadio = mediaItem?.mediaMetadata?.extras?.getBoolean("isRadio", false) ?: false
-
-        if (trackId != null && !isRadio) {
-            if (trackingTrackId != trackId) {
-                finalizeTracking()
-                startTracking(trackId)
-            }
-        } else {
-            finalizeTracking()
-        }
-    }
-
-    private fun startTracking(trackId: Long) {
-        trackingTrackId = trackId
-        trackingAccumulatedTime = 0L
-        if (crossfadeManager.getCurrentPlayer().isPlaying) {
-            trackingStartTime = System.currentTimeMillis()
-        }
-    }
-
-    private fun pauseTracking() {
-        if (trackingStartTime > 0) {
-            trackingAccumulatedTime += (System.currentTimeMillis() - trackingStartTime)
-            trackingStartTime = 0L
-        }
-    }
-
-    private fun resumeTracking() {
-        if (trackingTrackId != null && trackingStartTime == 0L) {
-            trackingStartTime = System.currentTimeMillis()
-        }
-    }
-
-    private fun finalizeTracking() {
-        val trackId = trackingTrackId ?: return
-        if (trackingStartTime > 0) {
-            trackingAccumulatedTime += (System.currentTimeMillis() - trackingStartTime)
-        }
-        
-        val finalTime = trackingAccumulatedTime
-        if (finalTime >= 1000) {
-            serviceScope.launch(Dispatchers.IO) {
-                statisticsRepository.recordPlayback(trackId, finalTime)
-            }
-        }
-        
-        trackingTrackId = null
-        trackingStartTime = 0L
-        trackingAccumulatedTime = 0L
-    }
-
     private fun createPlayer(processor: CrossfadeAudioProcessor, name: String): ExoPlayer {
         val renderersFactory = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: android.content.Context, enableFloat: Boolean, enableAudioTrack: Boolean): AudioSink {
@@ -182,15 +121,8 @@ class PlaybackService : MediaSessionService() {
             .build()
 
         player.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (player == crossfadeManager.getCurrentPlayer()) {
-                    if (isPlaying) resumeTracking() else pauseTracking()
-                }
-            }
-
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (player == crossfadeManager.getCurrentPlayer()) {
-                    handleTrackTransition(mediaItem)
                     val otherPlayer = if (player == playerA) playerB else playerA
                     if (otherPlayer.isPlaying && !crossfadeManager.isCrossfading) {
                         otherPlayer.pause()
@@ -200,18 +132,8 @@ class PlaybackService : MediaSessionService() {
                 crossfadeManager.scheduleCrossfade()
             }
 
-            override fun onPlaybackStateChanged(state: Int) {
-                if (player == crossfadeManager.getCurrentPlayer()) {
-                    if (state == Player.STATE_ENDED || state == Player.STATE_IDLE) {
-                        finalizeTracking()
-                    }
-                }
-                crossfadeManager.scheduleCrossfade()
-            }
-
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 if (player == crossfadeManager.getCurrentPlayer()) {
-                    // Оптимизация: дебаунс сохранения очереди в БД (500мс)
                     saveQueueJob?.cancel()
                     saveQueueJob = serviceScope.launch {
                         delay(500)
@@ -223,6 +145,14 @@ class PlaybackService : MediaSessionService() {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (playWhenReady && player == crossfadeManager.getCurrentPlayer()) requestManualAudioFocus()
                 if (!playWhenReady) saveCurrentState(immediate = true)
+                crossfadeManager.scheduleCrossfade()
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                crossfadeManager.scheduleCrossfade()
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
                 crossfadeManager.scheduleCrossfade()
             }
 
@@ -361,7 +291,7 @@ class PlaybackService : MediaSessionService() {
             if (!manageAudioFocus) return@setOnAudioFocusChangeListener
             
             when (it) {
-                AudioManager.AUDIOFOCUS_LOSS -> { crossfadeManager.cancelActiveCrossfade(); crossfadeManager.getCurrentPlayer().pause(); finalizeTracking() }
+                AudioManager.AUDIOFOCUS_LOSS -> { crossfadeManager.cancelActiveCrossfade(); crossfadeManager.getCurrentPlayer().pause() }
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { if (crossfadeManager.getCurrentPlayer().isPlaying) { playOnFocusGain = true; crossfadeManager.getCurrentPlayer().pause() } }
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> crossfadeManager.getCurrentPlayer().volume = 0.2f
                 AudioManager.AUDIOFOCUS_GAIN -> { crossfadeManager.getCurrentPlayer().volume = 1.0f; if (playOnFocusGain) { crossfadeManager.getCurrentPlayer().play(); playOnFocusGain = false } }
@@ -377,7 +307,6 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(info: MediaSession.ControllerInfo) = mediaSession
 
     override fun onDestroy() {
-        finalizeTracking()
         saveStateJob?.cancel()
         saveQueueJob?.cancel()
         serviceScope.cancel()

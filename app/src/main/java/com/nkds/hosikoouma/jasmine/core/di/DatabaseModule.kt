@@ -43,9 +43,6 @@ object DatabaseModule {
     fun provideRadioDao(db: PlaylistDatabase): RadioDao = db.radioDao()
 
     @Provides
-    fun provideStatisticsDao(db: PlaylistDatabase): StatisticsDao = db.statisticsDao()
-
-    @Provides
     fun provideLyricsDao(db: LyricsDatabase): LyricsDao = db.lyricsDao()
 
     @Provides

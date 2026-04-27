@@ -7,6 +7,7 @@ import com.nkds.hosikoouma.jasmine.data.telegram.TelegramRepository
 import com.nkds.hosikoouma.jasmine.data.toTrack
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,12 @@ class TelegramCloudViewModel @Inject constructor(
 
         _state.value = _state.value.copy(isSearching = true, searchError = null, searchResult = null)
         viewModelScope.launch {
+            val startTime = System.currentTimeMillis()
             val chat = repository.searchPublicChat(cleanUsername)
+            
+            val elapsedTime = System.currentTimeMillis() - startTime
+            if (elapsedTime < 1000) delay(1000 - elapsedTime)
+
             if (chat != null) {
                 _state.value = _state.value.copy(searchResult = chat, isSearching = false)
             } else {
@@ -54,7 +60,13 @@ class TelegramCloudViewModel @Inject constructor(
     fun addChannel(chat: TdApi.Chat) {
         viewModelScope.launch {
             _state.value = _state.value.copy(syncingChannels = _state.value.syncingChannels + chat.id)
+            val startTime = System.currentTimeMillis()
+            
             repository.addChannel(chat)
+            
+            val elapsedTime = System.currentTimeMillis() - startTime
+            if (elapsedTime < 1000) delay(1000 - elapsedTime)
+
             _state.value = _state.value.copy(
                 searchResult = null,
                 syncingChannels = _state.value.syncingChannels - chat.id
@@ -70,8 +82,16 @@ class TelegramCloudViewModel @Inject constructor(
 
     fun syncChannel(chatId: Long) {
         viewModelScope.launch {
+            if (_state.value.syncingChannels.contains(chatId)) return@launch
+            
             _state.value = _state.value.copy(syncingChannels = _state.value.syncingChannels + chatId)
+            val startTime = System.currentTimeMillis()
+            
             repository.syncChannel(chatId)
+            
+            val elapsedTime = System.currentTimeMillis() - startTime
+            if (elapsedTime < 1000) delay(1000 - elapsedTime)
+
             _state.value = _state.value.copy(syncingChannels = _state.value.syncingChannels - chatId)
         }
     }

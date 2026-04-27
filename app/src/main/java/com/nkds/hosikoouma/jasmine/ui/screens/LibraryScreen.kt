@@ -70,7 +70,6 @@ fun LibraryContent(
             LibraryCategory("Albums", Icons.Rounded.Album, uiState.albumCount, Screen.LibraryAlbums.route),
             LibraryCategory("Artists", Icons.Rounded.Person, uiState.artistCount, Screen.LibraryArtists.route),
             LibraryCategory("Folders", Icons.Rounded.Folder, uiState.folderCount, Screen.LibraryFolders.route),
-            LibraryCategory("On Repeat", Icons.Rounded.Repeat, -1, Screen.LibraryOnRepeat.route)
         )
     }
 

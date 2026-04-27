@@ -22,7 +22,6 @@ android {
 
     buildTypes {
         release {
-            // Включаем R8 (минификация и обфускация)
             isMinifyEnabled = true
             isShrinkResources = true
 
@@ -66,6 +65,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    // material3-expressive удален, так как он недоступен в стандартных репозиториях.
+    // Мы реализуем фигуры через graphics-shapes напрямую.
+    implementation(libs.androidx.graphics.shapes)
     implementation(libs.androidx.material.icons)
     
     implementation(libs.androidx.media3.exoplayer)
@@ -94,11 +96,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.tdlib)
     
-    // Ktor for Telegram Streaming
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
 
-    // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)

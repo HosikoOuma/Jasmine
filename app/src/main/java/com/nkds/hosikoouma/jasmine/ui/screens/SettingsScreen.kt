@@ -60,13 +60,6 @@ fun SettingsScreen(
             icon = Icons.Rounded.Build,
             onClick = { navController.navigate(Screen.SettingsMaintenance.route) }
         )
-        
-        SettingsCategoryItem(
-            title = "Statistics",
-            subtitle = "Listening time, top tracks, history",
-            icon = Icons.Rounded.BarChart,
-            onClick = { navController.navigate(Screen.Statistics.route) }
-        )
 
         SettingsCategoryItem(
             title = "About",

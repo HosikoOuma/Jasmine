@@ -1,6 +1,8 @@
 package com.nkds.hosikoouma.jasmine.datamodels
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -19,17 +21,16 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     // Экраны настроек
     data object SettingsPlayback : Screen("settings_playback", "Playback", Icons.Rounded.Settings)
     data object SettingsAppearance : Screen("settings_appearance", "Appearance", Icons.Rounded.Settings)
+    data object SettingsShapes : Screen("settings_shapes", "Shapes Gallery", Icons.Rounded.Category)
     data object SettingsLibrary : Screen("settings_library", "Library", Icons.Rounded.Settings)
     data object SettingsMaintenance : Screen("settings_maintenance", "Maintenance", Icons.Rounded.Settings)
     data object SettingsTelegram : Screen("settings_telegram", "Telegram Cloud", Icons.Rounded.Cloud)
-    data object Statistics : Screen("statistics", "Statistics", Icons.Rounded.BarChart)
     data object About : Screen("about", "About", Icons.Rounded.Info)
     
     // Вложенные экраны библиотеки
     data object LibraryAlbums : Screen("library_albums", "Albums", Icons.Rounded.LibraryMusic)
     data object LibraryArtists : Screen("library_artists", "Artists", Icons.Rounded.LibraryMusic)
     data object LibraryFolders : Screen("library_folders", "Folders", Icons.Rounded.LibraryMusic)
-    data object LibraryOnRepeat : Screen("library_on_repeat", "On Repeat", Icons.Rounded.Repeat)
     
     // Детальные экраны
     data object AlbumDetail : Screen("album_detail/{albumName}", "Album", Icons.Rounded.LibraryMusic)
@@ -37,9 +38,10 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object FolderDetail : Screen("folder_detail/{folderPath}", "Folder", Icons.Rounded.LibraryMusic)
     data object PlaylistDetail : Screen("playlist_detail/{playlistId}", "Playlist", Icons.Rounded.LibraryMusic)
     data object TelegramChannelDetail : Screen("telegram_channel_detail/{chatId}", "Channel", Icons.Rounded.Cloud)
+    data object TelegramAuth : Screen("telegram_auth", "Telegram Login", Icons.AutoMirrored.Rounded.Login)
+    data object Queue : Screen("queue", "Play Queue", Icons.AutoMirrored.Rounded.List)
 
     companion object {
-        // Список всех элементов, которые могут быть в нижнем баре
         val allMainItems = listOf(Tracks, Radio, Library, TelegramCloud, LibraryPlaylists, Settings)
         
         fun getNavigationItems(routes: List<String>): List<Screen> {
@@ -48,7 +50,6 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
             }
         }
 
-        // Основные элементы для обратной совместимости
         val items get() = listOf(Tracks, Radio, Library, Settings)
     }
 }

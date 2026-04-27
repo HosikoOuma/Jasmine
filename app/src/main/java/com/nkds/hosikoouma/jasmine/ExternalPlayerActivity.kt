@@ -11,7 +11,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineThemeWrapper
 import com.nkds.hosikoouma.jasmine.ui.screens.ExternalPlayerScreen
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class ExternalPlayerActivity : ComponentActivity() {
     private var exoPlayer: ExoPlayer? = null
 

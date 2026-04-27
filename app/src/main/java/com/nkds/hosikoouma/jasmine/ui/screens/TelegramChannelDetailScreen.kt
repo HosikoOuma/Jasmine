@@ -72,7 +72,7 @@ fun TelegramChannelDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .simpleVerticalScrollbar(listState),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 180.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {

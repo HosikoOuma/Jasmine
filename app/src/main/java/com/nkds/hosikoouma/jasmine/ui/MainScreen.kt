@@ -53,6 +53,7 @@ import com.nkds.hosikoouma.jasmine.ui.screens.RadioPlayerScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.core.models.SortType
+import com.nkds.hosikoouma.jasmine.viewmodels.TelegramCloudViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -62,7 +63,8 @@ import java.nio.charset.StandardCharsets
 fun MainScreen(
     trackViewModel: TrackViewModel = viewModel(),
     playerViewModel: PlayerViewModel = viewModel(),
-    radioViewModel: RadioViewModel = viewModel()
+    radioViewModel: RadioViewModel = viewModel(),
+    telegramCloudViewModel: TelegramCloudViewModel = viewModel()
 ) {
     val navController = rememberNavController()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -86,9 +88,12 @@ fun MainScreen(
     val isMainDestination = remember(currentRoute) { Screen.items.any { it.route == currentRoute } }
     val canPop = remember(navBackStackEntry, isMainDestination) { navController.previousBackStackEntry != null && !isMainDestination }
 
+    // Данные Telegram каналов для заголовка
+    val telegramChannels by telegramCloudViewModel.channels.collectAsStateWithLifecycle()
+
     // 1. Оптимизация заголовка через derivedStateOf
     val isInSelectionMode = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()
-    val dynamicTitle by remember(currentRoute, navBackStackEntry, isInSelectionMode, selectedTracks.size, selectedStations.size) {
+    val dynamicTitle by remember(currentRoute, navBackStackEntry, isInSelectionMode, selectedTracks.size, selectedStations.size, telegramChannels) {
         derivedStateOf {
             if (isInSelectionMode) {
                 "${if (selectedTracks.isNotEmpty()) selectedTracks.size else selectedStations.size} selected"
@@ -101,18 +106,22 @@ fun MainScreen(
                         val pId = navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L
                         trackViewModel.getPlaylistNameSync(pId) ?: "Playlist"
                     }
+                    currentRoute?.startsWith("telegram_channel_detail") == true -> {
+                        val chatId = navBackStackEntry?.arguments?.getLong("chatId") ?: 0L
+                        telegramChannels.find { it.chatId == chatId }?.title ?: "Telegram Channel"
+                    }
                     currentRoute == Screen.LibraryAlbums.route -> "Albums"
                     currentRoute == Screen.LibraryArtists.route -> "Artists"
                     currentRoute == Screen.LibraryFolders.route -> "Folders"
                     currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
-                    currentRoute == Screen.LibraryOnRepeat.route -> "On Repeat"
                     currentRoute == Screen.SettingsPlayback.route -> "Playback"
                     currentRoute == Screen.SettingsAppearance.route -> "Appearance"
                     currentRoute == Screen.SettingsLibrary.route -> "Library Settings"
                     currentRoute == Screen.SettingsMaintenance.route -> "Maintenance"
-                    currentRoute == Screen.Statistics.route -> "Statistics"
-                    currentRoute == Screen.About.route -> "About"
+                    currentRoute == Screen.SettingsShapes.route -> "Shapes Gallery"
+                    currentRoute == Screen.About.route -> "About Jasmine"
                     currentRoute == Screen.TelegramCloud.route -> "Telegram Cloud"
+                    currentRoute == Screen.SettingsTelegram.route -> "Telegram Cloud"
                     else -> Screen.items.find { it.route == currentRoute }?.title ?: "Jasmine"
                 }
             }

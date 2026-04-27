@@ -8,25 +8,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.nkds.hosikoouma.jasmine.data.TelegramChannelEntity
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
+import com.nkds.hosikoouma.jasmine.ui.components.ExpressiveSyncIndicator
 import com.nkds.hosikoouma.jasmine.viewmodels.TelegramCloudViewModel
-import org.drinkless.tdlib.TdApi
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,11 +50,13 @@ fun TelegramCloudScreen(
             label = { Text("Search Channel (@username)") },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             trailingIcon = {
-                if (state.isSearching) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                } else {
-                    IconButton(onClick = { viewModel.searchChannel(username) }) {
-                        Icon(Icons.Rounded.Search, null)
+                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    if (state.isSearching) {
+                        ExpressiveSyncIndicator(size = 28.dp)
+                    } else {
+                        IconButton(onClick = { viewModel.searchChannel(username) }) {
+                            Icon(Icons.Rounded.Search, null)
+                        }
                     }
                 }
             },
@@ -84,11 +83,13 @@ fun TelegramCloudScreen(
                         }
                     },
                     trailingContent = {
-                        if (isAdding) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        } else {
-                            Button(onClick = { viewModel.addChannel(chat) }) {
-                                Text("Add")
+                        Box(modifier = Modifier.widthIn(min = 80.dp), contentAlignment = Alignment.Center) {
+                            if (isAdding) {
+                                ExpressiveSyncIndicator(size = 32.dp)
+                            } else {
+                                Button(onClick = { viewModel.addChannel(chat) }) {
+                                    Text("Add")
+                                }
                             }
                         }
                     },
@@ -143,16 +144,17 @@ fun TelegramCloudScreen(
                         },
                         trailingContent = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isSyncing) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp).padding(4.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    IconButton(onClick = { viewModel.syncChannel(channel.chatId) }) {
-                                        Icon(Icons.Rounded.Sync, null)
+                                // Контейнер фиксированного размера для кнопки/индикатора синхронизации
+                                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                    if (isSyncing) {
+                                        ExpressiveSyncIndicator(size = 32.dp)
+                                    } else {
+                                        IconButton(onClick = { viewModel.syncChannel(channel.chatId) }) {
+                                            Icon(Icons.Rounded.Sync, null)
+                                        }
                                     }
                                 }
+
                                 IconButton(onClick = { channelToDelete = channel }) {
                                     Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error)
                                 }

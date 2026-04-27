@@ -22,6 +22,7 @@ kotlinxSerialization = "1.6.3"
 hilt = "2.59.2"
 hiltNavigationCompose = "1.2.0"
 ktor = "2.3.12"
+graphicsShapes = "1.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -67,6 +68,8 @@ tdlib = { module = "com.github.tdlibx:td", version = "1.8.56" }
 
 ktor-server-core = { group = "io.ktor", name = "ktor-server-core-jvm", version.ref = "ktor" }
 ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio-jvm", version.ref = "ktor" }
+
+androidx-graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version.ref = "graphicsShapes" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

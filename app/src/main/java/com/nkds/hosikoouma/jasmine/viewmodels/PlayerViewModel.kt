@@ -309,11 +309,7 @@ class PlayerViewModel @Inject constructor(
     private fun mediaIdToIdString(mediaId: String): String {
         return if (mediaId.contains("_")) {
             val parts = mediaId.split("_")
-            if (parts.size >= 2 && parts[0].all { it.isDigit() || it == '-' }) {
-                mediaId
-            } else {
-                parts[0]
-            }
+            parts[0] // Всегда возвращаем только первую часть (оригинальный ID)
         } else mediaId
     }
 
@@ -381,10 +377,10 @@ class PlayerViewModel @Inject constructor(
     private fun mediaIdToLong(cleanId: String): Long = try {
         if (cleanId.startsWith("radio_")) {
             cleanId.substring(6).toLong()
-        } else if (cleanId.contains("_")) {
-            -(cleanId.hashCode().toLong().absoluteValue)
         } else {
-            cleanId.toLong()
+            // Если в ID остались подчеркивания (не должно быть после mediaIdToIdString), берем первую часть
+            val idToParse = if (cleanId.contains("_")) cleanId.split("_")[0] else cleanId
+            idToParse.toLong()
         }
     } catch (e: Exception) { cleanId.hashCode().toLong() }
 

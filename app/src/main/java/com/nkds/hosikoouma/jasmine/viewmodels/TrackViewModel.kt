@@ -17,6 +17,7 @@ import com.nkds.hosikoouma.jasmine.ui.components.ToastData
 import com.nkds.hosikoouma.jasmine.ui.components.ToastType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -39,15 +40,12 @@ class TrackViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
     private val favoritesRepository: FavoritesRepository,
     private val settingsRepository: SettingsRepository,
-    private val playlistRepository: PlaylistRepository,
-    private val statisticsRepository: StatisticsRepository
+    private val playlistRepository: PlaylistRepository
 ) : AndroidViewModel(application) {
     
-    // Raw Data from Repository
     val allTracks = trackRepository.allTracks
     val isLoaded = trackRepository.isLoaded
 
-    // UI States
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
@@ -66,7 +64,6 @@ class TrackViewModel @Inject constructor(
     private val _appToast = MutableStateFlow<ToastData?>(null)
     val appToast = _appToast.asStateFlow()
 
-    // Filter Aggregation
     val minDurationLimit = settingsRepository.minTrackDuration
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
         
@@ -75,9 +72,6 @@ class TrackViewModel @Inject constructor(
 
     val isPlaylistsGridView = settingsRepository.isPlaylistsGridView
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
-    val onRepeatIntervalDays = settingsRepository.onRepeatIntervalDays
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 7)
 
     val filters: StateFlow<TrackFilters> = combine(
         _searchQuery, _sortType, _isReversed,
@@ -90,11 +84,8 @@ class TrackViewModel @Inject constructor(
     val favoriteTrackIds: StateFlow<Set<String>> = favoritesRepository.favoriteTrackIds
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    // --- Filtered Lists ---
-
     val filteredTracks: StateFlow<List<Track>> = combine(allTracks, filters) { tracks, f ->
         if (tracks.isEmpty()) return@combine emptyList()
-        
         withContext(Dispatchers.Default) {
             tracks.asSequence()
                 .filter { track -> f.blacklist.none { track.path.startsWith(it) } }
@@ -112,8 +103,8 @@ class TrackViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val favoriteTracks: StateFlow<List<Track>> = combine(filteredTracks, favoriteTrackIds) { tracks, favIds ->
-        tracks.filter { favIds.contains(it.id.toString()) }
+    val favoriteTracks: StateFlow<List<Track>> = combine(allTracks, favoriteTrackIds) { tracks, favIds ->
+        tracks.filter { track -> favIds.contains(track.id.toString()) }.sortedBy { it.title.lowercase() }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val albums: StateFlow<List<Album>> = filteredTracks.map { tracks ->
@@ -158,18 +149,8 @@ class TrackViewModel @Inject constructor(
         if (reversed) sorted.reversed() else sorted
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val onRepeatTracks: StateFlow<List<Track>> = settingsRepository.onRepeatFixedTracks.combine(allTracks) { fixedIdsStr, tracks ->
-        if (fixedIdsStr.isBlank()) {
-            emptyList<Track>()
-        } else {
-            val ids = fixedIdsStr.split(",").mapNotNull { it.toLongOrNull() }
-            ids.mapNotNull { id -> tracks.find { it.id == id } }
-        }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
     init {
         loadSortSettings()
-        checkAndRefreshOnRepeat()
     }
 
     private fun loadSortSettings() {
@@ -180,39 +161,16 @@ class TrackViewModel @Inject constructor(
         }
     }
 
-    private fun checkAndRefreshOnRepeat() {
-        viewModelScope.launch {
-            val lastUpdate = settingsRepository.lastOnRepeatUpdate.first()
-            val intervalDays = settingsRepository.onRepeatIntervalDays.first()
-            val currentTime = System.currentTimeMillis()
-            
-            val intervalMs = intervalDays.toLong() * 24 * 60 * 60 * 1000
-            
-            if (currentTime - lastUpdate >= intervalMs || lastUpdate == 0L) {
-                refreshOnRepeatTracks(intervalDays)
-            }
-        }
-    }
-
-    private suspend fun refreshOnRepeatTracks(days: Int) {
-        val topTracks = statisticsRepository.getTopTracksSince(days, limit = 30).first()
-        val trackIds = topTracks.map { it.trackId }
-        settingsRepository.saveOnRepeatTracks(trackIds)
-    }
-
-    fun forceRefreshOnRepeat() {
-        viewModelScope.launch {
-            val days = settingsRepository.onRepeatIntervalDays.first()
-            refreshOnRepeatTracks(days)
-        }
-    }
-
     fun loadTracks() {
-        _isRefreshing.value = true
-        trackRepository.loadTracks()
+        if (_isRefreshing.value) return
         viewModelScope.launch {
-            trackRepository.isLoaded.filter { it }.first()
-            _isRefreshing.value = false
+            _isRefreshing.value = true
+            try {
+                trackRepository.loadTracks()
+                delay(1200)
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 
@@ -222,11 +180,12 @@ class TrackViewModel @Inject constructor(
         _appToast.value = ToastData(track, type, message)
     }
 
-    fun clearToast() {
-        _appToast.value = null
-    }
+    fun clearToast() { _appToast.value = null }
 
-    fun toggleFavorite(track: Track) = viewModelScope.launch { favoritesRepository.toggleFavorite(track.id.toString()) }
+    fun toggleFavorite(track: Track) = viewModelScope.launch { 
+        favoritesRepository.toggleFavorite(track.id.toString()) 
+    }
+    
     fun setSearchQuery(query: String) { _searchQuery.value = query }
     fun setSortType(type: SortType) { _sortType.value = type }
     fun toggleReverse() { _isReversed.value = !_isReversed.value }
@@ -256,7 +215,6 @@ class TrackViewModel @Inject constructor(
     fun addTrackToPlaylist(playlistId: Long, trackId: Long) = viewModelScope.launch {
         val track = allTracks.value.find { it.id == trackId } ?: return@launch
         val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
-        
         if (!playlistRepository.addTrackToPlaylist(playlistId, track)) {
             showToast(track, ToastType.PLAYLIST_ADDED, "Already in $playlistName")
         } else {
@@ -269,7 +227,6 @@ class TrackViewModel @Inject constructor(
         val added = playlistRepository.addTracksToPlaylist(playlistId, tracks)
         val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         updateM3U(playlistId)
-        
         if (tracks.size == 1) {
             showToast(tracks.first(), ToastType.PLAYLIST_ADDED, "Added to $playlistName")
         } else {
@@ -281,7 +238,6 @@ class TrackViewModel @Inject constructor(
         playlistRepository.removeTracksFromPlaylist(playlistId, tracks.map { it.id })
         val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         updateM3U(playlistId)
-        
         if (tracks.size == 1) {
             showToast(tracks.first(), ToastType.PLAYLIST_REMOVED, "Removed from $playlistName")
         } else {
@@ -321,11 +277,7 @@ class TrackViewModel @Inject constructor(
         }
     }
 
-    // --- Синхронные методы для UI ---
-
-    fun getPlaylistNameSync(playlistId: Long): String? {
-        return playlists.value.find { it.id == playlistId }?.name
-    }
+    fun getPlaylistNameSync(playlistId: Long): String? = playlists.value.find { it.id == playlistId }?.name
 
     fun getPlaylistTracksSync(playlistId: Long): List<Track> {
         return runBlocking(Dispatchers.Default) {
@@ -350,9 +302,5 @@ class TrackViewModel @Inject constructor(
                 Log.e("TrackViewModel", "Failed to create delete request", e)
             }
         }
-    }
-
-    fun setOnRepeatIntervalDays(days: Int) = viewModelScope.launch {
-        settingsRepository.setOnRepeatIntervalDays(days)
     }
 }
