@@ -29,7 +29,7 @@ fun LibrarySettingsScreen(
     trackViewModel: TrackViewModel
 ) {
     val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
-    val folders by trackViewModel.folders.collectAsStateWithLifecycle()
+    val folders by trackViewModel.allFolders.collectAsStateWithLifecycle()
     val blacklistedFolders by trackViewModel.blacklistedFolders.collectAsStateWithLifecycle()
 
     LibrarySettingsContent(

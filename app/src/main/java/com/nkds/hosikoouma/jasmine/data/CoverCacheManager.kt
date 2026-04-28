@@ -2,10 +2,11 @@ package com.nkds.hosikoouma.jasmine.data
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Environment
 import android.util.Log
-import android.util.Size
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileOutputStream
@@ -21,40 +22,59 @@ class CoverCacheManager @Inject constructor(
 
     private fun ensureRootDir(): File {
         val dir = rootDir
-        if (!dir.exists()) {
-            dir.mkdirs()
-        }
+        if (!dir.exists()) dir.mkdirs()
         val nomedia = File(dir, ".nomedia")
         if (!nomedia.exists()) {
-            try {
-                nomedia.createNewFile()
-            } catch (e: Exception) {
-                Log.e("CoverCache", "Failed to create .nomedia", e)
-            }
+            try { nomedia.createNewFile() } catch (e: Exception) { Log.e("CoverCache", "Failed to create .nomedia", e) }
         }
         return dir
     }
 
-    fun getCoverUri(albumId: Long): Uri? {
-        val file = File(rootDir, "album_$albumId.jpg")
+    // Теперь работаем ТОЛЬКО с trackId
+    fun getTrackCoverUri(trackId: Long): Uri? {
+        val file = File(rootDir, "track_$trackId.jpg")
         return if (file.exists()) Uri.fromFile(file) else null
     }
 
-    fun saveCoverIfMissing(albumId: Long, trackUri: Uri) {
+    // Сохранение обложки, выбранной пользователем
+    fun saveTrackBitmapToCache(trackId: Long, bitmap: Bitmap) {
         val dir = ensureRootDir()
-        val file = File(dir, "album_$albumId.jpg")
-        if (file.exists()) return
+        val file = File(dir, "track_$trackId.jpg")
+        saveBitmapToFile(file, bitmap)
+    }
 
-        try {
-            val bitmap = context.contentResolver.loadThumbnail(trackUri, Size(600, 600), null)
-            bitmap.let {
-                FileOutputStream(file).use { out ->
-                    it.compress(Bitmap.CompressFormat.JPEG, 85, out)
-                }
-                Log.d("CoverCache", "Saved cover for album $albumId")
+    // Метод для извлечения обложки НАПРЯМУЮ из файла (без помощи MediaStore)
+    fun extractAndCacheEmbeddedArt(trackId: Long, filePath: String): Uri? {
+        if (filePath.isEmpty()) return null
+        val cacheFile = File(rootDir, "track_$trackId.jpg")
+        if (cacheFile.exists()) return Uri.fromFile(cacheFile)
+
+        return try {
+            val retriever = MediaMetadataRetriever()
+            retriever.setDataSource(filePath)
+            val art = retriever.embeddedPicture
+            retriever.release()
+
+            if (art != null) {
+                val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size)
+                ensureRootDir()
+                saveBitmapToFile(cacheFile, bitmap)
+                Uri.fromFile(cacheFile)
+            } else {
+                null
             }
         } catch (e: Exception) {
-            Log.v("CoverCache", "No cover found for $trackUri")
+            null
+        }
+    }
+
+    private fun saveBitmapToFile(file: File, bitmap: Bitmap) {
+        try {
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            }
+        } catch (e: Exception) {
+            Log.e("CoverCache", "Failed to save bitmap", e)
         }
     }
 
@@ -70,7 +90,6 @@ class CoverCacheManager @Inject constructor(
         return try {
             val dir = rootDir
             dir.listFiles { f -> f.extension == "jpg" }?.forEach { it.delete() }
-            // После очистки гарантируем наличие .nomedia
             ensureRootDir()
             true
         } catch (e: Exception) {

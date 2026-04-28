@@ -21,12 +21,9 @@ class TrackScanner @Inject constructor(
 ) {
     
     private val baseAudioUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-    private val baseAlbumArtUri = Uri.parse("content://media/external/audio/albumart")
 
     fun scanTracksFlow(): Flow<List<Track>> = flow {
         val tracks = mutableListOf<Track>()
-        // Кэшируем ID альбомов, которые уже проверили в текущем сеансе, чтобы не дергать File.exists()
-        val checkedAlbumIds = mutableSetOf<Long>()
         
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
@@ -41,7 +38,8 @@ class TrackScanner @Inject constructor(
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DATA
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DATE_MODIFIED
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} > 0"
@@ -56,19 +54,23 @@ class TrackScanner @Inject constructor(
                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val modifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
                     val albumId = cursor.getLong(albumIdCol)
+                    val path = cursor.getString(dataCol) ?: ""
                     val contentUri = ContentUris.withAppendedId(baseAudioUri, id)
+                    val dateModified = cursor.getLong(modifiedCol)
                     
-                    // Оптимизация: проверяем только если еще не видели этот альбом в текущем цикле
-                    if (!checkedAlbumIds.contains(albumId)) {
-                        coverCacheManager.saveCoverIfMissing(albumId, contentUri)
-                        checkedAlbumIds.add(albumId)
-                    }
+                    // ПРИНЦИПИАЛЬНОЕ ИЗМЕНЕНИЕ:
+                    // 1. Пытаемся достать индивидуальную обложку из кэша (track_ID.jpg)
+                    // 2. Если её нет - пытаемся вытащить прямо из байтов файла (embedded art)
+                    // 3. Если и там нет - у трека нет обложки (artUri = null)
+                    // Мы БОЛЬШЕ не используем системный content://media/external/audio/albumart
                     
-                    val artUri = coverCacheManager.getCoverUri(albumId) ?: ContentUris.withAppendedId(baseAlbumArtUri, albumId)
+                    val artUri = coverCacheManager.getTrackCoverUri(id) 
+                        ?: coverCacheManager.extractAndCacheEmbeddedArt(id, path)
 
                     tracks.add(Track(
                         id = id,
@@ -78,10 +80,11 @@ class TrackScanner @Inject constructor(
                         duration = cursor.getLong(durationCol),
                         contentUri = contentUri,
                         albumArtUri = artUri,
-                        path = cursor.getString(dataCol) ?: ""
+                        path = path,
+                        albumId = albumId,
+                        dateModified = dateModified
                     ))
 
-                    // Эмитим реже (раз в 100 треков), чтобы снизить нагрузку на UI и ViewModel
                     if (tracks.size % 100 == 0) {
                         emit(tracks.toList())
                     }
@@ -96,8 +99,6 @@ class TrackScanner @Inject constructor(
 
     fun scanTracks(): List<Track> {
         val tracks = mutableListOf<Track>()
-        val checkedAlbumIds = mutableSetOf<Long>()
-        
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
@@ -111,7 +112,8 @@ class TrackScanner @Inject constructor(
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DATA
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DATE_MODIFIED
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
@@ -125,18 +127,17 @@ class TrackScanner @Inject constructor(
                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val modifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
                     val albumId = cursor.getLong(albumIdCol)
+                    val path = cursor.getString(dataCol) ?: ""
                     val contentUri = ContentUris.withAppendedId(baseAudioUri, id)
+                    val dateModified = cursor.getLong(modifiedCol)
                     
-                    if (!checkedAlbumIds.contains(albumId)) {
-                        coverCacheManager.saveCoverIfMissing(albumId, contentUri)
-                        checkedAlbumIds.add(albumId)
-                    }
-
-                    val artUri = coverCacheManager.getCoverUri(albumId) ?: ContentUris.withAppendedId(baseAlbumArtUri, albumId)
+                    val artUri = coverCacheManager.getTrackCoverUri(id) 
+                        ?: coverCacheManager.extractAndCacheEmbeddedArt(id, path)
 
                     tracks.add(Track(
                         id = id,
@@ -146,7 +147,9 @@ class TrackScanner @Inject constructor(
                         duration = cursor.getLong(durationCol),
                         contentUri = contentUri,
                         albumArtUri = artUri,
-                        path = cursor.getString(dataCol) ?: ""
+                        path = path,
+                        albumId = albumId,
+                        dateModified = dateModified
                     ))
                 }
             }

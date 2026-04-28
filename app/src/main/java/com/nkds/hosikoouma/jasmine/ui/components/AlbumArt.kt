@@ -29,15 +29,17 @@ fun AlbumArt(
     shape: Shape = MaterialTheme.shapes.medium,
     contentScale: ContentScale = ContentScale.Crop,
     isLowRes: Boolean = false,
-    cacheKey: String? = null // Добавляем ключ для стабильного кэширования
+    cacheKey: String? = null,
+    updateTrigger: Long = 0L 
 ) {
     var isSuccess by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    // Формируем ключ: если это URI, добавляем префикс. 
-    // Это поможет Coil отличать обложки разных треков, даже если URI пуст или одинаков.
-    val finalRegistryKey = remember(albumArtUri, cacheKey) {
-        cacheKey ?: albumArtUri?.toString()
+    // Формируем ключ так, чтобы при смене URI (даже если ID тот же) Coil понимал, что нужно обновиться.
+    val finalRegistryKey = remember(albumArtUri, cacheKey, updateTrigger) {
+        val uriStr = albumArtUri?.toString() ?: "null"
+        val base = if (cacheKey != null) "${cacheKey}_$uriStr" else uriStr
+        if (updateTrigger > 0L) "${base}_$updateTrigger" else base
     }
 
     Box(
@@ -57,7 +59,7 @@ fun AlbumArt(
                 .apply {
                     if (isLowRes) {
                         precision(Precision.INEXACT)
-                        size(200, 200) // Немного увеличим для четкости на современных экранах
+                        size(240, 240)
                         bitmapConfig(Bitmap.Config.RGB_565)
                     } else {
                         precision(Precision.INEXACT)

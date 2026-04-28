@@ -12,7 +12,9 @@ data class Track(
     val albumArtUri: Uri?,
     val path: String = "",
     val uid: String = id.toString(),
-    val isManual: Boolean = false
+    val isManual: Boolean = false,
+    val albumId: Long = -1L,
+    val dateModified: Long = 0L
 )
 
 data class Album(val name: String, val artist: String, val tracks: List<Track>)

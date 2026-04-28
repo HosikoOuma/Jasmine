@@ -2,8 +2,10 @@ package com.nkds.hosikoouma.jasmine.viewmodels
 
 import android.app.Application
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.IntentSender
 import android.graphics.Bitmap
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
@@ -22,6 +24,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
+import org.jaudiotagger.tag.images.AndroidArtwork
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
@@ -40,7 +46,8 @@ class TrackViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
     private val favoritesRepository: FavoritesRepository,
     private val settingsRepository: SettingsRepository,
-    private val playlistRepository: PlaylistRepository
+    private val playlistRepository: PlaylistRepository,
+    private val coverCacheManager: CoverCacheManager
 ) : AndroidViewModel(application) {
     
     val allTracks = trackRepository.allTracks
@@ -123,12 +130,18 @@ class TrackViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val folders: StateFlow<List<Folder>> = allTracks.map { tracks ->
+    // Все папки, которые есть в MediaStore (без фильтрации ЧС)
+    val allFolders: StateFlow<List<Folder>> = allTracks.map { tracks ->
         withContext(Dispatchers.Default) {
             tracks.groupBy { File(it.path).parent ?: "Unknown" }
                 .map { (path, folderTracks) -> Folder(path.substringAfterLast("/"), path, folderTracks) }
                 .sortedBy { it.name.lowercase() }
         }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Только те папки, которые НЕ в черном списке
+    val folders: StateFlow<List<Folder>> = combine(allFolders, blacklistedFolders) { folderList, blacklist ->
+        folderList.filter { folder -> blacklist.none { folder.path.startsWith(it) } }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val playlists: StateFlow<List<Playlist>> = combine(playlistRepository.allPlaylists, _sortType, _isReversed) { entities, sort, reversed ->
@@ -167,7 +180,7 @@ class TrackViewModel @Inject constructor(
             _isRefreshing.value = true
             try {
                 trackRepository.loadTracks()
-                delay(1200)
+                delay(1000)
             } finally {
                 _isRefreshing.value = false
             }
@@ -300,6 +313,62 @@ class TrackViewModel @Inject constructor(
                 _pendingDeleteIntent.emit(intentSender)
             } catch (e: Exception) {
                 Log.e("TrackViewModel", "Failed to create delete request", e)
+            }
+        }
+    }
+
+    fun updateTrackMetadata(track: Track, title: String, artist: String, album: String, cover: Bitmap?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (track.path.isEmpty()) return@launch
+                val file = File(track.path)
+                if (!file.exists()) return@launch
+
+                // 1. Обновление тегов в файле
+                val audioFile = AudioFileIO.read(file)
+                val tag = audioFile.tag ?: audioFile.createDefaultTag()
+                tag.setField(FieldKey.TITLE, title)
+                tag.setField(FieldKey.ARTIST, artist)
+                tag.setField(FieldKey.ALBUM, album)
+                
+                cover?.let {
+                    val stream = ByteArrayOutputStream()
+                    it.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                    val artwork = AndroidArtwork()
+                    artwork.binaryData = stream.toByteArray()
+                    tag.deleteArtworkField()
+                    tag.setField(artwork)
+                    
+                    // Индивидуальный кэш Jasmine
+                    coverCacheManager.saveTrackBitmapToCache(track.id, it)
+                }
+                audioFile.commit()
+
+                // 2. Обновление MediaStore
+                val values = ContentValues().apply {
+                    put(MediaStore.Audio.Media.TITLE, title)
+                    put(MediaStore.Audio.Media.ARTIST, artist)
+                    put(MediaStore.Audio.Media.ALBUM, album)
+                }
+                val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
+                getApplication<Application>().contentResolver.update(uri, values, null, null)
+
+                // 3. Ждем сканирования системы и обновляем UI
+                MediaScannerConnection.scanFile(getApplication(), arrayOf(file.absolutePath), null) { _, _ ->
+                    viewModelScope.launch {
+                        delay(500)
+                        loadTracks()
+                        withContext(Dispatchers.Main) {
+                            showToast(track, ToastType.DELETE_SUCCESS, "Metadata updated")
+                        }
+                    }
+                }
+
+            } catch (e: Exception) {
+                Log.e("TrackViewModel", "Update failed", e)
+                withContext(Dispatchers.Main) {
+                    showToast(track, ToastType.DELETE_FAILED, "Update failed")
+                }
             }
         }
     }

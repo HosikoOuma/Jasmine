@@ -254,6 +254,7 @@ private fun MainContent(
     var showDeleteStationsDialog by remember { mutableStateOf(false) }
     var showRemoveFromPlaylistDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var showBlacklistFolderDialog by remember { mutableStateOf(false) }
     var showTrackInfoForSelection by remember { mutableStateOf<Track?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("audio/x-mpegurl")) { uri ->
@@ -315,6 +316,7 @@ private fun MainContent(
                         onDeleteStations = { showDeleteStationsDialog = true },
                         onRemoveFromPlaylist = { showRemoveFromPlaylistDialog = true },
                         onAddToPlaylist = { showAddToPlaylistDialog = true },
+                        onBlacklistFolder = { showBlacklistFolderDialog = true },
                         onShowTrackInfo = { showTrackInfoForSelection = it },
                         onSelectAll = {
                             if (isPlaylistDetail) {
@@ -400,10 +402,12 @@ private fun MainContent(
         showDeleteStationsDialog = showDeleteStationsDialog,
         showRemoveFromPlaylistDialog = showRemoveFromPlaylistDialog,
         showAddToPlaylistDialog = showAddToPlaylistDialog,
+        showBlacklistFolderDialog = showBlacklistFolderDialog,
         showTrackInfoForSelection = showTrackInfoForSelection,
         selectedTracks = selectedTracks,
         selectedStations = selectedStations,
         playlistId = playlistId,
+        folderPath = folderPath,
         trackViewModel = trackViewModel,
         playerViewModel = playerViewModel,
         radioViewModel = radioViewModel,
@@ -415,6 +419,7 @@ private fun MainContent(
         onDismissDeleteStations = { showDeleteStationsDialog = false },
         onDismissRemoveFromPlaylist = { showRemoveFromPlaylistDialog = false },
         onDismissAddToPlaylist = { showAddToPlaylistDialog = false },
+        onDismissBlacklistFolder = { showBlacklistFolderDialog = false },
         onDismissTrackInfo = { showTrackInfoForSelection = null },
         onClearSelection = onClearSelection
     )
@@ -444,6 +449,7 @@ private fun MainActionsSection(
     onDeleteStations: () -> Unit,
     onRemoveFromPlaylist: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    onBlacklistFolder: () -> Unit,
     onShowTrackInfo: (Track) -> Unit,
     onSelectAll: () -> Unit,
     playerViewModel: PlayerViewModel,
@@ -488,6 +494,15 @@ private fun MainActionsSection(
                         DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showPlaylistMenu = false; onDeletePlaylist() })
                     }
                 }
+                
+                if (isFolderDetail && !isSearching) {
+                    var showFolderMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showFolderMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }
+                    DropdownMenu(expanded = showFolderMenu, onDismissRequest = { showFolderMenu = false }, shape = RoundedCornerShape(24.dp)) {
+                        DropdownMenuItem(text = { Text("Blacklist Folder") }, leadingIcon = { Icon(Icons.Rounded.Block, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showFolderMenu = false; onBlacklistFolder() })
+                    }
+                }
+
                 if (canSearchHere) IconButton(onClick = { onToggleSearch() }) { Icon(if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search, null) }
                 if (!isSearching && shouldShowSort) {
                     var showSortMenu by remember { mutableStateOf(false) }
@@ -516,10 +531,12 @@ private fun MainDialogs(
     showDeleteStationsDialog: Boolean,
     showRemoveFromPlaylistDialog: Boolean,
     showAddToPlaylistDialog: Boolean,
+    showBlacklistFolderDialog: Boolean,
     showTrackInfoForSelection: Track?,
     selectedTracks: Set<Track>,
     selectedStations: Set<RadioStation>,
     playlistId: Long,
+    folderPath: String,
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     radioViewModel: RadioViewModel,
@@ -531,6 +548,7 @@ private fun MainDialogs(
     onDismissDeleteStations: () -> Unit,
     onDismissRemoveFromPlaylist: () -> Unit,
     onDismissAddToPlaylist: () -> Unit,
+    onDismissBlacklistFolder: () -> Unit,
     onDismissTrackInfo: () -> Unit,
     onClearSelection: () -> Unit
 ) {
@@ -657,6 +675,24 @@ private fun MainDialogs(
 
     if (showAddToPlaylistDialog) {
         AddToPlaylistDialog(onDismissRequest = onDismissAddToPlaylist, onPlaylistSelected = { pid -> trackViewModel.addTracksToPlaylist(pid, selectedTracks.toList()); onClearSelection(); onDismissAddToPlaylist() }, trackViewModel = trackViewModel)
+    }
+
+    if (showBlacklistFolderDialog) {
+        AlertDialog(
+            onDismissRequest = onDismissBlacklistFolder,
+            title = { Text("Blacklist Folder") },
+            text = { Text("Are you sure you want to add this folder and all its subfolders to the blacklist? The tracks will be hidden from your library.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val decodedPath = URLDecoder.decode(folderPath, StandardCharsets.UTF_8.toString())
+                    trackViewModel.addFolderToBlacklist(decodedPath)
+                    onDismissBlacklistFolder()
+                    navController.popBackStack()
+                }) { Text("Blacklist", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = onDismissBlacklistFolder) { Text("Cancel") } },
+            shape = RoundedCornerShape(28.dp)
+        )
     }
 
     if (showTrackInfoForSelection != null) {

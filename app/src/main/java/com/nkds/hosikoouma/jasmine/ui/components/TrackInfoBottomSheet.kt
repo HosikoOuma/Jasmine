@@ -4,13 +4,18 @@ import android.media.MediaMetadataRetriever
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nkds.hosikoouma.jasmine.datamodels.Track
+import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import org.jaudiotagger.audio.AudioFileIO
 import java.io.File
 import java.util.Locale
@@ -19,13 +24,20 @@ import java.util.Locale
 @Composable
 fun TrackInfoBottomSheet(
     track: Track,
-    onDismissRequest: () -> Unit
+    onDismissRequest: () -> Unit,
+    trackViewModel: TrackViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    // Проверяем, локальный ли это файл и можно ли его редактировать
+    val isEditable = remember(track) {
+        track.path.isNotEmpty() && File(track.path).exists() && track.contentUri.scheme != "telegram"
+    }
+
     val trackDetails = remember(track) {
         val details = mutableMapOf<String, String>()
         
-        // 1. Попытка получить расширенные данные через JAudioTagger
         if (track.path.isNotEmpty()) {
             val file = File(track.path)
             if (file.exists()) {
@@ -33,15 +45,10 @@ fun TrackInfoBottomSheet(
                     val audioFile = AudioFileIO.read(file)
                     val header = audioFile.audioHeader
                     
-                    // Формат (кодек)
                     details["Format"] = header.encodingType ?: file.extension.uppercase()
-                    // Битрейт
                     details["Bitrate"] = "${header.bitRate} kbps"
-                    // Частота дискретизации
                     details["Sample Rate"] = "${header.sampleRate} Hz"
-                    // Каналы
                     details["Channels"] = header.channels
-                    // Размер файла
                     details["Size"] = "%.2f MB".format(file.length() / (1024f * 1024f))
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -49,7 +56,6 @@ fun TrackInfoBottomSheet(
             }
         }
         
-        // 2. Резервный вариант через MediaMetadataRetriever (если JAudioTagger не смог или данных нет)
         if (details.isEmpty() || details["Format"] == "Unknown") {
             val retriever = MediaMetadataRetriever()
             try {
@@ -76,6 +82,16 @@ fun TrackInfoBottomSheet(
         details
     }
 
+    if (showEditDialog) {
+        TrackEditDialog(
+            track = track,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { title, artist, album, cover ->
+                trackViewModel.updateTrackMetadata(track, title, artist, album, cover)
+            }
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -83,16 +99,34 @@ fun TrackInfoBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp)
+                .padding(bottom = 48.dp)
         ) {
-            Text(
-                text = "Track Information",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Track Info",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                if (isEditable) {
+                    FilledTonalIconButton(
+                        onClick = { showEditDialog = true },
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Icon(Icons.Rounded.Edit, contentDescription = "Edit")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             InfoItem(label = "Title", value = track.title)
             InfoItem(label = "Artist", value = track.artist)
@@ -101,8 +135,8 @@ fun TrackInfoBottomSheet(
             
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 16.dp),
-                thickness = 6.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
             )
             
             Text(
@@ -134,13 +168,13 @@ private fun InfoItem(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified
+            fontWeight = FontWeight.Medium
         )
     }
 }

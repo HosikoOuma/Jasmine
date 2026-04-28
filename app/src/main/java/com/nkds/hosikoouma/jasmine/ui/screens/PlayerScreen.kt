@@ -148,6 +148,7 @@ fun PlayerScreen(
         onLoadTracks = trackViewModel::loadTracks,
         onAddTrackToPlaylist = trackViewModel::addTrackToPlaylist,
         onSkipToItem = viewModel::skipToQueueItem,
+        onSkipToMediaId = { /* no longer needed if skipToItem works */ },
         onShowToast = viewModel::showToast,
         navController = navController,
         queueScreen = { onCloseQueue -> QueueScreen(viewModel = viewModel, onClose = onCloseQueue) },
@@ -178,6 +179,7 @@ fun PlayerContent(
     onLoadTracks: () -> Unit,
     onAddTrackToPlaylist: (Long, Long) -> Unit,
     onSkipToItem: (Int) -> Unit,
+    onSkipToMediaId: (String) -> Unit = {},
     onShowToast: (Track?, ToastType, String?) -> Unit,
     navController: NavController = rememberNavController(),
     queueScreen: @Composable (onClose: () -> Unit) -> Unit = {},
@@ -338,13 +340,13 @@ fun PlayerContent(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(24.dp)), // Constrains the animation inside the block
+                    .clip(RoundedCornerShape(24.dp)), 
                 contentAlignment = Alignment.Center
             ) {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1, // ОПТИМИЗАЦИЯ: держим только 1 обложку в памяти вместо 3
+                    beyondViewportPageCount = 1, 
                     pageSpacing = 24.dp,
                     key = { page -> "p_${uiState.playlist.getOrNull(page)?.uid ?: page}" }
                 ) { page ->
@@ -356,10 +358,10 @@ fun PlayerContent(
                     ) {
                         AlbumArt(
                             albumArtUri = track?.albumArtUri,
+                            updateTrigger = track?.dateModified ?: 0L, // ДОБАВЛЕНО
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
-                                    // Scale for play/pause animation only
                                     scaleX = albumArtScale
                                     scaleY = albumArtScale
                                 },
@@ -434,7 +436,6 @@ fun PlayerContent(
                         .padding(horizontal = 20.dp)
                         .padding(bottom = 24.dp)
                 ) {
-                    // Оптимизация слайдера громкости: локальный стейт
                     var localVolume by remember { mutableStateOf(uiState.systemVolume) }
                     LaunchedEffect(uiState.systemVolume) { localVolume = uiState.systemVolume }
 
@@ -645,7 +646,6 @@ fun PlaybackProgressSection(
     var lastSeekTime by remember { mutableLongStateOf(0L) }
     var lastTrackId by remember { mutableLongStateOf(-1L) }
 
-    // Мгновенный сброс прогресса при смене трека
     LaunchedEffect(currentTrack?.id) {
         if (currentTrack?.id != lastTrackId) {
             sliderValue = 0f
@@ -655,7 +655,6 @@ fun PlaybackProgressSection(
 
     LaunchedEffect(progress) {
         val now = System.currentTimeMillis()
-        // Обновляем только если не было недавнего Seek и трек тот же
         if (now - lastSeekTime > 1000L && currentTrack?.id == lastTrackId) {
             sliderValue = progress.toFloat()
         }

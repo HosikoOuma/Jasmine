@@ -66,7 +66,8 @@ fun TrackCard(
             Box(contentAlignment = Alignment.BottomEnd) {
                 AlbumArt(
                     albumArtUri = track.albumArtUri,
-                    cacheKey = track.id.toString(), // Передаем стабильный ключ для мгновенного кэширования
+                    cacheKey = track.id.toString(),
+                    updateTrigger = track.dateModified, // Добавляем триггер обновления
                     modifier = Modifier.size(56.dp),
                     shape = RoundedCornerShape(14.dp),
                     isLowRes = true

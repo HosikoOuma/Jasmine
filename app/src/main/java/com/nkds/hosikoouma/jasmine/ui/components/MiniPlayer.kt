@@ -71,7 +71,6 @@ fun MiniPlayer(
         label = "scale"
     )
 
-    // Закругление всей карточки по мере перетаскивания вверх (от 16dp до 32dp)
     val dynamicCornerRadius by animateDpAsState(
         targetValue = if (offsetY.value < 0) {
             (16 + (abs(offsetY.value) / maxDragUpPx * 16)).dp
@@ -98,9 +97,8 @@ fun MiniPlayer(
                         scope.launch {
                             if (isVerticalDrag) {
                                 if (offsetY.value <= -maxDragUpPx * 0.8f) {
-                                    onClick() // Открываем плеер
+                                    onClick() 
                                 } else if (offsetY.value >= maxDragDownPx * 0.6f) {
-                                    // Жест вниз: закрываем плеер полностью
                                     vibrateClick(context)
                                     launch { 
                                         offsetY.animateTo(500f, tween(300))
@@ -132,7 +130,6 @@ fun MiniPlayer(
                     onDrag = { change, dragAmount ->
                         change.consume()
                         
-                        // Определяем направление жеста при начале движения
                         if (!isVerticalDrag && !isHorizontalDrag) {
                             if (abs(dragAmount.y) > abs(dragAmount.x)) {
                                 isVerticalDrag = true
@@ -145,7 +142,6 @@ fun MiniPlayer(
                             if (isVerticalDrag) {
                                 val newY = (offsetY.value + dragAmount.y).coerceIn(-maxDragUpPx, maxDragDownPx)
                                 
-                                // Вызываем вибрацию при достижении лимита (вверх или вниз)
                                 if ((newY <= -maxDragUpPx || newY >= maxDragDownPx * 0.8f) && !hasVibratedOnLimit) {
                                     vibrateClick(context)
                                     hasVibratedOnLimit = true
@@ -166,7 +162,6 @@ fun MiniPlayer(
                 translationY = offsetY.value
                 scaleX = scale
                 scaleY = scale
-                // Эффект исчезновения при свайпе вниз
                 if (offsetY.value > 0) {
                     alpha = (1f - (offsetY.value / maxDragDownPx)).coerceIn(0f, 1f)
                 }
@@ -208,7 +203,8 @@ fun MiniPlayer(
                     AlbumArt(
                         albumArtUri = currentTrack?.albumArtUri,
                         modifier = Modifier.size(48.dp),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        updateTrigger = currentTrack?.dateModified ?: 0L // ДОБАВЛЕНО
                     )
                 }
 
