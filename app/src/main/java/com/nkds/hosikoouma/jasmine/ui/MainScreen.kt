@@ -58,7 +58,7 @@ import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun MainScreen(
     trackViewModel: TrackViewModel = viewModel(),
@@ -160,42 +160,73 @@ fun MainScreen(
     }
 
     // UI Structure
-    MainContent(
-        navController = navController,
-        trackViewModel = trackViewModel,
-        playerViewModel = playerViewModel,
-        radioViewModel = radioViewModel,
-        scrollBehavior = scrollBehavior,
-        currentRoute = currentRoute,
-        dynamicTitle = dynamicTitle,
-        searchQuery = searchQuery,
-        isSearching = isSearching,
-        isReversed = isReversed,
-        isRadioMode = isRadioMode,
-        canPop = canPop,
-        selectedTracks = selectedTracks,
-        selectedStations = selectedStations,
-        onSearchQueryChange = trackViewModel::setSearchQuery,
-        onToggleSearch = { 
-            if (isSearching) trackViewModel.setSearchQuery("")
-            isSearching = !isSearching 
-        },
-        onClearSelection = { selectedTracks = emptySet(); selectedStations = emptySet() },
-        onSelectTracks = { tracks -> selectedTracks = tracks.toSet() },
-        onToggleReverse = trackViewModel::toggleReverse,
-        onSetSortType = trackViewModel::setSortType,
-        onTogglePlayer = { isPlayerExpanded = it },
-        onToggleRadioPlayer = { isRadioPlayerExpanded = it },
-        onToggleAddRadioDialog = { showAddRadioDialog = it },
-        onToggleTrackSelection = { track -> selectedTracks = if (selectedTracks.contains(track)) selectedTracks - track else selectedTracks + track },
-        onToggleStationSelection = { station -> selectedStations = if (selectedStations.contains(station)) selectedStations - station else selectedStations + station },
-        isPlayerExpanded = isPlayerExpanded,
-        isRadioPlayerExpanded = isRadioPlayerExpanded,
-        showAddRadioDialog = showAddRadioDialog
-    )
+    SharedTransitionLayout {
+        Box(Modifier.fillMaxSize()) {
+            MainContent(
+                navController = navController,
+                trackViewModel = trackViewModel,
+                playerViewModel = playerViewModel,
+                radioViewModel = radioViewModel,
+                scrollBehavior = scrollBehavior,
+                currentRoute = currentRoute,
+                dynamicTitle = dynamicTitle,
+                searchQuery = searchQuery,
+                isSearching = isSearching,
+                isReversed = isReversed,
+                isRadioMode = isRadioMode,
+                canPop = canPop,
+                selectedTracks = selectedTracks,
+                selectedStations = selectedStations,
+                onSearchQueryChange = trackViewModel::setSearchQuery,
+                onToggleSearch = { 
+                    if (isSearching) trackViewModel.setSearchQuery("")
+                    isSearching = !isSearching 
+                },
+                onClearSelection = { selectedTracks = emptySet(); selectedStations = emptySet() },
+                onSelectTracks = { tracks -> selectedTracks = tracks.toSet() },
+                onToggleReverse = trackViewModel::toggleReverse,
+                onSetSortType = trackViewModel::setSortType,
+                onTogglePlayer = { isPlayerExpanded = it },
+                onToggleRadioPlayer = { isRadioPlayerExpanded = it },
+                onToggleAddRadioDialog = { showAddRadioDialog = it },
+                onToggleTrackSelection = { track -> selectedTracks = if (selectedTracks.contains(track)) selectedTracks - track else selectedTracks + track },
+                onToggleStationSelection = { station -> selectedStations = if (selectedStations.contains(station)) selectedStations - station else selectedStations + station },
+                isPlayerExpanded = isPlayerExpanded,
+                isRadioPlayerExpanded = isRadioPlayerExpanded,
+                showAddRadioDialog = showAddRadioDialog,
+                sharedTransitionScope = this@SharedTransitionLayout
+            )
+
+            AnimatedVisibility(
+                visible = isPlayerExpanded,
+                enter = fadeIn(tween(400)) + slideInVertically(initialOffsetY = { it / 2 }),
+                exit = fadeOut(tween(400)) + slideOutVertically(targetOffsetY = { it / 2 })
+            ) {
+                PlayerScreen(
+                    viewModel = playerViewModel,
+                    trackViewModel = trackViewModel,
+                    navController = navController,
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this,
+                    onClose = { isPlayerExpanded = false }
+                )
+            }
+
+            if (isRadioPlayerExpanded) {
+                val currentStation by playerViewModel.currentRadioStation.collectAsStateWithLifecycle()
+                currentStation?.let { 
+                    RadioPlayerScreen(
+                        station = it, 
+                        playerViewModel = playerViewModel, 
+                        onClose = { isRadioPlayerExpanded = false }
+                    ) 
+                }
+            }
+        }
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 private fun MainContent(
     navController: androidx.navigation.NavHostController,
@@ -226,6 +257,7 @@ private fun MainContent(
     onToggleTrackSelection: (Track) -> Unit,
     onToggleStationSelection: (RadioStation) -> Unit,
     showAddRadioDialog: Boolean,
+    sharedTransitionScope: SharedTransitionScope
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val playlistId = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L }
@@ -380,18 +412,21 @@ private fun MainContent(
     // Bottom Layers
     Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars), contentAlignment = Alignment.BottomCenter) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            MiniPlayer(viewModel = playerViewModel, onClick = { if (isRadioMode) onToggleRadioPlayer(true) else onTogglePlayer(true) }, modifier = Modifier.padding(bottom = 8.dp))
+            AnimatedVisibility(
+                visible = !isPlayerExpanded && !isRadioPlayerExpanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                MiniPlayer(
+                    viewModel = playerViewModel,
+                    onClick = { if (isRadioMode) onToggleRadioPlayer(true) else onTogglePlayer(true) },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = this,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
             JasmineBottomBar(navController = navController)
         }
-    }
-
-    if (isPlayerExpanded) {
-        PlayerScreen(viewModel = playerViewModel, trackViewModel = trackViewModel, navController = navController, onClose = { onTogglePlayer(false) })
-    }
-
-    if (isRadioPlayerExpanded) {
-        val currentStation by playerViewModel.currentRadioStation.collectAsStateWithLifecycle()
-        currentStation?.let { RadioPlayerScreen(station = it, playerViewModel = playerViewModel, onClose = { onToggleRadioPlayer(false) }) }
     }
 
     MainDialogs(

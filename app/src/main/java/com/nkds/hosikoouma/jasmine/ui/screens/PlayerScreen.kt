@@ -88,12 +88,14 @@ data class PlayerUiState(
 )
 
 // --- Stateful Screen ---
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel,
     trackViewModel: TrackViewModel,
     navController: NavController,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onClose: () -> Unit
 ) {
     val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
@@ -132,6 +134,8 @@ fun PlayerScreen(
     PlayerContent(
         uiState = uiState,
         onClose = onClose,
+        sharedTransitionScope = sharedTransitionScope,
+        animatedVisibilityScope = animatedVisibilityScope,
         onTogglePlayPause = viewModel::togglePlayPause,
         onSkipNext = viewModel::skipToNext,
         onSkipPrevious = viewModel::skipToPrevious,
@@ -158,11 +162,13 @@ fun PlayerScreen(
 }
 
 // --- Stateless Content ---
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun PlayerContent(
     uiState: PlayerUiState,
     onClose: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
@@ -201,6 +207,10 @@ fun PlayerContent(
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showPitchSheet by remember { mutableStateOf(false) }
 
+    // Блокируем взаимодействие, пока экран полностью не открылся или начал закрываться.
+    val isInteractionEnabled = animatedVisibilityScope.transition.currentState == EnterExitState.Visible &&
+            animatedVisibilityScope.transition.targetState == EnterExitState.Visible
+
     var isAlbumArtMinimized by remember { mutableStateOf(!uiState.isPlaying) }
     LaunchedEffect(uiState.isPlaying) {
         if (uiState.isPlaying) isAlbumArtMinimized = false
@@ -238,7 +248,7 @@ fun PlayerContent(
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackingPlayer by remember { mutableStateOf(false) }
 
-    PredictiveBackHandler(enabled = showQueue || showLyrics || showMoreActions || showTrackInfo || showSpeedSheet || showPitchSheet || showShareBottomSheet) { progressFlow ->
+    PredictiveBackHandler(enabled = isInteractionEnabled && (showQueue || showLyrics || showMoreActions || showTrackInfo || showSpeedSheet || showPitchSheet || showShareBottomSheet)) { progressFlow ->
         try {
             progressFlow.collect { }
             showQueue = false
@@ -251,7 +261,7 @@ fun PlayerContent(
         } catch (e: Exception) { }
     }
 
-    PredictiveBackHandler(enabled = !showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet && !showShareBottomSheet) { progressFlow ->
+    PredictiveBackHandler(enabled = isInteractionEnabled && !showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet && !showShareBottomSheet) { progressFlow ->
         try {
             isBackingPlayer = true
             progressFlow.collect { backEvent -> playerBackProgress = backEvent.progress }
@@ -279,7 +289,9 @@ fun PlayerContent(
             }
             .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .pointerInput(Unit) {
+            .pointerInput(isInteractionEnabled) {
+                if (!isInteractionEnabled) return@pointerInput
+                
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
@@ -319,6 +331,7 @@ fun PlayerContent(
                         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
+                            @Suppress("DEPRECATION")
                             Text("From Queue", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -351,22 +364,33 @@ fun PlayerContent(
                     key = { page -> "p_${uiState.playlist.getOrNull(page)?.uid ?: page}" }
                 ) { page ->
                     val track = uiState.playlist.getOrNull(page) ?: uiState.currentTrack
-                    
+                    val isCurrentPage = page == currentIndex
+
                     Box(
                         modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        AlbumArt(
-                            albumArtUri = track?.albumArtUri,
-                            updateTrigger = track?.dateModified ?: 0L, // ДОБАВЛЕНО
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    scaleX = albumArtScale
-                                    scaleY = albumArtScale
-                                },
-                            shape = RoundedCornerShape(24.dp)
-                        )
+                        with(sharedTransitionScope) {
+                            AlbumArt(
+                                albumArtUri = track?.albumArtUri,
+                                updateTrigger = track?.dateModified ?: 0L,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .then(
+                                        if (isCurrentPage) {
+                                            Modifier.sharedElement(
+                                                rememberSharedContentState(key = "album_art_${track?.id}"),
+                                                animatedVisibilityScope = animatedVisibilityScope
+                                            )
+                                        } else Modifier
+                                    )
+                                    .graphicsLayer {
+                                        scaleX = albumArtScale
+                                        scaleY = albumArtScale
+                                    },
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -537,10 +561,10 @@ fun PlayerContent(
                         Row(
                             modifier = Modifier.padding(16.dp),
                             horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                            verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.Delete, null, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
+                            @Suppress("DEPRECATION")
                             Text("Delete from Device", fontWeight = FontWeight.Bold)
                         }
                     }
@@ -952,44 +976,51 @@ fun AnimatedControlIcon(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Preview(showBackground = true)
 @Composable
 fun PlayerPreview() {
     JasmineTheme {
-        PlayerContent(
-            uiState = PlayerUiState(
-                currentTrack = Track(
-                    id = 1,
-                    title = "Sample Song",
-                    artist = "Sample Artist",
-                    album = "Sample Album",
-                    duration = 300000,
-                    contentUri = android.net.Uri.EMPTY,
-                    albumArtUri = null
-                ),
-                isPlaying = true,
-                progress = 120000,
-                duration = 300000,
-                isFavorite = true
-            ),
-            onClose = {},
-            onTogglePlayPause = {},
-            onSkipNext = {},
-            onSkipPrevious = {},
-            onSeek = {},
-            onToggleShuffle = {},
-            onToggleRepeat = {},
-            onToggleFavorite = {},
-            onSetSystemVolume = {},
-            onSetPlaybackSpeed = {},
-            onSetPlaybackPitch = {},
-            onAddToQueue = {},
-            onPrepareForDeletion = {},
-            onDeleteTracks = {},
-            onLoadTracks = {},
-            onAddTrackToPlaylist = { _, _ -> },
-            onSkipToItem = {},
-            onShowToast = { _, _, _ -> }
-        )
+        SharedTransitionLayout {
+            AnimatedVisibility(visible = true) {
+                PlayerContent(
+                    uiState = PlayerUiState(
+                        currentTrack = Track(
+                            id = 1,
+                            title = "Sample Song",
+                            artist = "Sample Artist",
+                            album = "Sample Album",
+                            duration = 300000,
+                            contentUri = android.net.Uri.EMPTY,
+                            albumArtUri = null
+                        ),
+                        isPlaying = true,
+                        progress = 120000,
+                        duration = 300000,
+                        isFavorite = true
+                    ),
+                    onClose = {},
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@AnimatedVisibility,
+                    onTogglePlayPause = {},
+                    onSkipNext = {},
+                    onSkipPrevious = {},
+                    onSeek = {},
+                    onToggleShuffle = {},
+                    onToggleRepeat = {},
+                    onToggleFavorite = {},
+                    onSetSystemVolume = {},
+                    onSetPlaybackSpeed = {},
+                    onSetPlaybackPitch = {},
+                    onAddToQueue = {},
+                    onPrepareForDeletion = {},
+                    onDeleteTracks = {},
+                    onLoadTracks = {},
+                    onAddTrackToPlaylist = { _, _ -> },
+                    onSkipToItem = {},
+                    onShowToast = { _, _, _ -> }
+                )
+            }
+        }
     }
 }

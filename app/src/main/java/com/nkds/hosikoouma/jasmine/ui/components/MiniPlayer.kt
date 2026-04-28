@@ -3,6 +3,7 @@ package com.nkds.hosikoouma.jasmine.ui.components
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,10 +37,13 @@ import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MiniPlayer(
     viewModel: PlayerViewModel,
     onClick: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     modifier: Modifier = Modifier
 ) {
     val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
@@ -51,6 +55,11 @@ fun MiniPlayer(
     val radioTrackArtist by viewModel.radioTrackArtist.collectAsStateWithLifecycle()
 
     if (currentTrack == null && currentStation == null) return
+
+    // Блокируем взаимодействие, если MiniPlayer находится в процессе анимации появления или исчезновения.
+    // Это предотвращает конфликты SharedElement, если кликнуть слишком быстро.
+    val isInteractionEnabled = animatedVisibilityScope.transition.currentState == EnterExitState.Visible &&
+            animatedVisibilityScope.transition.targetState == EnterExitState.Visible
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -83,7 +92,9 @@ fun MiniPlayer(
             .padding(horizontal = 16.dp)
             .height(64.dp)
             .fillMaxWidth()
-            .pointerInput(isRadioMode) {
+            .pointerInput(isRadioMode, isInteractionEnabled) {
+                if (!isInteractionEnabled) return@pointerInput
+                
                 var isVerticalDrag = false
                 var isHorizontalDrag = false
                 
@@ -167,7 +178,10 @@ fun MiniPlayer(
                 }
             }
             .clip(RoundedCornerShape(dynamicCornerRadius))
-            .bouncingClickable(onClick = onClick),
+            .bouncingClickable(
+                enabled = isInteractionEnabled,
+                onClick = onClick
+            ),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(dynamicCornerRadius),
         tonalElevation = 8.dp
@@ -200,12 +214,19 @@ fun MiniPlayer(
                         )
                     }
                 } else {
-                    AlbumArt(
-                        albumArtUri = currentTrack?.albumArtUri,
-                        modifier = Modifier.size(48.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        updateTrigger = currentTrack?.dateModified ?: 0L // ДОБАВЛЕНО
-                    )
+                    with(sharedTransitionScope) {
+                        AlbumArt(
+                            albumArtUri = currentTrack?.albumArtUri,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .sharedElement(
+                                    rememberSharedContentState(key = "album_art_${currentTrack?.id}"),
+                                    animatedVisibilityScope = animatedVisibilityScope
+                                ),
+                            shape = RoundedCornerShape(8.dp),
+                            updateTrigger = currentTrack?.dateModified ?: 0L
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -260,12 +281,13 @@ fun MiniPlayer(
                     onClick = { 
                         vibrateClick(context)
                         viewModel.togglePlayPause() 
-                    }
+                    },
+                    enabled = isInteractionEnabled
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        tint = if (isInteractionEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                         modifier = Modifier.size(32.dp)
                     )
                 }
