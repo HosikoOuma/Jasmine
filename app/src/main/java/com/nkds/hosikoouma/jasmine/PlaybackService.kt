@@ -165,6 +165,26 @@ class PlaybackService : MediaSessionService() {
                 val title = extractStreamTitleFromMetadata(metadata)
                 if (!title.isNullOrBlank()) updateCurrentMediaItemMetadata(player, fixEncodingIfNeeded(title))
             }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                if (player == crossfadeManager.getCurrentPlayer()) {
+                    val isRadio = player.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio", false) ?: false
+                    // Сохраняем режим повтора только если это НЕ радио
+                    if (!isRadio) {
+                        serviceScope.launch { settingsRepository.setRepeatMode(repeatMode) }
+                    }
+                }
+            }
+
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                if (player == crossfadeManager.getCurrentPlayer()) {
+                    val isRadio = player.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio", false) ?: false
+                    // Перемешивание для радио тоже не имеет смысла сохранять в пользовательские настройки
+                    if (!isRadio) {
+                        serviceScope.launch { settingsRepository.setShuffleModeEnabled(shuffleModeEnabled) }
+                    }
+                }
+            }
         })
         
         return player
@@ -177,9 +197,19 @@ class PlaybackService : MediaSessionService() {
                 if (queueEntities.isNotEmpty()) {
                     val lastIndex = settingsRepository.lastMediaItemIndex.first()
                     val lastPos = settingsRepository.lastPlaybackPosition.first()
+                    val shuffleEnabled = settingsRepository.shuffleModeEnabled.first()
+                    val repeatMode = settingsRepository.repeatMode.first()
+                    
                     val mediaItems = queueEntities.map { entityToMediaItem(it) }
                     withContext(Dispatchers.Main) {
                         val index = if (lastIndex in mediaItems.indices) lastIndex else 0
+                        
+                        // Сначала устанавливаем режимы
+                        playerA.shuffleModeEnabled = shuffleEnabled
+                        playerA.repeatMode = repeatMode
+                        playerB.shuffleModeEnabled = shuffleEnabled
+                        playerB.repeatMode = repeatMode
+                        
                         playerA.setMediaItems(mediaItems, index, lastPos)
                         playerA.prepare()
                     }

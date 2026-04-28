@@ -38,6 +38,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
         val LAST_PLAYBACK_POSITION = longPreferencesKey("last_playback_position")
         val IS_RADIO_MODE = booleanPreferencesKey("is_radio_mode")
         val LAST_RADIO_STATION_ID = longPreferencesKey("last_radio_station_id")
+        val SHUFFLE_MODE_ENABLED = booleanPreferencesKey("shuffle_mode_enabled")
+        val REPEAT_MODE = intPreferencesKey("repeat_mode")
 
         // Навигация
         val NAVIGATION_ITEMS = stringPreferencesKey("navigation_items")
@@ -80,6 +82,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     val lastPlaybackPosition: Flow<Long> = context.dataStore.data.map { it[LAST_PLAYBACK_POSITION] ?: 0L }
     val isRadioMode: Flow<Boolean> = context.dataStore.data.map { it[IS_RADIO_MODE] ?: false }
     val lastRadioStationId: Flow<Long> = context.dataStore.data.map { it[LAST_RADIO_STATION_ID] ?: -1L }
+    val shuffleModeEnabled: Flow<Boolean> = context.dataStore.data.map { it[SHUFFLE_MODE_ENABLED] ?: false }
+    val repeatMode: Flow<Int> = context.dataStore.data.map { it[REPEAT_MODE] ?: 0 } // Player.REPEAT_MODE_OFF = 0
 
     // Аудиофокус
     val manageAudioFocus: Flow<Boolean> = context.dataStore.data.map { it[MANAGE_AUDIO_FOCUS] ?: true }
@@ -121,6 +125,9 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
         it[IS_RADIO_MODE] = isRadio
         it[LAST_RADIO_STATION_ID] = radioStationId
     }
+
+    suspend fun setShuffleModeEnabled(enabled: Boolean) = context.dataStore.edit { it[SHUFFLE_MODE_ENABLED] = enabled }
+    suspend fun setRepeatMode(mode: Int) = context.dataStore.edit { it[REPEAT_MODE] = mode }
 
     suspend fun setManageAudioFocus(enabled: Boolean) = context.dataStore.edit { it[MANAGE_AUDIO_FOCUS] = enabled }
 }

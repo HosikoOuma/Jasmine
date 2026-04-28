@@ -49,6 +49,7 @@ class PlayerViewModel @Inject constructor(
     application: Application,
     private val favoritesRepository: FavoritesRepository,
     private val lyricsRepository: LyricsRepository,
+    private val settingsRepository: SettingsRepository,
     private val telegramDao: TelegramDao,
     private val telegramStreamProxy: TelegramStreamProxy
 ) : AndroidViewModel(application) {
@@ -396,11 +397,13 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Default) {
             val mediaItems = tracks.map { createMediaItem(it, sourceName = sourceName) }
             val tracksWithUids = tracks.zip(mediaItems).map { (t, m) -> t.copy(uid = m.mediaId) }
+            val savedRepeatMode = settingsRepository.repeatMode.first()
             withContext(Dispatchers.Main) {
                 originalTrackList = tracksWithUids
                 controller.setMediaItems(mediaItems, startIndex, 0L)
                 controller.shuffleModeEnabled = false
                 _shuffleModeEnabled.value = false
+                controller.repeatMode = savedRepeatMode
                 controller.prepare()
                 controller.play()
             }
@@ -436,11 +439,13 @@ class PlayerViewModel @Inject constructor(
             val shuffled = QueueUtils.fisherYatesCopy(tracks)
             val mediaItems = shuffled.map { createMediaItem(it, sourceName = sourceName) }
             val tracksWithUids = shuffled.zip(mediaItems).map { (t, m) -> t.copy(uid = m.mediaId) }
+            val savedRepeatMode = settingsRepository.repeatMode.first()
             withContext(Dispatchers.Main) {
                 originalTrackList = tracksWithUids
                 controller.setMediaItems(mediaItems, 0, 0L)
                 controller.shuffleModeEnabled = false
                 _shuffleModeEnabled.value = true
+                controller.repeatMode = savedRepeatMode
                 controller.prepare()
                 controller.play()
             }
