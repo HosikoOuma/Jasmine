@@ -22,7 +22,9 @@ data class TelegramCloudState(
     val searchResult: TdApi.Chat? = null,
     val isSearching: Boolean = false,
     val searchError: String? = null,
-    val syncingChannels: Set<Long> = emptySet()
+    val syncingChannels: Set<Long> = emptySet(),
+    val myChats: List<TdApi.Chat> = emptyList(),
+    val isFetchingChats: Boolean = false
 )
 
 @HiltViewModel
@@ -54,6 +56,26 @@ class TelegramCloudViewModel @Inject constructor(
             } else {
                 _state.value = _state.value.copy(searchError = "Channel not found", isSearching = false)
             }
+        }
+    }
+
+    fun loadMyChats() {
+        _state.value = _state.value.copy(isFetchingChats = true)
+        viewModelScope.launch {
+            val chats = repository.getMyChats()
+            _state.value = _state.value.copy(myChats = chats, isFetchingChats = false)
+        }
+    }
+
+    fun searchMyChats(query: String) {
+        if (query.isBlank()) {
+            loadMyChats()
+            return
+        }
+        _state.value = _state.value.copy(isFetchingChats = true)
+        viewModelScope.launch {
+            val chats = repository.searchMyChats(query)
+            _state.value = _state.value.copy(myChats = chats, isFetchingChats = false)
         }
     }
 

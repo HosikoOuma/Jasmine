@@ -47,7 +47,7 @@ fun TelegramCloudScreen(
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
-            label = { Text("Search Channel (@username)") },
+            label = { Text("Search Public Channel (@username)") },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             trailingIcon = {
                 Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
@@ -64,11 +64,23 @@ fun TelegramCloudScreen(
             shape = RoundedCornerShape(16.dp)
         )
 
+        // New Button: Select from my chats
+        Button(
+            onClick = { navController.navigate("telegram_chat_picker") },
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+        ) {
+            Icon(Icons.Rounded.ChatBubbleOutline, null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Select from my chats")
+        }
+
         // Search Result
         state.searchResult?.let { chat ->
             val isAdding = state.syncingChannels.contains(chat.id)
             Card(
-                modifier = Modifier.padding(vertical = 16.dp),
+                modifier = Modifier.padding(vertical = 8.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
@@ -99,7 +111,7 @@ fun TelegramCloudScreen(
         }
 
         Text(
-            "My Channels",
+            "My Cloud Library",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(vertical = 12.dp),
             fontWeight = FontWeight.Bold
@@ -144,7 +156,6 @@ fun TelegramCloudScreen(
                         },
                         trailingContent = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                // Контейнер фиксированного размера для кнопки/индикатора синхронизации
                                 Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                                     if (isSyncing) {
                                         ExpressiveSyncIndicator(size = 32.dp)

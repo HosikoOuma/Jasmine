@@ -87,6 +87,11 @@ fun JasmineNavHost(
         composable(Screen.TelegramCloud.route) {
             TelegramCloudScreen(navController = navController)
         }
+
+        composable("telegram_chat_picker") {
+            TelegramChatPickerScreen(navController = navController)
+        }
+
         composable(Screen.LibraryPlaylists.route) {
             PlaylistListScreen(navController = navController, trackViewModel = trackViewModel)
         }

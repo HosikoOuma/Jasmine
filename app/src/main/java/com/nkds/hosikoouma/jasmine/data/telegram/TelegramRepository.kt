@@ -96,6 +96,55 @@ class TelegramRepository @Inject constructor(
         }
     }
 
+    // --- My Chats Management ---
+
+    suspend fun getMyChats(limit: Int = 500): List<TdApi.Chat> {
+        return try {
+            // Loading more chats to populate local database
+            try {
+                clientManager.sendRequest<TdApi.Ok>(TdApi.LoadChats(TdApi.ChatListMain(), limit))
+            } catch (e: Exception) {
+                // Ignore errors from LoadChats (e.g. if everything is already loaded)
+            }
+            
+            val chatsResponse = clientManager.sendRequest<TdApi.Chats>(TdApi.GetChats(TdApi.ChatListMain(), limit))
+            chatsResponse.chatIds.map { id ->
+                clientManager.sendRequest<TdApi.Chat>(TdApi.GetChat(id))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting my chats", e)
+            emptyList()
+        }
+    }
+
+    suspend fun searchMyChats(query: String, limit: Int = 50): List<TdApi.Chat> {
+        return try {
+            val response = clientManager.sendRequest<TdApi.Chats>(TdApi.SearchChats(query, limit))
+            response.chatIds.map { id ->
+                clientManager.sendRequest<TdApi.Chat>(TdApi.GetChat(id))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error searching my chats: $query", e)
+            emptyList()
+        }
+    }
+
+    suspend fun ensureChatPhotoDownloaded(chat: TdApi.Chat) {
+        val fileId = chat.photo?.small?.id ?: return
+        val file = getFile(fileId)
+        if (file != null && !file.local.isDownloadingCompleted && !file.local.isDownloadingActive) {
+            downloadFile(fileId, 1)
+        }
+    }
+
+    suspend fun getUser(userId: Long): TdApi.User? {
+        return try {
+            clientManager.sendRequest(TdApi.GetUser(userId))
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // --- Channel Management ---
 
     val allChannels: Flow<List<TelegramChannelEntity>> = dao.getAllChannels()
@@ -103,9 +152,9 @@ class TelegramRepository @Inject constructor(
     suspend fun addChannel(chat: TdApi.Chat) {
         val username = try {
             val type = chat.type
-            val field = type.javaClass.getField("username")
-            field.isAccessible = true
-            field.get(type) as? String
+            val field = try { type.javaClass.getField("username") } catch (e: Exception) { null }
+            field?.isAccessible = true
+            field?.get(type) as? String
         } catch (e: Exception) {
             null
         }

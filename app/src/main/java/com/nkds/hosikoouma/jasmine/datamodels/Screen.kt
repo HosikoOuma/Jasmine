@@ -40,6 +40,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object TelegramChannelDetail : Screen("telegram_channel_detail/{chatId}", "Channel", Icons.Rounded.Cloud)
     data object TelegramAuth : Screen("telegram_auth", "Telegram Login", Icons.AutoMirrored.Rounded.Login)
     data object Queue : Screen("queue", "Play Queue", Icons.AutoMirrored.Rounded.List)
+    data object TelegramChatPicker : Screen("telegram_chat_picker", "Select Chat", Icons.Rounded.Chat)
 
     companion object {
         val allMainItems = listOf(Tracks, Radio, Library, TelegramCloud, LibraryPlaylists, Settings)
