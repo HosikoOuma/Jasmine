@@ -49,6 +49,9 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
         // Аудиофокус
         val MANAGE_AUDIO_FOCUS = booleanPreferencesKey("manage_audio_focus")
+
+        // Язык приложения
+        val LANGUAGE = stringPreferencesKey("language")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -87,6 +90,9 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     // Аудиофокус
     val manageAudioFocus: Flow<Boolean> = context.dataStore.data.map { it[MANAGE_AUDIO_FOCUS] ?: true }
+
+    // Язык приложения (по умолчанию системный - "default")
+    val language: Flow<String> = context.dataStore.data.map { it[LANGUAGE] ?: "default" }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) = context.dataStore.edit { it[CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeDuration(duration: Long) = context.dataStore.edit { it[CROSSFADE_DURATION] = duration }
@@ -130,4 +136,6 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     suspend fun setRepeatMode(mode: Int) = context.dataStore.edit { it[REPEAT_MODE] = mode }
 
     suspend fun setManageAudioFocus(enabled: Boolean) = context.dataStore.edit { it[MANAGE_AUDIO_FOCUS] = enabled }
+
+    suspend fun setLanguage(language: String) = context.dataStore.edit { it[LANGUAGE] = language }
 }

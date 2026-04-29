@@ -15,12 +15,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.ui.components.bouncingClickable
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
@@ -66,10 +68,10 @@ fun LibraryContent(
 ) {
     val categories = remember(uiState) {
         listOf(
-            LibraryCategory("Playlists", Icons.AutoMirrored.Rounded.PlaylistPlay, uiState.playlistCount, Screen.LibraryPlaylists.route),
-            LibraryCategory("Albums", Icons.Rounded.Album, uiState.albumCount, Screen.LibraryAlbums.route),
-            LibraryCategory("Artists", Icons.Rounded.Person, uiState.artistCount, Screen.LibraryArtists.route),
-            LibraryCategory("Folders", Icons.Rounded.Folder, uiState.folderCount, Screen.LibraryFolders.route),
+            LibraryCategory(R.string.playlists, Icons.AutoMirrored.Rounded.PlaylistPlay, uiState.playlistCount, Screen.LibraryPlaylists.route),
+            LibraryCategory(R.string.albums, Icons.Rounded.Album, uiState.albumCount, Screen.LibraryAlbums.route),
+            LibraryCategory(R.string.artists, Icons.Rounded.Person, uiState.artistCount, Screen.LibraryArtists.route),
+            LibraryCategory(R.string.folders, Icons.Rounded.Folder, uiState.folderCount, Screen.LibraryFolders.route),
         )
     }
 
@@ -97,7 +99,7 @@ fun LibraryContent(
 }
 
 data class LibraryCategory(
-    val title: String,
+    val titleRes: Int,
     val icon: ImageVector,
     val count: Int,
     val route: String
@@ -137,19 +139,19 @@ fun LibraryCard(
             
             Column {
                 Text(
-                    text = category.title,
+                    text = stringResource(category.titleRes),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 if (category.count >= 0) {
                     Text(
-                        text = "${category.count} items",
+                        text = stringResource(R.string.items_count, category.count),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Text(
-                        text = "Your favorites",
+                        text = stringResource(R.string.your_favorites),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

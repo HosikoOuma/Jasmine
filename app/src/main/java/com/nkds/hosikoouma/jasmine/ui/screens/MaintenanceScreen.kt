@@ -1,6 +1,7 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
 import android.text.format.Formatter
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,24 +12,37 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.R
+import com.nkds.hosikoouma.jasmine.ui.components.SettingsClickableItem
 import com.nkds.hosikoouma.jasmine.viewmodels.MaintenanceViewModel
-import kotlin.math.roundToInt
+import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 
 @Composable
 fun MaintenanceScreen(
-    viewModel: MaintenanceViewModel = hiltViewModel()
+    maintenanceViewModel: MaintenanceViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by maintenanceViewModel.state.collectAsStateWithLifecycle()
+    val settings by settingsViewModel.settingsState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    
     var showConfirmCoverDialog by remember { mutableStateOf(false) }
     var showConfirmTelegramDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
 
     val formattedCoverSize = Formatter.formatFileSize(context, state.coverSize)
     val formattedTelegramSize = Formatter.formatFileSize(context, state.telegramCacheSize)
+
+    val languages = listOf(
+        "default" to stringResource(R.string.system_default),
+        "en" to "English",
+        "ru" to "Русский"
+    )
 
     Column(
         modifier = Modifier
@@ -37,10 +51,34 @@ fun MaintenanceScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
+        // --- Language Section ---
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = stringResource(R.string.app_language),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+
+            SettingsClickableItem(
+                title = stringResource(R.string.app_language),
+                subtitle = languages.find { it.first == settings.language }?.second ?: settings.language,
+                icon = Icons.Rounded.Language,
+                onClick = { showLanguageDialog = true }
+            )
+            
+            Text(
+                text = stringResource(R.string.language_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
+
         // --- Storage Section ---
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                text = "Storage & Cache",
+                text = stringResource(R.string.storage_cache),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold
@@ -62,12 +100,12 @@ fun MaintenanceScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(
-                                text = "Cover Art Cache",
+                                text = stringResource(R.string.cover_cache),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${state.coverCount} files • $formattedCoverSize",
+                                text = stringResource(R.string.cover_cache_info, state.coverCount, formattedCoverSize),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -77,7 +115,7 @@ fun MaintenanceScreen(
                     Spacer(Modifier.height(16.dp))
                     
                     Text(
-                        text = "Covers are cached to improve scrolling performance. Clearing them will force the app to re-scan covers on the next launch.",
+                        text = stringResource(R.string.cover_cache_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -91,14 +129,14 @@ fun MaintenanceScreen(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
                         ),
-                        enabled = !state.isClearing && state.coverCount > 0
+                        enabled = !state.isClearingCovers && state.coverCount > 0
                     ) {
-                        if (state.isClearing) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        if (state.isClearingCovers) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onErrorContainer)
                         } else {
                             Icon(Icons.Rounded.DeleteForever, null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Clear Cover Cache")
+                            Text(stringResource(R.string.clear_cover_cache))
                         }
                     }
                 }
@@ -120,7 +158,7 @@ fun MaintenanceScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(
-                                text = "Telegram Cloud Cache",
+                                text = stringResource(R.string.telegram_cache),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -135,7 +173,7 @@ fun MaintenanceScreen(
                     Spacer(Modifier.height(16.dp))
                     
                     Text(
-                        text = "Music streamed from Telegram is cached locally for smooth playback. Clearing this will delete all downloaded cloud tracks.",
+                        text = stringResource(R.string.telegram_cache_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -149,14 +187,14 @@ fun MaintenanceScreen(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
                         ),
-                        enabled = !state.isClearing && state.telegramCacheSize > 0
+                        enabled = !state.isClearingTelegram && state.telegramCacheSize > 0
                     ) {
-                        if (state.isClearing) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        if (state.isClearingTelegram) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onErrorContainer)
                         } else {
                             Icon(Icons.Rounded.DeleteForever, null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Clear Telegram Cache")
+                            Text(stringResource(R.string.clear_telegram_cache))
                         }
                     }
                 }
@@ -166,25 +204,53 @@ fun MaintenanceScreen(
         Spacer(modifier = Modifier.height(160.dp))
     }
 
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.app_language)) },
+            text = {
+                Column {
+                    languages.forEach { (code, name) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    settingsViewModel.setLanguage(code)
+                                    showLanguageDialog = false
+                                }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = settings.language == code, onClick = null)
+                            Spacer(Modifier.width(16.dp))
+                            Text(name)
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     if (showConfirmCoverDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmCoverDialog = false },
-            title = { Text("Clear cache?") },
-            text = { Text("This will delete all cached album covers. They will be regenerated the next time you scan your library.") },
+            title = { Text(stringResource(R.string.clear_cache_confirm_title)) },
+            text = { Text(stringResource(R.string.clear_cover_cache_confirm_desc)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showConfirmCoverDialog = false
-                        viewModel.clearCoverCache()
+                        maintenanceViewModel.clearCoverCache()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Clear")
+                    Text(stringResource(R.string.clear))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmCoverDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -193,22 +259,22 @@ fun MaintenanceScreen(
     if (showConfirmTelegramDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmTelegramDialog = false },
-            title = { Text("Clear Telegram cache?") },
-            text = { Text("This will delete all downloaded audio files from Telegram. Your account and channels will remain connected.") },
+            title = { Text(stringResource(R.string.clear_telegram_cache_confirm_title)) },
+            text = { Text(stringResource(R.string.clear_telegram_cache_confirm_desc)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showConfirmTelegramDialog = false
-                        viewModel.clearTelegramCache()
+                        maintenanceViewModel.clearTelegramCache()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Clear")
+                    Text(stringResource(R.string.clear))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmTelegramDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

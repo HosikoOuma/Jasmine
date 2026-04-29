@@ -23,11 +23,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.models.AppFontFamily
 import com.nkds.hosikoouma.jasmine.core.models.DarkMode
 import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
@@ -92,7 +94,7 @@ fun AppearanceSettingsContent(
     ) {
         // --- ПРЕВЬЮ ШРИФТА ---
         PreviewCard(
-            title = "App Font",
+            title = stringResource(R.string.app_font),
             icon = Icons.Rounded.TextFields,
             currentValue = settings.appFontFamily.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
             onClick = { showFontDialog = true }
@@ -113,7 +115,7 @@ fun AppearanceSettingsContent(
 
         // --- ПРЕВЬЮ ПРОГРЕСС БАРА ---
         PreviewCard(
-            title = "Progress Bar Style",
+            title = stringResource(R.string.progress_bar_style),
             icon = Icons.Rounded.Timeline,
             currentValue = settings.progressBarStyle.name.lowercase().replaceFirstChar { it.uppercase() },
             onClick = { showStyleDialog = true }
@@ -139,7 +141,7 @@ fun AppearanceSettingsContent(
 
         // --- ПРЕВЬЮ ПАЛИТРЫ ---
         PreviewCard(
-            title = "Palette Style",
+            title = stringResource(R.string.palette_style),
             icon = Icons.Rounded.Palette,
             currentValue = settings.paletteStyle,
             onClick = { showPaletteDialog = true }
@@ -158,21 +160,21 @@ fun AppearanceSettingsContent(
         // --- НАСТРОЙКИ НАВИГАЦИИ И УПРАВЛЕНИЯ ---
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Layout & Customization",
+                text = stringResource(R.string.layout_customization),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
             )
 
             SettingsClickableItem(
-                title = "Navigation Bar Items",
-                subtitle = "Reorder or hide navigation tabs",
+                title = stringResource(R.string.nav_bar_items),
+                subtitle = stringResource(R.string.nav_bar_items_desc),
                 onClick = { showNavDialog = true }
             )
 
             SettingsClickableItem(
-                title = "Player Controls Order",
-                subtitle = "Reorder playback buttons in player screen",
+                title = stringResource(R.string.player_controls_order),
+                subtitle = stringResource(R.string.player_controls_order_desc),
                 onClick = { showControlsDialog = true }
             )
         }
@@ -180,37 +182,37 @@ fun AppearanceSettingsContent(
         // --- ТЕМА ---
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "System Theme",
+                text = stringResource(R.string.system_theme),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
             )
             
             SettingsClickableItem(
-                title = "Theme Mode",
+                title = stringResource(R.string.theme_mode),
                 subtitle = settings.darkMode.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
                 onClick = { showThemeDialog = true }
             )
 
             SettingsSwitchItem(
-                title = "AMOLED Dark Mode",
-                subtitle = "Pure black background in dark theme",
+                title = stringResource(R.string.amoled_mode),
+                subtitle = stringResource(R.string.amoled_mode_desc),
                 checked = settings.amoledDarkMode,
                 onCheckedChange = onSetAmoledMode
             )
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 SettingsSwitchItem(
-                    title = "Dynamic Colors (Material You)",
-                    subtitle = "Use system accent colors",
+                    title = stringResource(R.string.dynamic_colors),
+                    subtitle = stringResource(R.string.dynamic_colors_desc),
                     checked = settings.useDynamicColor,
                     onCheckedChange = onSetUseDynamicColor
                 )
             }
 
             SettingsSwitchItem(
-                title = "Use Album Art Color",
-                subtitle = "Generate theme from current track cover",
+                title = stringResource(R.string.use_album_art_color),
+                subtitle = stringResource(R.string.use_album_art_color_desc),
                 checked = settings.useAlbumArtColor,
                 onCheckedChange = onSetUseAlbumArtColor
             )
@@ -239,7 +241,7 @@ fun AppearanceSettingsContent(
 
     if (showThemeDialog) {
         SettingsSelectionDialog(
-            title = "Theme Mode",
+            title = stringResource(R.string.theme_mode),
             options = DarkMode.entries.toTypedArray(),
             selectedOption = settings.darkMode,
             onOptionSelected = onSetDarkMode,
@@ -249,7 +251,7 @@ fun AppearanceSettingsContent(
 
     if (showFontDialog) {
         SettingsSelectionDialog(
-            title = "App Font",
+            title = stringResource(R.string.app_font),
             options = AppFontFamily.entries.toTypedArray(),
             selectedOption = settings.appFontFamily,
             onOptionSelected = onSetAppFontFamily,
@@ -259,7 +261,7 @@ fun AppearanceSettingsContent(
 
     if (showStyleDialog) {
         SettingsSelectionDialog(
-            title = "Progress Bar Style",
+            title = stringResource(R.string.progress_bar_style),
             options = ProgressBarStyle.entries.toTypedArray(),
             selectedOption = settings.progressBarStyle,
             onOptionSelected = onSetProgressBarStyle,
@@ -271,7 +273,7 @@ fun AppearanceSettingsContent(
         val styles = listOf("TonalSpot", "Neutral", "Vibrant", "Expressive", "Rainbow", "FruitSalad", "Monochrome", "Fidelity", "Content")
         AlertDialog(
             onDismissRequest = { showPaletteDialog = false },
-            title = { Text("Palette Style") },
+            title = { Text(stringResource(R.string.palette_style)) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     styles.forEach { style ->
@@ -289,7 +291,7 @@ fun AppearanceSettingsContent(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showPaletteDialog = false }) { Text("Done") } }
+            confirmButton = { TextButton(onClick = { showPaletteDialog = false }) { Text(stringResource(R.string.done)) } }
         )
     }
 }
@@ -301,11 +303,11 @@ fun PlayerControlsOrderDialog(
     onSave: (List<String>) -> Unit
 ) {
     val controlMap = mapOf(
-        "shuffle" to ("Shuffle" to Icons.Rounded.Shuffle),
-        "previous" to ("Previous" to Icons.Rounded.SkipPrevious),
-        "play_pause" to ("Play/Pause" to Icons.Rounded.PlayArrow),
-        "next" to ("Next" to Icons.Rounded.SkipNext),
-        "repeat" to ("Repeat" to Icons.Rounded.Repeat)
+        "shuffle" to (stringResource(R.string.player_shuffle) to Icons.Rounded.Shuffle),
+        "previous" to (stringResource(R.string.player_previous) to Icons.Rounded.SkipPrevious),
+        "play_pause" to (stringResource(R.string.player_play_pause) to Icons.Rounded.PlayArrow),
+        "next" to (stringResource(R.string.player_next) to Icons.Rounded.SkipNext),
+        "repeat" to (stringResource(R.string.player_repeat) to Icons.Rounded.Repeat)
     )
 
     var itemsState by remember { 
@@ -321,11 +323,11 @@ fun PlayerControlsOrderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Player Controls Order") },
+        title = { Text(stringResource(R.string.player_controls_order)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Drag the handles to reorder playback buttons.",
+                    stringResource(R.string.drag_to_reorder),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -384,10 +386,10 @@ fun PlayerControlsOrderDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(itemsState); onDismiss() }) { Text("Save") }
+            Button(onClick = { onSave(itemsState); onDismiss() }) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -419,11 +421,11 @@ fun NavigationItemsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Navigation Bar Items") },
+        title = { Text(stringResource(R.string.nav_bar_items)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Drag the handles to reorder. Min 2 items required.",
+                    stringResource(R.string.drag_to_reorder_min2),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -476,7 +478,15 @@ fun NavigationItemsDialog(
                                         Spacer(Modifier.width(16.dp))
                                         
                                         Text(
-                                            text = screen.title, 
+                                            text = when(screen) {
+                                                Screen.Tracks -> stringResource(R.string.nav_tracks)
+                                                Screen.Library -> stringResource(R.string.nav_library)
+                                                Screen.Radio -> stringResource(R.string.nav_radio)
+                                                Screen.Settings -> stringResource(R.string.nav_settings)
+                                                Screen.TelegramCloud -> stringResource(R.string.telegram_cloud)
+                                                Screen.LibraryPlaylists -> stringResource(R.string.playlists)
+                                                else -> screen.title
+                                            }, 
                                             modifier = Modifier.weight(1f),
                                             fontWeight = FontWeight.Bold,
                                             style = MaterialTheme.typography.titleMedium,
@@ -522,10 +532,10 @@ fun NavigationItemsDialog(
                     onSave(finalRoutes)
                     onDismiss()
                 }
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

@@ -11,10 +11,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.datamodels.Folder
 import com.nkds.hosikoouma.jasmine.ui.components.SettingsClickableItem
@@ -64,6 +66,18 @@ fun LibrarySettingsContent(
     var showSortDialog by remember { mutableStateOf(false) }
     var showBlacklistDialog by remember { mutableStateOf(false) }
 
+    val reversedLabel = stringResource(R.string.reversed_label)
+    
+    val currentSortLabel = remember(defaultSortType, isDefaultSortReversed, reversedLabel) {
+        val typeLabel = when(defaultSortType) {
+            SortType.BY_TITLE -> "Title"
+            SortType.BY_ARTIST -> "Artist"
+            SortType.BY_DATE -> "Date"
+            SortType.BY_DURATION -> "Duration"
+        }
+        "By $typeLabel ${if(isDefaultSortReversed) reversedLabel else ""}"
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -71,7 +85,7 @@ fun LibrarySettingsContent(
             .padding(16.dp)
     ) {
         SettingsSliderItem(
-            label = "Filter short tracks",
+            label = stringResource(R.string.filter_short_tracks),
             value = minTrackDuration.toFloat(),
             valueRange = 0f..30f,
             steps = 29,
@@ -80,14 +94,22 @@ fun LibrarySettingsContent(
         )
 
         SettingsClickableItem(
-            title = "Default Sorting",
-            subtitle = "By ${defaultSortType.name.substringAfter("BY_").lowercase()} ${if(isDefaultSortReversed) "(Reversed)" else ""}",
+            title = stringResource(R.string.default_sorting),
+            subtitle = stringResource(R.string.default_sorting_desc, 
+                when(defaultSortType) {
+                    SortType.BY_TITLE -> stringResource(R.string.sort_by_name)
+                    SortType.BY_ARTIST -> stringResource(R.string.sort_by_artist)
+                    SortType.BY_DATE -> stringResource(R.string.sort_by_date)
+                    SortType.BY_DURATION -> stringResource(R.string.sort_by_duration)
+                },
+                if(isDefaultSortReversed) stringResource(R.string.reversed_label) else ""
+            ),
             onClick = { showSortDialog = true }
         )
 
         SettingsClickableItem(
-            title = "Blacklisted Folders",
-            subtitle = "Manage music folders to exclude",
+            title = stringResource(R.string.blacklisted_folders),
+            subtitle = stringResource(R.string.blacklisted_folders_desc),
             onClick = { showBlacklistDialog = true }
         )
     }
@@ -95,7 +117,7 @@ fun LibrarySettingsContent(
     if (showSortDialog) {
         AlertDialog(
             onDismissRequest = { showSortDialog = false },
-            title = { Text("Default Sorting") },
+            title = { Text(stringResource(R.string.default_sorting)) },
             text = {
                 Column {
                     SortType.entries.forEach { type ->
@@ -108,7 +130,12 @@ fun LibrarySettingsContent(
                         ) {
                             RadioButton(selected = defaultSortType == type, onClick = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(type.name.substringAfter("BY_").lowercase().replaceFirstChar { it.uppercase() })
+                            Text(when(type) {
+                                SortType.BY_TITLE -> stringResource(R.string.sort_by_name)
+                                SortType.BY_ARTIST -> stringResource(R.string.sort_by_artist)
+                                SortType.BY_DATE -> stringResource(R.string.sort_by_date)
+                                SortType.BY_DURATION -> stringResource(R.string.sort_by_duration)
+                            })
                         }
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -121,22 +148,22 @@ fun LibrarySettingsContent(
                     ) {
                         Checkbox(checked = isDefaultSortReversed, onCheckedChange = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reverse order by default")
+                        Text(stringResource(R.string.reverse_order_default))
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showSortDialog = false }) { Text("Done") } }
+            confirmButton = { TextButton(onClick = { showSortDialog = false }) { Text(stringResource(R.string.done)) } }
         )
     }
 
     if (showBlacklistDialog) {
         AlertDialog(
             onDismissRequest = { showBlacklistDialog = false },
-            title = { Text("Blacklisted Folders") },
+            title = { Text(stringResource(R.string.blacklisted_folders)) },
             text = {
                 Column(modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
                     if (folders.isEmpty()) {
-                        Text("No folders found", modifier = Modifier.padding(16.dp))
+                        Text(stringResource(R.string.no_folders), modifier = Modifier.padding(16.dp))
                     }
                     folders.forEach { folder ->
                         val isBlacklisted = blacklistedFolders.contains(folder.path)
@@ -177,7 +204,7 @@ fun LibrarySettingsContent(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showBlacklistDialog = false }) { Text("Done") } }
+            confirmButton = { TextButton(onClick = { showBlacklistDialog = false }) { Text(stringResource(R.string.done)) } }
         )
     }
 }

@@ -2,6 +2,7 @@ package com.nkds.hosikoouma.jasmine.ui
 
 import android.app.Activity
 import android.net.Uri
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -33,14 +34,16 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
@@ -61,10 +64,10 @@ import java.nio.charset.StandardCharsets
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun MainScreen(
-    trackViewModel: TrackViewModel = viewModel(),
-    playerViewModel: PlayerViewModel = viewModel(),
-    radioViewModel: RadioViewModel = viewModel(),
-    telegramCloudViewModel: TelegramCloudViewModel = viewModel()
+    trackViewModel: TrackViewModel,
+    playerViewModel: PlayerViewModel,
+    radioViewModel: RadioViewModel,
+    telegramCloudViewModel: TelegramCloudViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -91,38 +94,75 @@ fun MainScreen(
     // Данные Telegram каналов для заголовка
     val telegramChannels by telegramCloudViewModel.channels.collectAsStateWithLifecycle()
 
-    // 1. Оптимизация заголовка через derivedStateOf
+    // 1. Динамическое определение заголовка. 
     val isInSelectionMode = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()
-    val dynamicTitle by remember(currentRoute, navBackStackEntry, isInSelectionMode, selectedTracks.size, selectedStations.size, telegramChannels) {
+    
+    // Подготавливаем все возможные строки для заголовка
+    val selectedCount = if (selectedTracks.isNotEmpty()) selectedTracks.size else selectedStations.size
+    val selectedText = stringResource(R.string.selected_count, selectedCount)
+    val albumDefault = stringResource(R.string.album_default)
+    val artistDefault = stringResource(R.string.artist_default)
+    val folderDefault = stringResource(R.string.folder_default)
+    val playlistDefault = stringResource(R.string.playlist_default)
+    val telegramChannelDefault = stringResource(R.string.telegram_channel_default)
+    
+    val titleTracks = stringResource(R.string.nav_tracks)
+    val titleAlbums = stringResource(R.string.albums)
+    val titleArtists = stringResource(R.string.artists)
+    val titleFolders = stringResource(R.string.folders)
+    val titlePlaylists = stringResource(R.string.playlists)
+    val titlePlayback = stringResource(R.string.playback)
+    val titleAppearance = stringResource(R.string.appearance)
+    val titleLibrarySettings = stringResource(R.string.library_settings)
+    val titleMaintenance = stringResource(R.string.maintenance)
+    val titleShapes = stringResource(R.string.shapes_gallery)
+    val titleAbout = stringResource(R.string.about_jasmine)
+    val titleTelegram = stringResource(R.string.telegram_cloud)
+    val titleChatPicker = stringResource(R.string.chat_picker)
+    val titleRadio = stringResource(R.string.nav_radio)
+    val titleLibrary = stringResource(R.string.nav_library)
+    val titleSettings = stringResource(R.string.nav_settings)
+
+    val dynamicTitle by remember(
+        currentRoute, navBackStackEntry, isInSelectionMode, selectedCount, telegramChannels,
+        selectedText, albumDefault, artistDefault, folderDefault, playlistDefault, telegramChannelDefault,
+        titleTracks, titleAlbums, titleArtists, titleFolders, titlePlaylists, titlePlayback, titleAppearance,
+        titleLibrarySettings, titleMaintenance, titleShapes, titleAbout, titleTelegram, titleChatPicker,
+        titleRadio, titleLibrary, titleSettings
+    ) {
         derivedStateOf {
             if (isInSelectionMode) {
-                "${if (selectedTracks.isNotEmpty()) selectedTracks.size else selectedStations.size} selected"
+                selectedText
             } else {
                 when {
-                    currentRoute?.startsWith("album_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("albumName") ?: "Album", StandardCharsets.UTF_8.toString())
-                    currentRoute?.startsWith("artist_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("artistName") ?: "Artist", StandardCharsets.UTF_8.toString())
-                    currentRoute?.startsWith("folder_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("folderPath") ?: "Folder", StandardCharsets.UTF_8.toString()).substringAfterLast("/")
+                    currentRoute?.startsWith("album_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("albumName") ?: albumDefault, StandardCharsets.UTF_8.toString())
+                    currentRoute?.startsWith("artist_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("artistName") ?: artistDefault, StandardCharsets.UTF_8.toString())
+                    currentRoute?.startsWith("folder_detail") == true -> URLDecoder.decode(navBackStackEntry?.arguments?.getString("folderPath") ?: folderDefault, StandardCharsets.UTF_8.toString()).substringAfterLast("/")
                     currentRoute?.startsWith("playlist_detail") == true -> {
                         val pId = navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L
-                        trackViewModel.getPlaylistNameSync(pId) ?: "Playlist"
+                        trackViewModel.getPlaylistNameSync(pId) ?: playlistDefault
                     }
                     currentRoute?.startsWith("telegram_channel_detail") == true -> {
                         val chatId = navBackStackEntry?.arguments?.getLong("chatId") ?: 0L
-                        telegramChannels.find { it.chatId == chatId }?.title ?: "Telegram Channel"
+                        telegramChannels.find { it.chatId == chatId }?.title ?: telegramChannelDefault
                     }
-                    currentRoute == Screen.LibraryAlbums.route -> "Albums"
-                    currentRoute == Screen.LibraryArtists.route -> "Artists"
-                    currentRoute == Screen.LibraryFolders.route -> "Folders"
-                    currentRoute == Screen.LibraryPlaylists.route -> "Playlists"
-                    currentRoute == Screen.SettingsPlayback.route -> "Playback"
-                    currentRoute == Screen.SettingsAppearance.route -> "Appearance"
-                    currentRoute == Screen.SettingsLibrary.route -> "Library Settings"
-                    currentRoute == Screen.SettingsMaintenance.route -> "Maintenance"
-                    currentRoute == Screen.SettingsShapes.route -> "Shapes Gallery"
-                    currentRoute == Screen.About.route -> "About Jasmine"
-                    currentRoute == Screen.TelegramCloud.route -> "Telegram Cloud"
-                    currentRoute == Screen.SettingsTelegram.route -> "Telegram Cloud"
-                    currentRoute == Screen.TelegramChatPicker.route -> "Chat Picker"
+                    currentRoute == Screen.Tracks.route -> titleTracks
+                    currentRoute == Screen.LibraryAlbums.route -> titleAlbums
+                    currentRoute == Screen.LibraryArtists.route -> titleArtists
+                    currentRoute == Screen.LibraryFolders.route -> titleFolders
+                    currentRoute == Screen.LibraryPlaylists.route -> titlePlaylists
+                    currentRoute == Screen.SettingsPlayback.route -> titlePlayback
+                    currentRoute == Screen.SettingsAppearance.route -> titleAppearance
+                    currentRoute == Screen.SettingsLibrary.route -> titleLibrarySettings
+                    currentRoute == Screen.SettingsMaintenance.route -> titleMaintenance
+                    currentRoute == Screen.SettingsShapes.route -> titleShapes
+                    currentRoute == Screen.About.route -> titleAbout
+                    currentRoute == Screen.TelegramCloud.route -> titleTelegram
+                    currentRoute == Screen.SettingsTelegram.route -> titleTelegram
+                    currentRoute == Screen.TelegramChatPicker.route -> titleChatPicker
+                    currentRoute == Screen.Radio.route -> titleRadio
+                    currentRoute == Screen.Library.route -> titleLibrary
+                    currentRoute == Screen.Settings.route -> titleSettings
                     else -> Screen.items.find { it.route == currentRoute }?.title ?: "Jasmine"
                 }
             }
@@ -300,10 +340,10 @@ private fun MainContent(
                 title = {
                     if (isSearching && canSearchHere) {
                         val placeholder = when {
-                            isTracksScreen -> "Search tracks..."
-                            isPlaylistDetail -> "Search in playlist..."
-                            isFolderDetail -> "Search in folder..."
-                            else -> "Search..."
+                            isTracksScreen -> stringResource(R.string.search_tracks)
+                            isPlaylistDetail -> stringResource(R.string.search_in_playlist)
+                            isFolderDetail -> stringResource(R.string.search_in_folder)
+                            else -> stringResource(R.string.search_generic)
                         }
                         TextField(
                             value = searchQuery,
@@ -320,9 +360,9 @@ private fun MainContent(
                 },
                 navigationIcon = {
                     if (selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()) {
-                        IconButton(onClick = { onClearSelection() }) { Icon(Icons.Rounded.Close, "Clear") }
+                        IconButton(onClick = { onClearSelection() }) { Icon(Icons.Rounded.Close, stringResource(R.string.clear)) }
                     } else if (canPop && !isSearching) {
-                        IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                        IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
                     }
                 },
                 actions = {
@@ -392,8 +432,6 @@ private fun MainContent(
                 modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
             )
             
-            // ВАЖНО: Мы убираем canPop из BackHandler, чтобы системный жест Predictive Back 
-            // мог обработать переходы между экранами самостоятельно через NavHost.
             BackHandler(enabled = selectedTracks.isNotEmpty() || selectedStations.isNotEmpty() || isPlayerExpanded || isRadioPlayerExpanded || isSearching || showAddRadioDialog) {
                 when {
                     showAddRadioDialog -> onToggleAddRadioDialog(false)
@@ -497,7 +535,7 @@ private fun MainActionsSection(
     if (selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (selectedTracks.isNotEmpty() && (isPlaylistDetail || isFolderDetail)) {
-                IconButton(onClick = { onSelectAll() }) { Icon(Icons.Rounded.SelectAll, "Select All") }
+                IconButton(onClick = { onSelectAll() }) { Icon(Icons.Rounded.SelectAll, stringResource(R.string.select_all)) }
             }
 
             if (selectedTracks.isNotEmpty()) {
@@ -507,12 +545,12 @@ private fun MainActionsSection(
                 IconButton(onClick = { showMoreMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }
                 
                 DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }, shape = RoundedCornerShape(24.dp), modifier = Modifier.width(220.dp)) {
-                    DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = { showMoreMenu = false; ShareHelper.shareTracks(context, selectedTracks.toList()) })
-                    DropdownMenuItem(text = { Text("Add to playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) }, onClick = { showMoreMenu = false; onAddToPlaylist() })
-                    DropdownMenuItem(text = { Text("Delete from device", fontWeight = FontWeight.Bold) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMoreMenu = false; onDeleteTracks() }, colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error))
+                    DropdownMenuItem(text = { Text(stringResource(R.string.share)) }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = { showMoreMenu = false; ShareHelper.shareTracks(context, selectedTracks.toList()) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.add_to_playlist)) }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) }, onClick = { showMoreMenu = false; onAddToPlaylist() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.delete_from_device), fontWeight = FontWeight.Bold) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMoreMenu = false; onDeleteTracks() }, colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error))
                 }
             } else {
-                if (selectedStations.size == 1) IconButton(onClick = { clipboardManager.setText(AnnotatedString(selectedStations.first().url)); android.widget.Toast.makeText(context, "URL copied", android.widget.Toast.LENGTH_SHORT).show() }) { Icon(Icons.Rounded.ContentCopy, null) }
+                if (selectedStations.size == 1) IconButton(onClick = { clipboardManager.setText(AnnotatedString(selectedStations.first().url)); android.widget.Toast.makeText(context, context.getString(R.string.url_copied), android.widget.Toast.LENGTH_SHORT).show() }) { Icon(Icons.Rounded.ContentCopy, null) }
                 IconButton(onClick = { onDeleteStations() }) { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }
             }
         }
@@ -525,8 +563,8 @@ private fun MainActionsSection(
                     var showPlaylistMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showPlaylistMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }
                     DropdownMenu(expanded = showPlaylistMenu, onDismissRequest = { showPlaylistMenu = false }, shape = RoundedCornerShape(24.dp)) {
-                        DropdownMenuItem(text = { Text("Edit Details") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { showPlaylistMenu = false; onRenamePlaylist() })
-                        DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showPlaylistMenu = false; onDeletePlaylist() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.edit_details)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { showPlaylistMenu = false; onRenamePlaylist() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showPlaylistMenu = false; onDeletePlaylist() })
                     }
                 }
                 
@@ -534,7 +572,7 @@ private fun MainActionsSection(
                     var showFolderMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showFolderMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }
                     DropdownMenu(expanded = showFolderMenu, onDismissRequest = { showFolderMenu = false }, shape = RoundedCornerShape(24.dp)) {
-                        DropdownMenuItem(text = { Text("Blacklist Folder") }, leadingIcon = { Icon(Icons.Rounded.Block, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showFolderMenu = false; onBlacklistFolder() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.blacklist_folder_title)) }, leadingIcon = { Icon(Icons.Rounded.Block, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showFolderMenu = false; onBlacklistFolder() })
                     }
                 }
 
@@ -543,12 +581,12 @@ private fun MainActionsSection(
                     var showSortMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showSortMenu = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, null) }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }, shape = RoundedCornerShape(24.dp)) {
-                        DropdownMenuItem(text = { Text("By Name") }, onClick = { onSetSortType(SortType.BY_TITLE); showSortMenu = false })
-                        DropdownMenuItem(text = { Text("By Artist") }, onClick = { onSetSortType(SortType.BY_ARTIST); showSortMenu = false })
-                        DropdownMenuItem(text = { Text("By Date Added") }, onClick = { onSetSortType(SortType.BY_DATE); showSortMenu = false })
-                        DropdownMenuItem(text = { Text("By Duration") }, onClick = { onSetSortType(SortType.BY_DURATION); showSortMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_by_name)) }, onClick = { onSetSortType(SortType.BY_TITLE); showSortMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_by_artist)) }, onClick = { onSetSortType(SortType.BY_ARTIST); showSortMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_by_date)) }, onClick = { onSetSortType(SortType.BY_DATE); showSortMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.sort_by_duration)) }, onClick = { onSetSortType(SortType.BY_DURATION); showSortMenu = false })
                         HorizontalDivider()
-                        DropdownMenuItem(text = { Text(if (isReversed) "Normal Order" else "Reverse Order") }, leadingIcon = { Icon(Icons.Rounded.FilterList, null) }, onClick = { onToggleReverse(); showSortMenu = false })
+                        DropdownMenuItem(text = { Text(if (isReversed) stringResource(R.string.normal_order) else stringResource(R.string.reverse_order)) }, leadingIcon = { Icon(Icons.Rounded.FilterList, null) }, onClick = { onToggleReverse(); showSortMenu = false })
                     }
                 }
             }
@@ -592,7 +630,7 @@ private fun MainDialogs(
         val pTracks by trackViewModel.getTracksForPlaylist(playlistId).collectAsStateWithLifecycle(initialValue = emptyList())
         AlertDialog(
             onDismissRequest = onDismissTrackPicker,
-            title = { Text("Select Tracks") },
+            title = { Text(stringResource(R.string.select_tracks)) },
             text = {
                 LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(allTracks.size) { index ->
@@ -609,7 +647,7 @@ private fun MainDialogs(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = onDismissTrackPicker) { Text("Done") } },
+            confirmButton = { TextButton(onClick = onDismissTrackPicker) { Text(stringResource(R.string.done)) } },
             shape = RoundedCornerShape(28.dp)
         )
     }
@@ -617,7 +655,7 @@ private fun MainDialogs(
     if (showRenamePlaylistDialog) {
         val playlists by trackViewModel.playlists.collectAsStateWithLifecycle()
         val currentPlaylist = remember(playlists, playlistId) { playlists.find { it.id == playlistId } }
-        val currentPlaylistName = currentPlaylist?.name ?: "Playlist"
+        val currentPlaylistName = currentPlaylist?.name ?: stringResource(R.string.playlist_default)
         val currentPlaylistCover = currentPlaylist?.coverUri
 
         var newName by remember { mutableStateOf(currentPlaylistName) }
@@ -643,7 +681,7 @@ private fun MainDialogs(
         } else {
             AlertDialog(
                 onDismissRequest = onDismissRenamePlaylist,
-                title = { Text("Edit Playlist Details") },
+                title = { Text(stringResource(R.string.edit_playlist_details)) },
                 text = {
                     val context = LocalContext.current
                     Column(
@@ -671,7 +709,7 @@ private fun MainDialogs(
                         OutlinedTextField(
                             value = newName,
                             onValueChange = { newName = it },
-                            label = { Text("Playlist Name") },
+                            label = { Text(stringResource(R.string.playlist_name)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp)
@@ -684,28 +722,28 @@ private fun MainDialogs(
                             trackViewModel.renamePlaylist(playlistId, newName)
                         }
                         onDismissRenamePlaylist()
-                    }) { Text("Save") }
+                    }) { Text(stringResource(R.string.save)) }
                 },
-                dismissButton = { TextButton(onClick = onDismissRenamePlaylist) { Text("Cancel") } },
+                dismissButton = { TextButton(onClick = onDismissRenamePlaylist) { Text(stringResource(R.string.cancel)) } },
                 shape = RoundedCornerShape(28.dp)
             )
         }
     }
 
     if (showDeletePlaylistDialog) {
-        AlertDialog(onDismissRequest = onDismissDeletePlaylist, title = { Text("Delete Playlist") }, text = { Text("Delete this playlist?") }, confirmButton = { TextButton(onClick = { trackViewModel.deletePlaylist(playlistId); onDismissDeletePlaylist(); navController.popBackStack() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeletePlaylist() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
+        AlertDialog(onDismissRequest = onDismissDeletePlaylist, title = { Text(stringResource(R.string.delete_playlist_title)) }, text = { Text(stringResource(R.string.delete_playlist_message)) }, confirmButton = { TextButton(onClick = { trackViewModel.deletePlaylist(playlistId); onDismissDeletePlaylist(); navController.popBackStack() }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeletePlaylist() }) { Text(stringResource(R.string.cancel)) } }, shape = RoundedCornerShape(28.dp))
     }
 
     if (showDeleteTracksDialog) {
-        AlertDialog(onDismissRequest = onDismissDeleteTracks, title = { Text("Delete Tracks") }, text = { Text("Delete ${selectedTracks.size} tracks from device?") }, confirmButton = { TextButton(onClick = { onDismissDeleteTracks(); playerViewModel.prepareForDeletion(selectedTracks.toList()); trackViewModel.deleteTracks(selectedTracks.toList()); onClearSelection() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeleteTracks() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
+        AlertDialog(onDismissRequest = onDismissDeleteTracks, title = { Text(stringResource(R.string.delete_tracks_title)) }, text = { Text(stringResource(R.string.delete_tracks_message, selectedTracks.size)) }, confirmButton = { TextButton(onClick = { onDismissDeleteTracks(); playerViewModel.prepareForDeletion(selectedTracks.toList()); trackViewModel.deleteTracks(selectedTracks.toList()); onClearSelection() }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeleteTracks() }) { Text(stringResource(R.string.cancel)) } }, shape = RoundedCornerShape(28.dp))
     }
 
     if (showDeleteStationsDialog) {
-        AlertDialog(onDismissRequest = onDismissDeleteStations, title = { Text("Delete Stations") }, text = { Text("Delete ${selectedStations.size} stations?") }, confirmButton = { TextButton(onClick = { selectedStations.forEach { radioViewModel.deleteStation(it) }; onClearSelection(); onDismissDeleteStations() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeleteStations() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
+        AlertDialog(onDismissRequest = onDismissDeleteStations, title = { Text(stringResource(R.string.delete_stations_title)) }, text = { Text(stringResource(R.string.delete_stations_message, selectedStations.size)) }, confirmButton = { TextButton(onClick = { selectedStations.forEach { radioViewModel.deleteStation(it) }; onClearSelection(); onDismissDeleteStations() }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissDeleteStations() }) { Text(stringResource(R.string.cancel)) } }, shape = RoundedCornerShape(28.dp))
     }
 
     if (showRemoveFromPlaylistDialog) {
-        AlertDialog(onDismissRequest = onDismissRemoveFromPlaylist, title = { Text("Remove Tracks") }, text = { Text("Remove ${selectedTracks.size} tracks from playlist?") }, confirmButton = { TextButton(onClick = { trackViewModel.removeTracksFromPlaylist(playlistId, selectedTracks.toList()); onClearSelection(); onDismissRemoveFromPlaylist() }) { Text("Remove", color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissRemoveFromPlaylist() }) { Text("Cancel") } }, shape = RoundedCornerShape(28.dp))
+        AlertDialog(onDismissRequest = onDismissRemoveFromPlaylist, title = { Text(stringResource(R.string.remove_tracks_title)) }, text = { Text(stringResource(R.string.remove_tracks_message, selectedTracks.size)) }, confirmButton = { TextButton(onClick = { trackViewModel.removeTracksFromPlaylist(playlistId, selectedTracks.toList()); onClearSelection(); onDismissRemoveFromPlaylist() }) { Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error) } }, dismissButton = { TextButton(onClick = { onDismissRemoveFromPlaylist() }) { Text(stringResource(R.string.cancel)) } }, shape = RoundedCornerShape(28.dp))
     }
 
     if (showAddToPlaylistDialog) {
@@ -715,17 +753,17 @@ private fun MainDialogs(
     if (showBlacklistFolderDialog) {
         AlertDialog(
             onDismissRequest = onDismissBlacklistFolder,
-            title = { Text("Blacklist Folder") },
-            text = { Text("Are you sure you want to add this folder and all its subfolders to the blacklist? The tracks will be hidden from your library.") },
+            title = { Text(stringResource(R.string.blacklist_folder_title)) },
+            text = { Text(stringResource(R.string.blacklist_folder_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     val decodedPath = URLDecoder.decode(folderPath, StandardCharsets.UTF_8.toString())
                     trackViewModel.addFolderToBlacklist(decodedPath)
                     onDismissBlacklistFolder()
                     navController.popBackStack()
-                }) { Text("Blacklist", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.blacklist), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = onDismissBlacklistFolder) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = onDismissBlacklistFolder) { Text(stringResource(R.string.cancel)) } },
             shape = RoundedCornerShape(28.dp)
         )
     }

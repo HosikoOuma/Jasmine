@@ -15,10 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.SwipeableTrackCard
 import com.nkds.hosikoouma.jasmine.ui.components.TrackCard
@@ -79,14 +81,14 @@ fun QueueContent(
             QueueHeader(onClose)
 
             currentTrack?.let { track ->
-                SectionLabel("Now Playing", MaterialTheme.colorScheme.primary)
+                SectionLabel(stringResource(R.string.now_playing), MaterialTheme.colorScheme.primary)
                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                     TrackCard(track = track, isCurrent = true, isPlaying = isPlaying, onClick = {})
                 }
             }
 
             QueueDivider()
-            SectionLabel("Up Next", MaterialTheme.colorScheme.secondary)
+            SectionLabel(stringResource(R.string.up_next), MaterialTheme.colorScheme.secondary)
 
             val lazyListState = rememberLazyListState()
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
@@ -143,13 +145,13 @@ private fun QueueHeader(onClose: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Playing Queue", 
+            text = stringResource(R.string.playing_queue), 
             style = MaterialTheme.typography.titleLarge, 
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
         TextButton(onClick = onClose) { 
-            Text("Done", color = MaterialTheme.colorScheme.primary) 
+            Text(stringResource(R.string.done), color = MaterialTheme.colorScheme.primary)
         }
     }
 }

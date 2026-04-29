@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,7 +71,7 @@ fun TrackShareBottomSheet(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Share Track",
+                text = stringResource(R.string.share_track),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 24.dp)
@@ -82,7 +83,7 @@ fun TrackShareBottomSheet(
             ) {
                 ShareOptionCard(
                     icon = Icons.Rounded.Audiotrack,
-                    label = "File",
+                    label = stringResource(R.string.share_file),
                     modifier = Modifier.weight(1f),
                     onClick = {
                         ShareHelper.shareTrack(context, track)
@@ -91,7 +92,7 @@ fun TrackShareBottomSheet(
                 )
                 ShareOptionCard(
                     icon = Icons.Rounded.Description,
-                    label = "Text",
+                    label = stringResource(R.string.share_text),
                     modifier = Modifier.weight(1f),
                     onClick = {
                         ShareHelper.shareTrackAsText(context, track)
@@ -100,7 +101,7 @@ fun TrackShareBottomSheet(
                 )
                 ShareOptionCard(
                     icon = Icons.Rounded.Style,
-                    label = "Card",
+                    label = stringResource(R.string.share_card),
                     modifier = Modifier.weight(1f),
                     onClick = {
                         showShareCardDialog = true
@@ -174,7 +175,7 @@ fun TrackShareDialog(
             containerColor = Color.Black.copy(alpha = 0.95f),
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("Share Card", color = Color.White) },
+                    title = { Text(stringResource(R.string.share_card_title), color = Color.White) },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Rounded.Close, null, tint = Color.White)

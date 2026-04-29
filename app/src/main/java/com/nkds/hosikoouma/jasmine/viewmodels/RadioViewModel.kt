@@ -5,6 +5,7 @@ import android.content.Context
 import android.media.AudioManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.data.RadioRepository
 import com.nkds.hosikoouma.jasmine.data.RadioStation
 import com.nkds.hosikoouma.jasmine.ui.components.ToastData
@@ -58,9 +59,10 @@ class RadioViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.addStation(name, url)
-                showToast(ToastType.RADIO_ADDED, "Added: $name")
+                // Передаем null, чтобы JasmineToast использовал переведенный ресурс по умолчанию
+                showToast(ToastType.RADIO_ADDED, null)
             } catch (e: Exception) {
-                _errorEvent.emit("Failed to add station: ${e.message}")
+                _errorEvent.emit(getApplication<Application>().getString(R.string.update_failed))
             }
         }
     }
@@ -69,9 +71,10 @@ class RadioViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 repository.deleteStation(station)
-                showToast(ToastType.RADIO_REMOVED, "Deleted: ${station.name}")
+                // Передаем null, чтобы JasmineToast использовал переведенный ресурс по умолчанию
+                showToast(ToastType.RADIO_REMOVED, null)
             } catch (e: Exception) {
-                _errorEvent.emit("Failed to delete station")
+                _errorEvent.emit(getApplication<Application>().getString(R.string.update_failed))
             }
         }
     }

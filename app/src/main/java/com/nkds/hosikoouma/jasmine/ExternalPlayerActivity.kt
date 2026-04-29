@@ -56,12 +56,21 @@ class ExternalPlayerActivity : ComponentActivity() {
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(this, uri)
-            val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: uri.lastPathSegment ?: "Unknown Title"
-            val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
+            val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) 
+                ?: uri.lastPathSegment 
+                ?: getString(R.string.unknown_title)
+            
+            val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) 
+                ?: getString(R.string.unknown_artist)
+            
             val artwork = retriever.embeddedPicture
             ExternalMeta(title, artist, artwork)
         } catch (e: Exception) {
-            ExternalMeta(uri.lastPathSegment ?: "Unknown", "Unknown Artist", null)
+            ExternalMeta(
+                uri.lastPathSegment ?: getString(R.string.unknown), 
+                getString(R.string.unknown_artist), 
+                null
+            )
         } finally {
             retriever.release()
         }

@@ -11,9 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 
 @Composable
@@ -27,43 +29,43 @@ fun SettingsScreen(
             .padding(16.dp)
     ) {
         SettingsCategoryItem(
-            title = "Playback",
-            subtitle = "Crossfade, progress bar style",
+            title = stringResource(R.string.playback),
+            subtitle = stringResource(R.string.settings_playback_subtitle),
             icon = Icons.Rounded.PlayCircle,
             onClick = { navController.navigate(Screen.SettingsPlayback.route) }
         )
 
         SettingsCategoryItem(
-            title = "Appearance",
-            subtitle = "Theme, AMOLED, fonts, colors",
+            title = stringResource(R.string.appearance),
+            subtitle = stringResource(R.string.settings_appearance_subtitle),
             icon = Icons.Rounded.Palette,
             onClick = { navController.navigate(Screen.SettingsAppearance.route) }
         )
 
         SettingsCategoryItem(
-            title = "Library",
-            subtitle = "Sorting, filtering, blacklisted folders",
+            title = stringResource(R.string.library_settings),
+            subtitle = stringResource(R.string.settings_library_subtitle),
             icon = Icons.Rounded.LibraryMusic,
             onClick = { navController.navigate(Screen.SettingsLibrary.route) }
         )
         
         SettingsCategoryItem(
-            title = "Telegram Cloud",
-            subtitle = "Stream music from your chats",
+            title = stringResource(R.string.telegram_cloud),
+            subtitle = stringResource(R.string.settings_telegram_subtitle),
             icon = Icons.Rounded.Cloud,
             onClick = { navController.navigate(Screen.SettingsTelegram.route) }
         )
 
         SettingsCategoryItem(
-            title = "Maintenance",
-            subtitle = "Cache cleanup, storage info",
+            title = stringResource(R.string.maintenance),
+            subtitle = stringResource(R.string.settings_maintenance_subtitle),
             icon = Icons.Rounded.Build,
             onClick = { navController.navigate(Screen.SettingsMaintenance.route) }
         )
 
         SettingsCategoryItem(
-            title = "About",
-            subtitle = "App info, developer, version",
+            title = stringResource(R.string.about_jasmine),
+            subtitle = stringResource(R.string.settings_about_subtitle),
             icon = Icons.Rounded.Info,
             onClick = { navController.navigate(Screen.About.route) }
         )

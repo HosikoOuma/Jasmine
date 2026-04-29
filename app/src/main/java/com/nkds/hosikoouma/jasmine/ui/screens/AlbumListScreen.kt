@@ -13,12 +13,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Album
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.gridVerticalScrollbar
@@ -60,7 +62,7 @@ fun AlbumListContent(
 
     if (uiState.albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-            Text("No albums found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.no_albums), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
         LazyVerticalGrid(

@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -20,10 +21,18 @@ fun SettingsSectionTitle(text: String) {
 }
 
 @Composable
-fun SettingsClickableItem(title: String, subtitle: String, onClick: () -> Unit) {
+fun SettingsClickableItem(
+    title: String, 
+    subtitle: String, 
+    icon: ImageVector? = null,
+    onClick: () -> Unit
+) {
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(subtitle) },
+        leadingContent = icon?.let {
+            { Icon(imageVector = it, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+        },
         modifier = Modifier.clickable(onClick = onClick)
     )
 }

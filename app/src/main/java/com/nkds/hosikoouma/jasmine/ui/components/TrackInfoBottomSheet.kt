@@ -11,9 +11,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 import org.jaudiotagger.audio.AudioFileIO
@@ -111,7 +113,7 @@ fun TrackInfoBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Track Info",
+                    text = stringResource(R.string.track_info),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -121,17 +123,17 @@ fun TrackInfoBottomSheet(
                         onClick = { showEditDialog = true },
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Icon(Icons.Rounded.Edit, contentDescription = "Edit")
+                        Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.edit))
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            InfoItem(label = "Title", value = track.title)
-            InfoItem(label = "Artist", value = track.artist)
-            InfoItem(label = "Album", value = track.album)
-            InfoItem(label = "Duration", value = formatTime(track.duration))
+            InfoItem(label = stringResource(R.string.title), value = track.title)
+            InfoItem(label = stringResource(R.string.artist), value = track.artist)
+            InfoItem(label = stringResource(R.string.album), value = track.album)
+            InfoItem(label = stringResource(R.string.duration), value = formatTime(track.duration))
             
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 16.dp),
@@ -140,24 +142,27 @@ fun TrackInfoBottomSheet(
             )
             
             Text(
-                text = "Technical Details",
+                text = stringResource(R.string.technical_details),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             
-            InfoItem(label = "Format / Codec", value = trackDetails["Format"] ?: "Unknown")
-            InfoItem(label = "Sample Rate", value = trackDetails["Sample Rate"] ?: "Unknown")
-            InfoItem(label = "Bitrate", value = trackDetails["Bitrate"] ?: "Unknown")
+            InfoItem(label = stringResource(R.string.format_codec), value = trackDetails["Format"] ?: stringResource(R.string.unknown))
+            InfoItem(label = stringResource(R.string.sample_rate), value = trackDetails["Sample Rate"] ?: stringResource(R.string.unknown))
+            InfoItem(label = stringResource(R.string.bitrate), value = trackDetails["Bitrate"] ?: stringResource(R.string.unknown))
             
             if (trackDetails.containsKey("Channels")) {
-                InfoItem(label = "Channels", value = trackDetails["Channels"]!!)
+                InfoItem(label = stringResource(R.string.channels), value = trackDetails["Channels"]!!)
             }
             if (trackDetails.containsKey("Size")) {
-                InfoItem(label = "File Size", value = trackDetails["Size"]!!)
+                InfoItem(label = stringResource(R.string.file_size), value = trackDetails["Size"]!!)
             }
             
-            InfoItem(label = "File Location", value = track.path.ifEmpty { "System Media Store (URI: ${track.contentUri})" })
+            InfoItem(
+                label = stringResource(R.string.file_location), 
+                value = track.path.ifEmpty { stringResource(R.string.system_media_store, track.contentUri.toString()) }
+            )
         }
     }
 }

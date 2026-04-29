@@ -29,9 +29,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.ExpressiveRefreshIndicator
@@ -163,8 +165,8 @@ fun TracksContent(
         } else if (uiState.tracks.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(if (uiState.searchQuery.isEmpty()) {
-                    if (uiState.isFavoritesMode) "No favorites yet" else "No tracks found"
-                } else "Nothing found")
+                    if (uiState.isFavoritesMode) stringResource(R.string.no_favorites) else stringResource(R.string.no_tracks)
+                } else stringResource(R.string.nothing_found))
             }
         } else {
             LazyColumn(

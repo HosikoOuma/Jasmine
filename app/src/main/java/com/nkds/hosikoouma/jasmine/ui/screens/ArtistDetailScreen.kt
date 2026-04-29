@@ -12,12 +12,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.datamodels.Artist
 import com.nkds.hosikoouma.jasmine.datamodels.Track
@@ -51,6 +53,8 @@ fun ArtistDetailScreen(
     val currentTrack by playerViewModel.currentTrack.collectAsStateWithLifecycle()
     val isPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
 
+    val sourceName = if (artist != null) stringResource(R.string.artist_source, artist.name) else ""
+
     val uiState = ArtistDetailUiState(
         artist = artist,
         currentTrack = currentTrack,
@@ -65,7 +69,7 @@ fun ArtistDetailScreen(
                 if (selectedTracks.isNotEmpty()) {
                     onToggleTrackSelection(it.tracks[index])
                 } else {
-                    playerViewModel.playTracks(it.tracks, index, sourceName = "Artist: ${it.name}")
+                    playerViewModel.playTracks(it.tracks, index, sourceName = sourceName)
                     onNavigateToPlayer()
                 }
             }
@@ -89,7 +93,7 @@ fun ArtistDetailContent(
     Box(modifier = Modifier.fillMaxSize()) {
         if (uiState.artist == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Artist not found")
+                Text(stringResource(R.string.artist_not_found))
             }
         } else {
             LazyColumn(
@@ -153,7 +157,7 @@ private fun ArtistHeader(artist: Artist) {
             fontWeight = FontWeight.Bold
         )
         Text(
-            "${artist.tracks.size} tracks",
+            stringResource(R.string.tracks_count, artist.tracks.size),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

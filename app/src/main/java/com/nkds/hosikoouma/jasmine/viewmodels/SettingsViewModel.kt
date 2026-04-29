@@ -29,7 +29,8 @@ data class SettingsState(
     val seedColor: Int = 0xFF6750A4.toInt(),
     val navigationItems: List<String> = listOf("tracks", "radio", "library", "settings"),
     val playerControlsOrder: List<String> = listOf("shuffle", "previous", "play_pause", "next", "repeat"),
-    val manageAudioFocus: Boolean = true
+    val manageAudioFocus: Boolean = true,
+    val language: String = "default"
 )
 
 @HiltViewModel
@@ -54,7 +55,8 @@ class SettingsViewModel @Inject constructor(
         repository.seedColor,
         repository.navigationItems,
         repository.playerControlsOrder,
-        repository.manageAudioFocus
+        repository.manageAudioFocus,
+        repository.language
     ) { args ->
         SettingsState(
             isCrossfadeEnabled = args[0] as Boolean,
@@ -72,7 +74,8 @@ class SettingsViewModel @Inject constructor(
             seedColor = args[12] as Int,
             navigationItems = (args[13] as String).split(",").filter { it.isNotBlank() },
             playerControlsOrder = (args[14] as String).split(",").filter { it.isNotBlank() },
-            manageAudioFocus = args[15] as Boolean
+            manageAudioFocus = args[15] as Boolean,
+            language = args[16] as String
         )
     }.stateIn(
         scope = viewModelScope,
@@ -104,6 +107,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setManageAudioFocus(enabled: Boolean) = launchUpdate { repository.setManageAudioFocus(enabled) }
+    
+    fun setLanguage(language: String) = launchUpdate { repository.setLanguage(language) }
 
     private fun launchUpdate(block: suspend () -> Unit) = viewModelScope.launch { block() }
 

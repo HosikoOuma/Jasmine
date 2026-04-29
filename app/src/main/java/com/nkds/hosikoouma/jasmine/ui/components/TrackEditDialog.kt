@@ -21,9 +21,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.screens.PlaylistCoverEditor
 
@@ -69,7 +71,7 @@ fun TrackEditDialog(
     } else {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Edit Track Info") },
+            title = { Text(stringResource(R.string.edit_track_info)) },
             text = {
                 Column(
                     modifier = Modifier
@@ -109,7 +111,7 @@ fun TrackEditDialog(
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
-                        label = { Text("Title") },
+                        label = { Text(stringResource(R.string.title)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp)
@@ -118,7 +120,7 @@ fun TrackEditDialog(
                     OutlinedTextField(
                         value = artist,
                         onValueChange = { artist = it },
-                        label = { Text("Artist") },
+                        label = { Text(stringResource(R.string.artist)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp)
@@ -127,7 +129,7 @@ fun TrackEditDialog(
                     OutlinedTextField(
                         value = album,
                         onValueChange = { album = it },
-                        label = { Text("Album") },
+                        label = { Text(stringResource(R.string.album)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp)
@@ -139,12 +141,12 @@ fun TrackEditDialog(
                     onConfirm(title, artist, album, editedBitmap)
                     onDismiss()
                 }) {
-                    Text("Save")
+                    Text(stringResource(R.string.save))
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismiss) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             },
             shape = RoundedCornerShape(28.dp)

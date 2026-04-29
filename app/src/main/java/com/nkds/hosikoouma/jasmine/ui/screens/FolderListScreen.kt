@@ -11,10 +11,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Folder
 import com.nkds.hosikoouma.jasmine.ui.components.LibraryItemCard
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
@@ -53,7 +55,7 @@ fun FolderListContent(
 ) {
     if (uiState.folders.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No music folders found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.no_folders), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
         LazyColumn(
@@ -64,7 +66,7 @@ fun FolderListContent(
             items(uiState.folders, key = { it.path }) { folder ->
                 LibraryItemCard(
                     title = folder.name,
-                    subtitle = "${folder.tracks.size} tracks",
+                    subtitle = stringResource(R.string.tracks_count, folder.tracks.size),
                     icon = Icons.Rounded.Folder,
                     onClick = { onFolderClick(folder) }
                 )

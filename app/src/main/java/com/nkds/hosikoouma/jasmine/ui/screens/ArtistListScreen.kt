@@ -10,10 +10,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Artist
 import com.nkds.hosikoouma.jasmine.ui.components.LibraryItemCard
 import com.nkds.hosikoouma.jasmine.ui.theme.JasmineTheme
@@ -52,7 +54,7 @@ fun ArtistListContent(
 ) {
     if (uiState.artists.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-            Text("No artists found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.no_artists), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
         LazyColumn(
@@ -63,7 +65,7 @@ fun ArtistListContent(
             items(uiState.artists, key = { it.name }) { artist ->
                 LibraryItemCard(
                     title = artist.name,
-                    subtitle = "${artist.tracks.size} tracks",
+                    subtitle = stringResource(R.string.tracks_count, artist.tracks.size),
                     icon = Icons.Rounded.Person,
                     onClick = { onArtistClick(artist) }
                 )

@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.viewmodels.TelegramViewModel
 import org.drinkless.tdlib.TdApi
@@ -97,14 +99,14 @@ fun PhoneNumberInput(
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            "Welcome to Telegram Cloud",
+            stringResource(R.string.tg_welcome),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Connect your account to stream music directly from your channels and chats.",
+            stringResource(R.string.tg_welcome_desc),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -114,8 +116,8 @@ fun PhoneNumberInput(
         OutlinedTextField(
             value = phone,
             onValueChange = { phone = it },
-            label = { Text("Phone Number") },
-            placeholder = { Text("+1234567890") },
+            label = { Text(stringResource(R.string.tg_phone_label)) },
+            placeholder = { Text(stringResource(R.string.tg_phone_hint)) },
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             singleLine = true,
@@ -142,7 +144,7 @@ fun PhoneNumberInput(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             } else {
-                Text("Send Code")
+                Text(stringResource(R.string.tg_send_code))
             }
         }
 
@@ -167,13 +169,13 @@ fun CodeInput(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            "Enter Code",
+            stringResource(R.string.tg_enter_code),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "We've sent a verification code to your Telegram app.",
+            stringResource(R.string.tg_code_desc),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -183,7 +185,7 @@ fun CodeInput(
         OutlinedTextField(
             value = code,
             onValueChange = { code = it },
-            label = { Text("Verification Code") },
+            label = { Text(stringResource(R.string.tg_code_label)) },
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
@@ -210,7 +212,7 @@ fun CodeInput(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             } else {
-                Text("Verify")
+                Text(stringResource(R.string.verify))
             }
         }
 
@@ -235,13 +237,13 @@ fun PasswordInput(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            "Two-Step Verification",
+            stringResource(R.string.tg_2step_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Your account is protected by an additional password.",
+            stringResource(R.string.tg_2step_desc),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -251,7 +253,7 @@ fun PasswordInput(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
+            label = { Text(stringResource(R.string.tg_password_label)) },
             modifier = Modifier.fillMaxWidth(),
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -279,7 +281,7 @@ fun PasswordInput(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             } else {
-                Text("Login")
+                Text(stringResource(R.string.login))
             }
         }
 
@@ -310,13 +312,13 @@ fun LoggedInView(
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            "You're connected!",
+            stringResource(R.string.tg_connected_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Telegram Cloud is ready. You can now browse and add music from your channels.",
+            stringResource(R.string.tg_connected_desc),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -330,7 +332,7 @@ fun LoggedInView(
         ) {
             Icon(Icons.Rounded.Search, null)
             Spacer(Modifier.width(8.dp))
-            Text("Find Channels")
+            Text(stringResource(R.string.tg_find_channels))
         }
 
         Spacer(Modifier.height(16.dp))
@@ -343,7 +345,7 @@ fun LoggedInView(
         ) {
             Icon(Icons.AutoMirrored.Rounded.Logout, null)
             Spacer(Modifier.width(8.dp))
-            Text("Logout")
+            Text(stringResource(R.string.logout))
         }
 
         Spacer(Modifier.height(160.dp)) // Отступ от нижних панелей (миниплеер + бар)

@@ -19,6 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nkds.hosikoouma.jasmine.R
@@ -40,9 +41,9 @@ fun AboutScreen() {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName
             }
         } catch (e: Exception) {
-            "Unknown"
+            null
         }
-    }
+    } ?: stringResource(R.string.unknown)
 
     Column(
         modifier = Modifier
@@ -69,7 +70,7 @@ fun AboutScreen() {
             Box(contentAlignment = Alignment.Center) {
                 Image(
                     painter = painterResource(id = if (showEasterEgg) R.drawable.jasmine1 else R.drawable.ison_vec),
-                    contentDescription = "Jasmine Logo",
+                    contentDescription = stringResource(R.string.app_name),
                     modifier = Modifier.size(if (showEasterEgg) 120.dp else 80.dp),
                     contentScale = if (showEasterEgg) ContentScale.Crop else ContentScale.Fit
                 )
@@ -79,13 +80,13 @@ fun AboutScreen() {
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Jasmine",
+            text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
         
         Text(
-            text = "Version $version",
+            text = stringResource(R.string.version_template, version),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -120,7 +121,7 @@ fun AboutScreen() {
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "NekoDosi | NKDS",
+            text = stringResource(R.string.developer_name),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
@@ -131,7 +132,7 @@ fun AboutScreen() {
             onClick = { uriHandler.openUri("https://t.me/NekoDosi") }
         ) {
             Text(
-                text = "@NekoDosi",
+                text = stringResource(R.string.developer_handle),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Medium
@@ -141,7 +142,7 @@ fun AboutScreen() {
         Spacer(modifier = Modifier.height(64.dp))
         
         Text(
-            text = "Made with ❤️",
+            text = stringResource(R.string.made_with_heart),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline
         )

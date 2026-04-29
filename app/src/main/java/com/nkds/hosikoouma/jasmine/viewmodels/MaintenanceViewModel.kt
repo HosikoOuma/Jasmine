@@ -17,7 +17,8 @@ data class MaintenanceState(
     val coverCount: Int = 0,
     val coverSize: Long = 0,
     val telegramCacheSize: Long = 0,
-    val isClearing: Boolean = false
+    val isClearingCovers: Boolean = false,
+    val isClearingTelegram: Boolean = false
 )
 
 @HiltViewModel
@@ -50,23 +51,23 @@ class MaintenanceViewModel @Inject constructor(
 
     fun clearCoverCache() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isClearing = true)
+            _state.value = _state.value.copy(isClearingCovers = true)
             withContext(Dispatchers.IO) {
                 coverCacheManager.clearCache()
             }
             updateStats()
-            _state.value = _state.value.copy(isClearing = false)
+            _state.value = _state.value.copy(isClearingCovers = false)
         }
     }
 
     fun clearTelegramCache() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isClearing = true)
+            _state.value = _state.value.copy(isClearingTelegram = true)
             withContext(Dispatchers.IO) {
                 telegramCacheManager.clearCache()
             }
             updateStats()
-            _state.value = _state.value.copy(isClearing = false)
+            _state.value = _state.value.copy(isClearingTelegram = false)
         }
     }
 }

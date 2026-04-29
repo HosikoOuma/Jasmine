@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.data.RadioStation
@@ -175,7 +177,7 @@ fun RadioPlayerContent(
 
             RadioInfoSection(
                 title = uiState.trackTitle ?: uiState.stationName,
-                artist = uiState.trackArtist ?: "Radio Stream"
+                artist = uiState.trackArtist ?: stringResource(R.string.radio_stream)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -232,7 +234,7 @@ private fun RadioLiveIndicator() {
             ) {
                 Icon(Icons.Rounded.Radio, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("LIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.live), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
             }
         }
     }

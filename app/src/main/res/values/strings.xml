@@ -1,3 +1,306 @@
 <resources>
     <string name="app_name">Jasmine</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="save">Save</string>
+    <string name="done">Done</string>
+    <string name="remove">Remove</string>
+    <string name="share">Share</string>
+    <string name="edit">Edit</string>
+    <string name="info">Info</string>
+    <string name="search">Search</string>
+    <string name="clear">Clear</string>
+    <string name="back">Back</string>
+    <string name="url_copied">URL copied</string>
+    <string name="select_all">Select All</string>
+    <string name="edit_details">Edit Details</string>
+    <string name="add_to_playlist">Add to playlist</string>
+    <string name="unknown">Unknown</string>
+    <string name="title">Title</string>
+    <string name="import_action">Import</string>
+    <string name="new_action">New</string>
+    <string name="create">Create</string>
+    <string name="verify">Verify</string>
+    <string name="login">Login</string>
+    <string name="logout">Logout</string>
+    <string name="add">Add</string>
+
+    <!-- Player -->
+    <string name="live">LIVE</string>
+    <string name="radio_stream">Radio Stream</string>
+    <string name="unknown_title">Unknown Title</string>
+    <string name="unknown_artist">Unknown Artist</string>
+    <string name="from_queue">From Queue</string>
+    <string name="playback_speed">Playback Speed</string>
+    <string name="playback_pitch">Playback Pitch</string>
+    <string name="reset_to_default">Reset to Default</string>
+    <string name="speed">Speed</string>
+    <string name="pitch">Pitch</string>
+    <string name="album">Album</string>
+    <string name="artist">Artist</string>
+    <string name="add_to_queue">Add to Queue</string>
+    <string name="playlist">Playlist</string>
+    <string name="details">Details</string>
+    <string name="delete_from_device">Delete from Device</string>
+    <string name="delete_track_title">Delete Track</string>
+    <string name="delete_track_message">Are you sure you want to delete \"%1$s\" from your device?</string>
+    <string name="lyrics">Lyrics</string>
+    <string name="queue">Queue</string>
+    <string name="lyrics_local">Local</string>
+    <string name="lyrics_lrclib">LRCLIB</string>
+
+    <!-- Main Screen & Navigation -->
+    <string name="selected_count">%1$d selected</string>
+    <string name="albums">Albums</string>
+    <string name="artists">Artists</string>
+    <string name="folders">Folders</string>
+    <string name="playlists">Playlists</string>
+    <string name="playback">Playback</string>
+    <string name="appearance">Appearance</string>
+    <string name="library_settings">Library Settings</string>
+    <string name="maintenance">Maintenance</string>
+    <string name="shapes_gallery">Shapes Gallery</string>
+    <string name="about_jasmine">About Jasmine</string>
+    <string name="telegram_cloud">Telegram Cloud</string>
+    <string name="chat_picker">Chat Picker</string>
+
+    <string name="search_tracks">Search tracks...</string>
+    <string name="search_in_playlist">Search in playlist...</string>
+    <string name="search_in_folder">Search in folder...</string>
+    <string name="search_generic">Search...</string>
+
+    <!-- Sorting -->
+    <string name="sort_by_name">By Name</string>
+    <string name="sort_by_artist">By Artist</string>
+    <string name="sort_by_date">By Date Added</string>
+    <string name="sort_by_duration">By Duration</string>
+    <string name="normal_order">Normal Order</string>
+    <string name="reverse_order">Reverse Order</string>
+    <string name="sort_title">Title</string>
+    <string name="sort_artist">Artist</string>
+    <string name="sort_date">Date</string>
+    <string name="sort_duration">Duration</string>
+
+    <!-- Dialogs -->
+    <string name="select_tracks">Select Tracks</string>
+    <string name="edit_playlist_details">Edit Playlist Details</string>
+    <string name="playlist_name">Playlist Name</string>
+    <string name="delete_playlist_title">Delete Playlist</string>
+    <string name="delete_playlist_message">Delete this playlist?</string>
+    <string name="delete_tracks_title">Delete Tracks</string>
+    <string name="delete_tracks_message">Delete %1$d tracks from device?</string>
+    <string name="delete_stations_title">Delete Stations</string>
+    <string name="delete_stations_message">Delete %1$d stations?</string>
+    <string name="remove_tracks_title">Remove Tracks</string>
+    <string name="remove_tracks_message">Remove %1$d tracks from playlist?</string>
+    <string name="blacklist_folder_title">Blacklist Folder</string>
+    <string name="blacklist_folder_message">Are you sure you want to add this folder and all its subfolders to the blacklist? The tracks will be hidden from your library.</string>
+    <string name="blacklist">Blacklist</string>
+    <string name="edit_track_info">Edit Track Info</string>
+    <string name="new_playlist">New Playlist</string>
+    <string name="playlist_name_hint">Playlist name</string>
+    <string name="add_station">Add Radio Station</string>
+    <string name="station_name">Station Name</string>
+    <string name="station_url">Station URL</string>
+
+    <!-- Specific Defaults -->
+    <string name="album_default">Album</string>
+    <string name="artist_default">Artist</string>
+    <string name="folder_default">Folder</string>
+    <string name="playlist_default">Playlist</string>
+    <string name="telegram_channel_default">Telegram Channel</string>
+    <string name="imported_playlist_default">Imported Playlist</string>
+    <string name="album_not_found">Album not found</string>
+    <string name="artist_not_found">Artist not found</string>
+    <string name="playlist_not_found">Playlist not found</string>
+    <string name="folder_not_found">Folder not found</string>
+    <string name="album_source">Album: %1$s</string>
+    <string name="artist_source">Artist: %1$s</string>
+    <string name="playlist_source">Playlist: %1$s</string>
+    <string name="folder_source">Folder: %1$s</string>
+    <string name="playlist_label">Playlist</string>
+    <string name="folder_label">Folder</string>
+
+    <!-- About -->
+    <string name="version_template">Version %1$s</string>
+    <string name="developer_name">NekoDosi | NKDS</string>
+    <string name="developer_handle">@NekoDosi</string>
+    <string name="made_with_heart">Made with ❤️</string>
+
+    <!-- Tracks Screen -->
+    <string name="no_favorites">No favorites yet</string>
+    <string name="no_tracks">No tracks found</string>
+    <string name="nothing_found">Nothing found</string>
+    <string name="tracks">Tracks</string>
+
+    <!-- Settings -->
+    <string name="settings_playback_subtitle">Crossfade, progress bar style</string>
+    <string name="settings_appearance_subtitle">Theme, AMOLED, fonts, colors</string>
+    <string name="settings_library_subtitle">Sorting, filtering, blacklisted folders</string>
+    <string name="settings_telegram_subtitle">Stream music from your chats</string>
+    <string name="settings_maintenance_subtitle">Cache cleanup, storage info</string>
+    <string name="settings_about_subtitle">App info, developer, version</string>
+    <string name="crossfade">Crossfade</string>
+    <string name="crossfade_desc">Smoothly transition between tracks</string>
+    <string name="duration">Duration</string>
+    <string name="manage_audio_focus">Manage Audio Focus</string>
+    <string name="manage_audio_focus_desc">Pause playback when another app plays sound (calls, notifications, etc.)</string>
+    <string name="app_font">App Font</string>
+    <string name="progress_bar_style">Progress Bar Style</string>
+    <string name="palette_style">Palette Style</string>
+    <string name="layout_customization">Layout &amp; Customization</string>
+    <string name="nav_bar_items">Navigation Bar Items</string>
+    <string name="nav_bar_items_desc">Reorder or hide navigation tabs</string>
+    <string name="player_controls_order">Player Controls Order</string>
+    <string name="player_controls_order_desc">Reorder playback buttons in player screen</string>
+    <string name="system_theme">System Theme</string>
+    <string name="theme_mode">Theme Mode</string>
+    <string name="amoled_mode">AMOLED Dark Mode</string>
+    <string name="amoled_mode_desc">Pure black background in dark theme</string>
+    <string name="dynamic_colors">Dynamic Colors (Material You)</string>
+    <string name="dynamic_colors_desc">Use system accent colors</string>
+    <string name="use_album_art_color">Use Album Art Color</string>
+    <string name="use_album_art_color_desc">Generate theme from current track cover</string>
+    <string name="drag_to_reorder">Drag the handles to reorder.</string>
+    <string name="drag_to_reorder_min2">Drag the handles to reorder. Min 2 items required.</string>
+    <string name="player_shuffle">Shuffle</string>
+    <string name="player_previous">Previous</string>
+    <string name="player_play_pause">Play/Pause</string>
+    <string name="player_next">Next</string>
+    <string name="player_repeat">Repeat</string>
+    <string name="organic_animations">Organic Animations</string>
+    <string name="organic_animations_desc">Toggle rotation for all shapes</string>
+    <string name="app_language">App Language</string>
+    <string name="system_default">System Default</string>
+    <string name="language_desc">Change the language of the application interface.</string>
+    <string name="filter_short_tracks">Filter short tracks</string>
+    <string name="default_sorting">Default Sorting</string>
+    <string name="default_sorting_desc">By %1$s %2$s</string>
+    <string name="blacklisted_folders">Blacklisted Folders</string>
+    <string name="blacklisted_folders_desc">Manage music folders to exclude</string>
+    <string name="reversed_label">(Reversed)</string>
+    <string name="reverse_order_default">Reverse order by default</string>
+
+    <!-- Maintenance -->
+    <string name="storage_cache">Storage &amp; Cache</string>
+    <string name="cover_cache">Cover Art Cache</string>
+    <string name="cover_cache_info">%1$d files • %2$s</string>
+    <string name="cover_cache_desc">Covers are cached to improve scrolling performance. Clearing them will force the app to re-scan covers on the next launch.</string>
+    <string name="clear_cover_cache">Clear Cover Cache</string>
+    <string name="telegram_cache">Telegram Cloud Cache</string>
+    <string name="telegram_cache_desc">Music streamed from Telegram is cached locally for smooth playback. Clearing this will delete all downloaded cloud tracks.</string>
+    <string name="clear_telegram_cache">Clear Telegram Cache</string>
+    <string name="clear_cache_confirm_title">Clear cache?</string>
+    <string name="clear_cover_cache_confirm_desc">This will delete all cached album covers. They will be regenerated the next time you scan your library.</string>
+    <string name="clear_telegram_cache_confirm_title">Clear Telegram cache?</string>
+    <string name="clear_telegram_cache_confirm_desc">This will delete all downloaded audio files from Telegram. Your account and channels will remain connected.</string>
+
+    <!-- Library -->
+    <string name="library">Library</string>
+    <string name="favorites">Favorites</string>
+    <string name="recent">Recent</string>
+    <string name="most_played">Most Played</string>
+    <string name="items_count">%1$d items</string>
+    <string name="your_favorites">Your favorites</string>
+    <string name="no_albums">No albums found</string>
+    <string name="no_artists">No artists found</string>
+    <string name="tracks_count">%1$d tracks</string>
+    <string name="no_playlists">No playlists found</string>
+    <string name="no_folders">No music folders found</string>
+    <string name="nothing_here_playlist">It seems like there is nothing here.\nWant to fix it?</string>
+    <string name="add_tracks">Add Tracks</string>
+
+    <!-- Toasts -->
+    <string name="added_to_queue">Added to queue</string>
+    <string name="removed_from_queue">Removed from queue</string>
+    <string name="added_to_favorites">Added to favorites</string>
+    <string name="removed_from_favorites">Removed from favorites</string>
+    <string name="station_added_toast">Station added</string>
+    <string name="station_removed_toast">Station deleted</string>
+
+    <!-- Queue Screen -->
+    <string name="playing_queue">Playing Queue</string>
+    <string name="now_playing">Now Playing</string>
+    <string name="up_next">Up Next</string>
+
+    <!-- Lyrics -->
+    <string name="no_lyrics_lrclib">No lyrics found on LRCLIB.</string>
+    <string name="no_lyrics_local">No local lyrics found.</string>
+
+    <!-- Navigation -->
+    <string name="nav_tracks">Tracks</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_radio">Radio</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Telegram Cloud Auth -->
+    <string name="tg_welcome">Welcome to Telegram Cloud</string>
+    <string name="tg_welcome_desc">Connect your account to stream music directly from your channels and chats.</string>
+    <string name="tg_phone_label">Phone Number</string>
+    <string name="tg_phone_hint">+1234567890</string>
+    <string name="tg_send_code">Send Code</string>
+    <string name="tg_enter_code">Enter Code</string>
+    <string name="tg_code_desc">We\'ve sent a verification code to your Telegram app.</string>
+    <string name="tg_code_label">Verification Code</string>
+    <string name="tg_2step_title">Two-Step Verification</string>
+    <string name="tg_2step_desc">Your account is protected by an additional password.</string>
+    <string name="tg_password_label">Password</string>
+    <string name="tg_connected_title">You\'re connected!</string>
+    <string name="tg_connected_desc">Telegram Cloud is ready. You can now browse and add music from your channels.</string>
+    <string name="tg_find_channels">Find Channels</string>
+
+    <!-- Radio -->
+    <string name="no_radio_stations">No radio stations yet</string>
+
+    <!-- Permission -->
+    <string name="stability_warning_title">APPLICATION\nUNSTABLE</string>
+    <string name="stability_warning_text">This application was vibe-coded via Gemini and is intended for personal use. It is unstable and needs testing, so Jasmine might throw bugs, lags, and other unpleasant surprises.\n\nReport issues to @NekoDosi.</string>
+    <string name="wait_seconds">Wait %1$d...</string>
+    <string name="accept_risk">Accept</string>
+    <string name="permissions_required">Permissions Required</string>
+    <string name="permissions_desc">Jasmine needs access to your music and storage to scan tracks, manage playlists, and cache album covers directly on your device.</string>
+    <string name="grant_access">Grant Access</string>
+
+    <!-- External Player -->
+    <string name="external_audio">External Audio</string>
+    <string name="downloaded_file">Downloaded File</string>
+
+    <!-- Playlist Actions -->
+    <string name="no_playlists_found">No playlists found. Create one in Library first.</string>
+    <string name="add_to_playlist_confirm">Add to \"%1$s\"?</string>
+    <string name="confirmation">Confirmation</string>
+    <string name="already_in_playlist">Already in %1$s</string>
+    <string name="added_to_playlist_toast">Added to %1$s</string>
+    <string name="added_x_tracks_to_playlist">Added %1$d tracks to %2$s</string>
+    <string name="removed_from_playlist_toast">Removed from %1$s</string>
+    <string name="removed_x_tracks_from_playlist">Removed %1$d tracks from %2$s</string>
+
+    <!-- Track Info -->
+    <string name="track_info">Track Info</string>
+    <string name="technical_details">Technical Details</string>
+    <string name="format_codec">Format / Codec</string>
+    <string name="sample_rate">Sample Rate</string>
+    <string name="bitrate">Bitrate</string>
+    <string name="channels">Channels</string>
+    <string name="file_size">File Size</string>
+    <string name="file_location">File Location</string>
+    <string name="system_media_store">System Media Store (URI: %1$s)</string>
+
+    <!-- Share -->
+    <string name="share_track">Share Track</string>
+    <string name="share_file">File</string>
+    <string name="share_text">Text</string>
+    <string name="share_card">Card</string>
+    <string name="share_card_title">Share Card</string>
+
+    <!-- Additional Toasts -->
+    <string name="playlist_exported">Playlist exported</string>
+    <string name="export_failed">Export failed</string>
+    <string name="metadata_updated">Metadata updated</string>
+    <string name="update_failed">Update failed</string>
+    <string name="deleted_from_device_toast">Deleted from device</string>
+    <string name="station_deleted">Station deleted</string>
 </resources>

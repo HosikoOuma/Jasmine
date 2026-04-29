@@ -11,6 +11,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.TrackScanner
 import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.data.*
@@ -229,10 +230,10 @@ class TrackViewModel @Inject constructor(
         val track = allTracks.value.find { it.id == trackId } ?: return@launch
         val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         if (!playlistRepository.addTrackToPlaylist(playlistId, track)) {
-            showToast(track, ToastType.PLAYLIST_ADDED, "Already in $playlistName")
+            showToast(track, ToastType.PLAYLIST_ADDED, getApplication<Application>().getString(R.string.already_in_playlist, playlistName))
         } else {
             updateM3U(playlistId)
-            showToast(track, ToastType.PLAYLIST_ADDED, "Added to $playlistName")
+            showToast(track, ToastType.PLAYLIST_ADDED, getApplication<Application>().getString(R.string.added_to_playlist_toast, playlistName))
         }
     }
 
@@ -240,10 +241,23 @@ class TrackViewModel @Inject constructor(
         val added = playlistRepository.addTracksToPlaylist(playlistId, tracks)
         val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         updateM3U(playlistId)
+        
         if (tracks.size == 1) {
-            showToast(tracks.first(), ToastType.PLAYLIST_ADDED, "Added to $playlistName")
+            val track = tracks.first()
+            if (added == 0) {
+                showToast(track, ToastType.PLAYLIST_ADDED, getApplication<Application>().getString(R.string.already_in_playlist, playlistName))
+            } else {
+                showToast(track, ToastType.PLAYLIST_ADDED, getApplication<Application>().getString(R.string.added_to_playlist_toast, playlistName))
+            }
         } else {
-            showToast(null, ToastType.PLAYLIST_ADDED, "Added $added tracks to $playlistName")
+            if (added == 0) {
+                showToast(null, ToastType.PLAYLIST_ADDED, getApplication<Application>().getString(R.string.already_in_playlist, playlistName))
+            } else if (added < tracks.size) {
+                // Часть треков добавлена, часть уже была
+                showToast(null, ToastType.PLAYLIST_ADDED, getApplication<Application>().getString(R.string.added_x_tracks_to_playlist, added, playlistName))
+            } else {
+                showToast(null, ToastType.PLAYLIST_ADDED, getApplication<Application>().getString(R.string.added_x_tracks_to_playlist, added, playlistName))
+            }
         }
     }
 
@@ -252,9 +266,9 @@ class TrackViewModel @Inject constructor(
         val playlistName = getPlaylistNameSync(playlistId) ?: "Playlist"
         updateM3U(playlistId)
         if (tracks.size == 1) {
-            showToast(tracks.first(), ToastType.PLAYLIST_REMOVED, "Removed from $playlistName")
+            showToast(tracks.first(), ToastType.PLAYLIST_REMOVED, getApplication<Application>().getString(R.string.removed_from_playlist_toast, playlistName))
         } else {
-            showToast(null, ToastType.PLAYLIST_REMOVED, "Removed ${tracks.size} tracks from $playlistName")
+            showToast(null, ToastType.PLAYLIST_REMOVED, getApplication<Application>().getString(R.string.removed_x_tracks_from_playlist, tracks.size, playlistName))
         }
     }
 
@@ -272,9 +286,9 @@ class TrackViewModel @Inject constructor(
             getApplication<Application>().contentResolver.openFileDescriptor(uri, "w")?.use { fd ->
                 FileOutputStream(fd.fileDescriptor).use { it.write(content.toString().toByteArray()) }
             }
-            withContext(Dispatchers.Main) { showToast(null, ToastType.DELETE_SUCCESS, "Playlist exported") }
+            withContext(Dispatchers.Main) { showToast(null, ToastType.DELETE_SUCCESS, getApplication<Application>().getString(R.string.playlist_exported)) }
         } catch (e: Exception) {
-            withContext(Dispatchers.Main) { showToast(null, ToastType.DELETE_FAILED, "Export failed") }
+            withContext(Dispatchers.Main) { showToast(null, ToastType.DELETE_FAILED, getApplication<Application>().getString(R.string.export_failed)) }
         }
     }
 
@@ -359,7 +373,7 @@ class TrackViewModel @Inject constructor(
                         delay(500)
                         loadTracks()
                         withContext(Dispatchers.Main) {
-                            showToast(track, ToastType.DELETE_SUCCESS, "Metadata updated")
+                            showToast(track, ToastType.DELETE_SUCCESS, getApplication<Application>().getString(R.string.metadata_updated))
                         }
                     }
                 }
@@ -367,7 +381,7 @@ class TrackViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("TrackViewModel", "Update failed", e)
                 withContext(Dispatchers.Main) {
-                    showToast(track, ToastType.DELETE_FAILED, "Update failed")
+                    showToast(track, ToastType.DELETE_FAILED, getApplication<Application>().getString(R.string.update_failed))
                 }
             }
         }

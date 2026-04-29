@@ -24,12 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Playlist
 import com.nkds.hosikoouma.jasmine.ui.components.AlbumArt
 import com.nkds.hosikoouma.jasmine.ui.components.LibraryItemCard
@@ -56,6 +58,8 @@ fun PlaylistListScreen(
     val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
 
+    val importedPlaylistDefault = stringResource(R.string.imported_playlist_default)
+
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -64,7 +68,7 @@ fun PlaylistListScreen(
             val name = cursor?.use { c ->
                 val nameIndex = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 if (c.moveToFirst()) c.getString(nameIndex) else null
-            }?.substringBeforeLast(".") ?: "Imported Playlist"
+            }?.substringBeforeLast(".") ?: importedPlaylistDefault
             
             trackViewModel.importPlaylistFromUri(it, name)
         }
@@ -122,7 +126,7 @@ fun PlaylistListContent(
 
         if (uiState.playlists.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No playlists found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.no_playlists), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             if (uiState.isGridView) {
@@ -156,7 +160,7 @@ fun PlaylistListContent(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(uiState.playlists, key = { it.id }) { playlist ->
-                        val tracksCount by if (trackViewModel != null) {
+                        val playlistTracks by if (trackViewModel != null) {
                             trackViewModel.getTracksForPlaylist(playlist.id).collectAsStateWithLifecycle(initialValue = emptyList())
                         } else {
                             remember { mutableStateOf(emptyList()) }
@@ -164,7 +168,7 @@ fun PlaylistListContent(
 
                         LibraryItemCard(
                             title = playlist.name,
-                            subtitle = "${tracksCount.size} tracks",
+                            subtitle = stringResource(R.string.tracks_count, playlistTracks.size),
                             icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
                             onClick = { onPlaylistClick(playlist.id) }
                         )
@@ -191,7 +195,7 @@ fun PlaylistCard(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = playlist.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(text = "$tracksCount tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = stringResource(R.string.tracks_count, tracksCount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -210,7 +214,7 @@ private fun PlaylistActionButtons(
         ) {
             Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.PostAdd, null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp)); Text("Import", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.import_action), style = MaterialTheme.typography.labelLarge)
             }
         }
         Surface(
@@ -221,7 +225,7 @@ private fun PlaylistActionButtons(
         ) {
             Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.CreateNewFolder, null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp)); Text("New", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.new_action), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -232,10 +236,10 @@ private fun NewPlaylistDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit
     var playlistName by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New Playlist") },
-        text = { TextField(value = playlistName, onValueChange = { playlistName = it }, placeholder = { Text("Playlist name") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
-        confirmButton = { TextButton(onClick = { if (playlistName.isNotBlank()) onConfirm(playlistName) }) { Text("Create") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text(stringResource(R.string.new_playlist)) },
+        text = { TextField(value = playlistName, onValueChange = { playlistName = it }, placeholder = { Text(stringResource(R.string.playlist_name_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { TextButton(onClick = { if (playlistName.isNotBlank()) onConfirm(playlistName) }) { Text(stringResource(R.string.create)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
         shape = RoundedCornerShape(28.dp)
     )
 }

@@ -1,0 +1,306 @@
+<resources>
+    <string name="app_name">Jasmine</string>
+
+    <!-- General -->
+    <string name="ok">ОК</string>
+    <string name="cancel">Отмена</string>
+    <string name="delete">Удалить</string>
+    <string name="save">Сохранить</string>
+    <string name="done">Готово</string>
+    <string name="remove">Убрать</string>
+    <string name="share">Поделиться</string>
+    <string name="edit">Изменить</string>
+    <string name="info">Инфо</string>
+    <string name="search">Поиск</string>
+    <string name="clear">Очистить</string>
+    <string name="back">Назад</string>
+    <string name="url_copied">URL скопирован</string>
+    <string name="select_all">Выбрать все</string>
+    <string name="edit_details">Изменить детали</string>
+    <string name="add_to_playlist">Добавить в плейлист</string>
+    <string name="unknown">Неизвестно</string>
+    <string name="title">Название</string>
+    <string name="import_action">Импорт</string>
+    <string name="new_action">Создать</string>
+    <string name="create">Создать</string>
+    <string name="verify">Проверить</string>
+    <string name="login">Войти</string>
+    <string name="logout">Выйти</string>
+    <string name="add">Добавить</string>
+
+    <!-- Player -->
+    <string name="live">LIVE</string>
+    <string name="radio_stream">Радио поток</string>
+    <string name="unknown_title">Неизвестное название</string>
+    <string name="unknown_artist">Неизвестный исполнитель</string>
+    <string name="from_queue">Из очереди</string>
+    <string name="playback_speed">Скорость воспроизведения</string>
+    <string name="playback_pitch">Тон воспроизведения</string>
+    <string name="reset_to_default">Сбросить настройки</string>
+    <string name="speed">Скорость</string>
+    <string name="pitch">Тон</string>
+    <string name="album">Альбом</string>
+    <string name="artist">Исполнитель</string>
+    <string name="add_to_queue">Добавить в очередь</string>
+    <string name="playlist">Плейлист</string>
+    <string name="details">Подробности</string>
+    <string name="delete_from_device">Удалить с устройства</string>
+    <string name="delete_track_title">Удалить трек</string>
+    <string name="delete_track_message">Вы уверены, что хотите удалить \"%1$s\" с вашего устройства?</string>
+    <string name="lyrics">Текст песни</string>
+    <string name="queue">Очередь</string>
+    <string name="playing_queue">Очередь воспроизведения</string>
+    <string name="now_playing">Сейчас играет</string>
+    <string name="up_next">Далее</string>
+    <string name="lyrics_local">Локально</string>
+    <string name="lyrics_lrclib">LRCLIB</string>
+
+    <!-- Main Screen & Navigation -->
+    <string name="selected_count">Выбрано: %1$d</string>
+    <string name="albums">Альбомы</string>
+    <string name="artists">Исполнители</string>
+    <string name="folders">Папки</string>
+    <string name="playlists">Плейлисты</string>
+    <string name="playback">Воспроизведение</string>
+    <string name="appearance">Внешний вид</string>
+    <string name="library_settings">Настройки библиотеки</string>
+    <string name="maintenance">Обслуживание</string>
+    <string name="shapes_gallery">Галерея форм</string>
+    <string name="about_jasmine">О приложении</string>
+    <string name="telegram_cloud">Telegram Облако</string>
+    <string name="chat_picker">Выбор чата</string>
+
+    <string name="search_tracks">Поиск треков...</string>
+    <string name="search_in_playlist">Поиск в плейлисте...</string>
+    <string name="search_in_folder">Поиск в папке...</string>
+    <string name="search_generic">Поиск...</string>
+
+    <!-- Sorting -->
+    <string name="sort_by_name">По названию</string>
+    <string name="sort_by_artist">По исполнителю</string>
+    <string name="sort_by_date">По дате добавления</string>
+    <string name="sort_by_duration">По длительности</string>
+    <string name="normal_order">Обычный порядок</string>
+    <string name="reverse_order">Обратный порядок</string>
+    <string name="sort_title">названию</string>
+    <string name="sort_artist">исполнителю</string>
+    <string name="sort_date">дате добавления</string>
+    <string name="sort_duration">длительности</string>
+
+    <!-- Dialogs -->
+    <string name="select_tracks">Выбрать треки</string>
+    <string name="edit_playlist_details">Изменить данные плейлиста</string>
+    <string name="playlist_name">Название плейлиста</string>
+    <string name="delete_playlist_title">Удалить плейлист</string>
+    <string name="delete_playlist_message">Удалить этот плейлист?</string>
+    <string name="delete_tracks_title">Удалить треки</string>
+    <string name="delete_tracks_message">Удалить %1$d треков с устройства?</string>
+    <string name="delete_stations_title">Удалить станции</string>
+    <string name="delete_stations_message">Удалить %1$d станций?</string>
+    <string name="remove_tracks_title">Убрать треки</string>
+    <string name="remove_tracks_message">Убрать %1$d треков из плейлиста?</string>
+    <string name="blacklist_folder_title">Черный список папок</string>
+    <string name="blacklist_folder_message">Вы уверены, что хотите добавить эту папку и все её подпапки в черный список? Треки будут скрыты из библиотеки.</string>
+    <string name="blacklist">Черный список</string>
+    <string name="edit_track_info">Изменить информацию о треке</string>
+    <string name="new_playlist">Новый плейлист</string>
+    <string name="playlist_name_hint">Название плейлиста</string>
+    <string name="add_station">Добавить радиостанцию</string>
+    <string name="station_name">Название станции</string>
+    <string name="station_url">URL станции</string>
+
+    <!-- Specific Defaults -->
+    <string name="album_default">Альбом</string>
+    <string name="artist_default">Исполнитель</string>
+    <string name="folder_default">Папка</string>
+    <string name="playlist_default">Плейлист</string>
+    <string name="telegram_channel_default">Telegram канал</string>
+    <string name="imported_playlist_default">Импортированный плейлист</string>
+    <string name="album_not_found">Альбом не найден</string>
+    <string name="artist_not_found">Исполнитель не найден</string>
+    <string name="playlist_not_found">Плейлист не найден</string>
+    <string name="folder_not_found">Папка не найдена</string>
+    <string name="album_source">Альбом: %1$s</string>
+    <string name="artist_source">Исполнитель: %1$s</string>
+    <string name="playlist_source">Плейлист: %1$s</string>
+    <string name="folder_source">Папка: %1$s</string>
+    <string name="playlist_label">Плейлист</string>
+    <string name="folder_label">Папка</string>
+
+    <!-- About -->
+    <string name="version_template">Версия %1$s</string>
+    <string name="developer_name">NekoDosi | NKDS</string>
+    <string name="developer_handle">@NekoDosi</string>
+    <string name="made_with_heart">Сделано с ❤️</string>
+
+    <!-- Tracks Screen -->
+    <string name="no_favorites">В избранном пока ничего нет</string>
+    <string name="no_tracks">Треки не найдены</string>
+    <string name="nothing_found">Ничего не найдено</string>
+    <string name="tracks">Треки</string>
+
+    <!-- Settings -->
+    <string name="settings_playback_subtitle">Кроссфейд, стиль прогресс-бара</string>
+    <string name="settings_appearance_subtitle">Тема, AMOLED, шрифты, цвета</string>
+    <string name="settings_library_subtitle">Сортировка, фильтрация, черный список папок</string>
+    <string name="settings_telegram_subtitle">Стриминг музыки из ваших чатов</string>
+    <string name="settings_maintenance_subtitle">Очистка кэша, информация о хранилище</string>
+    <string name="settings_about_subtitle">О приложении, разработчик, версия</string>
+    <string name="crossfade">Кроссфейд</string>
+    <string name="crossfade_desc">Плавный переход между треками</string>
+    <string name="duration">Длительность</string>
+    <string name="manage_audio_focus">Управление аудиофокусом</string>
+    <string name="manage_audio_focus_desc">Приостанавливать воспроизведение при звуках из других приложений (звонки, уведомления и т.д.)</string>
+    <string name="app_font">Шрифт приложения</string>
+    <string name="progress_bar_style">Стиль полосы прогресса</string>
+    <string name="palette_style">Стиль палитры</string>
+    <string name="layout_customization">Интерфейс и настройки</string>
+    <string name="nav_bar_items">Элементы панели навигации</string>
+    <string name="nav_bar_items_desc">Изменение порядка или скрытие вкладок</string>
+    <string name="player_controls_order">Порядок кнопок управления</string>
+    <string name="player_controls_order_desc">Изменение порядка кнопок на экране плеера</string>
+    <string name="system_theme">Системная тема</string>
+    <string name="theme_mode">Режим темы</string>
+    <string name="amoled_mode">AMOLED темная тема</string>
+    <string name="amoled_mode_desc">Глубокий черный фон в темной теме</string>
+    <string name="dynamic_colors">Динамические цвета (Material You)</string>
+    <string name="dynamic_colors_desc">Использовать системные акцентные цвета</string>
+    <string name="use_album_art_color">Цвет обложки альбома</string>
+    <string name="use_album_art_color_desc">Генерировать тему на основе обложки текущего трека</string>
+    <string name="drag_to_reorder">Перетащите элементы для изменения порядка.</string>
+    <string name="drag_to_reorder_min2">Перетащите для изменения порядка. Требуется минимум 2 элемента.</string>
+    <string name="player_shuffle">Перемешать</string>
+    <string name="player_previous">Назад</string>
+    <string name="player_play_pause">Плэй/Пауза</string>
+    <string name="player_next">Вперед</string>
+    <string name="player_repeat">Повтор</string>
+    <string name="organic_animations">Органические анимации</string>
+    <string name="organic_animations_desc">Включить вращение для всех фигур</string>
+    <string name="app_language">Язык приложения</string>
+    <string name="system_default">Системный по умолчанию</string>
+    <string name="language_desc">Изменить язык интерфейса приложения.</string>
+    <string name="filter_short_tracks">Фильтр коротких треков</string>
+    <string name="default_sorting">Сортировка по умолчанию</string>
+    <string name="default_sorting_desc">По %1$s %2$s</string>
+    <string name="blacklisted_folders">Исключенные папки</string>
+    <string name="blacklisted_folders_desc">Папки, музыка из которых не сканируется</string>
+    <string name="reversed_label">(Обратный порядок)</string>
+    <string name="reverse_order_default">Обратный порядок по умолчанию</string>
+
+    <!-- Maintenance -->
+    <string name="storage_cache">Хранилище и кэш</string>
+    <string name="cover_cache">Кэш обложек</string>
+    <string name="cover_cache_info">%1$d файлов • %2$s</string>
+    <string name="cover_cache_desc">Обложки кэшируются для плавности прокрутки. Очистка приведет к повторному сканированию при следующем запуске.</string>
+    <string name="clear_cover_cache">Очистить кэш обложек</string>
+    <string name="telegram_cache">Кэш Telegram Cloud</string>
+    <string name="telegram_cache_desc">Музыка из Telegram кэшируется локально. Очистка удалит все загруженные облачные треки.</string>
+    <string name="clear_telegram_cache">Очистить кэш Telegram</string>
+    <string name="clear_cache_confirm_title">Очистить кэш?</string>
+    <string name="clear_cover_cache_confirm_desc">Это удалит все кэшированные обложки альбомов. Они будут созданы заново при сканировании библиотеки.</string>
+    <string name="clear_telegram_cache_confirm_title">Очистить кэш Telegram?</string>
+    <string name="clear_telegram_cache_confirm_desc">Это удалит все загруженные аудиофайлы из Telegram. Ваш аккаунт и каналы останутся подключенными.</string>
+
+    <!-- Library -->
+    <string name="library">Библиотека</string>
+    <string name="favorites">Избранное</string>
+    <string name="recent">Недавние</string>
+    <string name="most_played">Часто воспроизводимые</string>
+    <string name="items_count">Элементов: %1$d</string>
+    <string name="your_favorites">Ваше избранное</string>
+    <string name="no_albums">Альбомы не найдены</string>
+    <string name="no_artists">Исполнители не найдены</string>
+    <string name="tracks_count">Треков: %1$d</string>
+    <string name="no_playlists">Плейлисты не найдены</string>
+    <string name="no_folders">Музыкальные папки не найдены</string>
+    <string name="nothing_here_playlist">Похоже, здесь ничего нет.\nХотите это исправить?</string>
+    <string name="add_tracks">Добавить треки</string>
+
+    <!-- Toasts -->
+    <string name="added_to_queue">Добавлено в очередь</string>
+    <string name="removed_from_queue">Удалено из очереди</string>
+    <string name="added_to_favorites">Добавлено в избранное</string>
+    <string name="removed_from_favorites">Удалено из избранного</string>
+    <string name="station_added_toast">Станция добавлена</string>
+    <string name="station_removed_toast">Станция удалена</string>
+
+    <!-- Lyrics -->
+    <string name="local">Локально</string>
+    <string name="lrclib">LRCLIB</string>
+    <string name="no_lyrics_lrclib">Текст песни на LRCLIB не найден.</string>
+    <string name="no_lyrics_local">Локальный текст песни не найден.</string>
+
+    <!-- Navigation -->
+    <string name="nav_tracks">Треки</string>
+    <string name="nav_library">Библиотека</string>
+    <string name="nav_radio">Радио</string>
+    <string name="nav_settings">Настройки</string>
+
+    <!-- Telegram Cloud Auth -->
+    <string name="tg_welcome">Добро пожаловать в Telegram Cloud</string>
+    <string name="tg_welcome_desc">Подключите свой аккаунт, чтобы слушать музыку из ваших каналов и чатов.</string>
+    <string name="tg_phone_label">Номер телефона</string>
+    <string name="tg_phone_hint">+79991234567</string>
+    <string name="tg_send_code">Отправить код</string>
+    <string name="tg_enter_code">Введите код</string>
+    <string name="tg_code_desc">Мы отправили код подтверждения в ваше приложение Telegram.</string>
+    <string name="tg_code_label">Код подтверждения</string>
+    <string name="tg_2step_title">Двухэтапная аутентификация</string>
+    <string name="tg_2step_desc">Ваш аккаунт защищен дополнительным паролем.</string>
+    <string name="tg_password_label">Пароль</string>
+    <string name="tg_connected_title">Вы подключены!</string>
+    <string name="tg_connected_desc">Telegram Cloud готов к работе. Теперь вы можете просматривать и добавлять музыку из своих каналов.</string>
+    <string name="tg_find_channels">Найти каналы</string>
+
+    <!-- Radio -->
+    <string name="no_radio_stations">Радиостанции не найдены</string>
+
+    <!-- Permission -->
+    <string name="stability_warning_title">ПРИЛОЖЕНИЕ\nНЕСТАБИЛЬНО</string>
+    <string name="stability_warning_text">Приложение навайбкожено через Gemini и сделано для личного пользования. Оно нестабильно и нуждается в проверке, потому Jasmine может выкинуть баги, лаги и прочие невкусные приколы.\n\nО проблемах писать @NekoDosi.</string>
+    <string name="wait_seconds">Подожди %1$d...</string>
+    <string name="accept_risk">Смириться</string>
+    <string name="permissions_required">Требуются разрешения</string>
+    <string name="permissions_desc">Jasmine нужен доступ к вашей музыке и хранилищу, чтобы сканировать треки, управлять плейлистами и кэшировать обложки альбомов прямо на вашем устройстве.</string>
+    <string name="grant_access">Предоставить доступ</string>
+
+    <!-- External Player -->
+    <string name="external_audio">Внешнее аудио</string>
+    <string name="downloaded_file">Загруженный файл</string>
+
+    <!-- Playlist Actions -->
+    <string name="no_playlists_found">Плейлисты не найдены. Создайте один в библиотеке.</string>
+    <string name="add_to_playlist_confirm">Добавить в \"%1$s\"?</string>
+    <string name="confirmation">Подтверждение</string>
+    <string name="already_in_playlist">Уже в %1$s</string>
+    <string name="added_to_playlist_toast">Добавлено в %1$s</string>
+    <string name="added_x_tracks_to_playlist">Добавлено %1$d треков в %2$s</string>
+    <string name="removed_from_playlist_toast">Удалено из %1$s</string>
+    <string name="removed_x_tracks_from_playlist">Удалено %1$d треков из %2$s</string>
+
+    <!-- Track Info -->
+    <string name="track_info">Инфо о треке</string>
+    <string name="technical_details">Технические детали</string>
+    <string name="format_codec">Формат / Кодек</string>
+    <string name="sample_rate">Частота дискретизации</string>
+    <string name="bitrate">Битрейт</string>
+    <string name="channels">Каналы</string>
+    <string name="file_size">Размер файла</string>
+    <string name="file_location">Расположение файла</string>
+    <string name="system_media_store">Системное хранилище (URI: %1$s)</string>
+
+    <!-- Share -->
+    <string name="share_track">Поделиться треком</string>
+    <string name="share_file">Файл</string>
+    <string name="share_text">Текст</string>
+    <string name="share_card">Карточка</string>
+    <string name="share_card_title">Поделиться карточкой</string>
+
+    <!-- Additional Toasts -->
+    <string name="playlist_exported">Плейлист экспортирован</string>
+    <string name="export_failed">Экспорт не удался</string>
+    <string name="metadata_updated">Метаданные обновлены</string>
+    <string name="update_failed">Ошибка обновления</string>
+    <string name="deleted_from_device_toast">Удалено с устройства</string>
+    <string name="station_deleted">Станция удалена</string>
+</resources>

@@ -25,12 +25,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.LyricsLine
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.ui.components.TrackCard
@@ -144,7 +146,7 @@ fun LyricsContent(
                             PlainLyricsView(currentPlain)
                         }
                         else -> {
-                            val msg = if (isLrcLibMode) "No lyrics found on LRCLIB." else "No local lyrics found."
+                            val msg = if (isLrcLibMode) stringResource(R.string.no_lyrics_lrclib) else stringResource(R.string.no_lyrics_local)
                             Text(msg, color = Color.Gray, modifier = Modifier.align(Alignment.Center))
                         }
                     }
@@ -159,7 +161,6 @@ fun LyricsContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LyricsHeader(isLrcLibMode: Boolean, onModeChange: (Boolean) -> Unit) {
-    // ... остальной код заголовка (без изменений) ...
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -168,7 +169,7 @@ private fun LyricsHeader(isLrcLibMode: Boolean, onModeChange: (Boolean) -> Unit)
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Lyrics",
+            text = stringResource(R.string.lyrics),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
@@ -179,12 +180,12 @@ private fun LyricsHeader(isLrcLibMode: Boolean, onModeChange: (Boolean) -> Unit)
                 selected = !isLrcLibMode,
                 onClick = { onModeChange(false) },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-            ) { Text("Local") }
+            ) { Text(stringResource(R.string.lyrics_local)) }
             SegmentedButton(
                 selected = isLrcLibMode,
                 onClick = { onModeChange(true) },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-            ) { Text("LRCLIB") }
+            ) { Text(stringResource(R.string.lyrics_lrclib)) }
         }
     }
 }

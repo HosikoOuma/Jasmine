@@ -9,10 +9,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Playlist
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
 
@@ -31,12 +33,12 @@ fun AddToPlaylistDialog(
             onDismissRequest = onDismissRequest,
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = onDismissRequest) { Text("Cancel") }
+                TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
             },
-            title = { Text("Add to playlist", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.add_to_playlist), fontWeight = FontWeight.Bold) },
             text = {
                 if (playlists.isEmpty()) {
-                    Text("No playlists found. Create one in Library first.")
+                    Text(stringResource(R.string.no_playlists_found))
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp),
@@ -75,8 +77,8 @@ fun AddToPlaylistDialog(
     } else {
         AlertDialog(
             onDismissRequest = { selectedPlaylist = null },
-            title = { Text("Confirmation") },
-            text = { Text("Add to \"${selectedPlaylist?.name}\"?") },
+            title = { Text(stringResource(R.string.confirmation)) },
+            text = { Text(stringResource(R.string.add_to_playlist_confirm, selectedPlaylist?.name ?: "")) },
             confirmButton = {
                 Button(
                     onClick = { 
@@ -84,10 +86,10 @@ fun AddToPlaylistDialog(
                         onDismissRequest() 
                     },
                     shape = RoundedCornerShape(16.dp)
-                ) { Text("Add") }
+                ) { Text(stringResource(R.string.add)) }
             },
             dismissButton = {
-                TextButton(onClick = { selectedPlaylist = null }) { Text("Back") }
+                TextButton(onClick = { selectedPlaylist = null }) { Text(stringResource(R.string.back)) }
             },
             shape = RoundedCornerShape(28.dp)
         )

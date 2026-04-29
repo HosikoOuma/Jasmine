@@ -6,9 +6,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.ui.components.SettingsSliderItem
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsState
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
@@ -43,8 +45,8 @@ fun PlaybackSettingsContent(
             .padding(16.dp)
     ) {
         ListItem(
-            headlineContent = { Text("Crossfade") },
-            supportingContent = { Text("Smoothly transition between tracks") },
+            headlineContent = { Text(stringResource(R.string.crossfade)) },
+            supportingContent = { Text(stringResource(R.string.crossfade_desc)) },
             trailingContent = {
                 Switch(
                     checked = settings.isCrossfadeEnabled,
@@ -55,7 +57,7 @@ fun PlaybackSettingsContent(
 
         if (settings.isCrossfadeEnabled) {
             SettingsSliderItem(
-                label = "Duration",
+                label = stringResource(R.string.duration),
                 value = settings.crossfadeDuration.toFloat(),
                 valueRange = 1000f..10000f,
                 steps = 8,
@@ -68,8 +70,8 @@ fun PlaybackSettingsContent(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         ListItem(
-            headlineContent = { Text("Manage Audio Focus") },
-            supportingContent = { Text("Pause playback when another app plays sound (calls, notifications, etc.)") },
+            headlineContent = { Text(stringResource(R.string.manage_audio_focus)) },
+            supportingContent = { Text(stringResource(R.string.manage_audio_focus_desc)) },
             trailingContent = {
                 Switch(
                     checked = settings.manageAudioFocus,

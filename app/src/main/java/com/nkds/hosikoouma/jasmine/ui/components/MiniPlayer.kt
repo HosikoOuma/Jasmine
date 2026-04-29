@@ -28,11 +28,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -253,7 +255,7 @@ fun MiniPlayer(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    "LIVE",
+                                    stringResource(R.string.live),
                                     modifier = Modifier.padding(horizontal = 4.dp),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontSize = 10.sp,
@@ -265,7 +267,7 @@ fun MiniPlayer(
                         }
                         Text(
                             text = if (isRadioMode) {
-                                radioTrackArtist ?: "Radio Stream"
+                                radioTrackArtist ?: stringResource(R.string.radio_stream)
                             } else {
                                 currentTrack?.artist ?: ""
                             },

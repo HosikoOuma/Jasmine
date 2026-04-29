@@ -43,6 +43,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +55,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.core.utils.FormatUtils
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
@@ -291,7 +293,7 @@ fun PlayerContent(
             .background(MaterialTheme.colorScheme.surface)
             .pointerInput(isInteractionEnabled) {
                 if (!isInteractionEnabled) return@pointerInput
-                
+
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (animatedOffset.value > 300) {
@@ -331,8 +333,7 @@ fun PlayerContent(
                         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
-                            @Suppress("DEPRECATION")
-                            Text("From Queue", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.from_queue), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
                         }
                     }
                 } else if (uiState.sourceName != null) {
@@ -353,13 +354,13 @@ fun PlayerContent(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(24.dp)), 
+                    .clip(RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1, 
+                    beyondViewportPageCount = 1,
                     pageSpacing = 24.dp,
                     key = { page -> "p_${uiState.playlist.getOrNull(page)?.uid ?: page}" }
                 ) { page ->
@@ -492,15 +493,15 @@ fun PlayerContent(
                         modifier = Modifier.heightIn(max = 400.dp)
                     ) {
                         item {
-                            ActionCard(icon = Icons.Rounded.Speed, label = "Speed", onClick = { showMoreActions = false; showSpeedSheet = true })
+                            ActionCard(icon = Icons.Rounded.Speed, label = stringResource(R.string.speed), onClick = { showMoreActions = false; showSpeedSheet = true })
                         }
                         item {
-                            ActionCard(icon = Icons.Rounded.GraphicEq, label = "Pitch", onClick = { showMoreActions = false; showPitchSheet = true })
+                            ActionCard(icon = Icons.Rounded.GraphicEq, label = stringResource(R.string.pitch), onClick = { showMoreActions = false; showPitchSheet = true })
                         }
                         item {
                             ActionCard(
                                 icon = Icons.Rounded.Album,
-                                label = "Album",
+                                label = stringResource(R.string.album),
                                 onClick = {
                                     uiState.currentTrack?.let { track ->
                                         val encoded = URLEncoder.encode(track.album, StandardCharsets.UTF_8.toString())
@@ -514,7 +515,7 @@ fun PlayerContent(
                         item {
                             ActionCard(
                                 icon = Icons.Rounded.Person,
-                                label = "Artist",
+                                label = stringResource(R.string.artist),
                                 onClick = {
                                     uiState.currentTrack?.let { track ->
                                         val encoded = URLEncoder.encode(track.artist, StandardCharsets.UTF_8.toString())
@@ -526,18 +527,18 @@ fun PlayerContent(
                             )
                         }
                         item {
-                            ActionCard(icon = Icons.Rounded.Queue, label = "Add to Queue", onClick = { uiState.currentTrack?.let { onAddToQueue(it) }; showMoreActions = false })
+                            ActionCard(icon = Icons.Rounded.Queue, label = stringResource(R.string.add_to_queue), onClick = { uiState.currentTrack?.let { onAddToQueue(it) }; showMoreActions = false })
                         }
                         item {
-                            ActionCard(icon = Icons.AutoMirrored.Rounded.PlaylistAdd, label = "Playlist", onClick = { showMoreActions = false; showAddToPlaylistDialog = true })
+                            ActionCard(icon = Icons.AutoMirrored.Rounded.PlaylistAdd, label = stringResource(R.string.playlist), onClick = { showMoreActions = false; showAddToPlaylistDialog = true })
                         }
                         item {
-                            ActionCard(icon = Icons.Rounded.Info, label = "Details", onClick = { showMoreActions = false; showTrackInfo = true })
+                            ActionCard(icon = Icons.Rounded.Info, label = stringResource(R.string.details), onClick = { showMoreActions = false; showTrackInfo = true })
                         }
                         item {
                             ActionCard(
                                 icon = Icons.Rounded.Share,
-                                label = "Share",
+                                label = stringResource(R.string.share),
                                 onClick = {
                                     showMoreActions = false
                                     showShareBottomSheet = true
@@ -564,8 +565,7 @@ fun PlayerContent(
                             verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.Delete, null, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            @Suppress("DEPRECATION")
-                            Text("Delete from Device", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.delete_from_device), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -574,7 +574,7 @@ fun PlayerContent(
 
         if (showSpeedSheet) {
             ParameterAdjustmentSheet(
-                title = "Playback Speed",
+                title = stringResource(R.string.playback_speed),
                 value = uiState.playbackSpeed,
                 valueRange = 0.25f..2.0f,
                 steps = 6,
@@ -588,7 +588,7 @@ fun PlayerContent(
 
         if (showPitchSheet) {
             ParameterAdjustmentSheet(
-                title = "Playback Pitch",
+                title = stringResource(R.string.playback_pitch),
                 value = uiState.playbackPitch,
                 valueRange = 0.5f..2.0f,
                 steps = 5,
@@ -604,6 +604,7 @@ fun PlayerContent(
             AddToPlaylistDialog(
                 onDismissRequest = { showAddToPlaylistDialog = false },
                 onPlaylistSelected = { playlistId ->
+                    // Вызываем только метод ViewModel. Он сам решит, какой тост показать.
                     onAddTrackToPlaylist(playlistId, uiState.currentTrack.id)
                     showAddToPlaylistDialog = false
                 },
@@ -614,8 +615,8 @@ fun PlayerContent(
         if (showDeleteDialog && uiState.currentTrack != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
-                title = { Text("Delete Track") },
-                text = { Text("Are you sure you want to delete \"${uiState.currentTrack.title}\" from your device?") },
+                title = { Text(stringResource(R.string.delete_track_title)) },
+                text = { Text(stringResource(R.string.delete_track_message, uiState.currentTrack.title)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -623,10 +624,10 @@ fun PlayerContent(
                             onPrepareForDeletion(listOf(uiState.currentTrack))
                             onDeleteTracks(listOf(uiState.currentTrack))
                         }
-                    ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                    ) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
                 },
                 shape = RoundedCornerShape(28.dp),
                 containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
@@ -651,9 +652,9 @@ fun PlayerContent(
 @Composable
 fun TrackInfoSection(title: String?, artist: String?) {
     Column(modifier = Modifier.fillMaxWidth().height(72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(title ?: "Unknown Title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
+        Text(title ?: stringResource(R.string.unknown_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
         Spacer(modifier = Modifier.height(4.dp))
-        Text(artist ?: "Unknown Artist", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
+        Text(artist ?: stringResource(R.string.unknown_artist), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.basicMarquee())
     }
 }
 
@@ -757,7 +758,7 @@ fun PlaybackControlsSection(
                 "play_pause" -> {
                     val playPauseInteractionSource = remember { MutableInteractionSource() }
                     val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
-                    val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.7f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow), label = "playPauseScale")
+                    val playPauseScale by animateFloatAsState(targetValue = if (isPlayPausePressed) 0.7f else 1f, animationSpec = spring(stiffness = Spring.StiffnessMedium), label = "playPauseScale")
                     val cornerPercent by animateIntAsState(targetValue = if (isPlaying) 50 else 25, animationSpec = tween(500, easing = LinearOutSlowInEasing), label = "cornerAnimation")
 
                     Surface(
@@ -918,7 +919,7 @@ fun ParameterAdjustmentSheet(
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             ) {
-                Text("Reset to Default", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.reset_to_default), fontWeight = FontWeight.Bold)
             }
         }
     }

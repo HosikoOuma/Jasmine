@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -33,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.models.ProgressBarStyle
 import com.nkds.hosikoouma.jasmine.core.utils.FormatUtils
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
@@ -139,7 +141,7 @@ fun ExternalPlayerContent(
 
     var isArtMinimized by remember { mutableStateOf(!uiState.isPlaying) }
     LaunchedEffect(uiState.isPlaying) { isArtMinimized = !uiState.isPlaying }
-    val artScale by animateFloatAsState(targetValue = if (isArtMinimized) 0.8f else 0.9f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow))
+    val artScale by animateFloatAsState(targetValue = if (isArtMinimized) 0.8f else 0.9f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow), label = "artScale")
 
     BackHandler { onClose() }
 
@@ -191,10 +193,10 @@ fun ExternalPlayerContent(
         }
 
         if (showSpeedSheet) {
-            ExternalParameterSheet(title = "Playback Speed", value = uiState.playbackSpeed, valueRange = 0.25f..2.0f, steps = 6, icon = Icons.Rounded.Speed, onValueChange = onSetSpeed, onDismiss = { showSpeedSheet = false }, valueFormatter = { "%.2fx".format(it) })
+            ExternalParameterSheet(title = stringResource(R.string.playback_speed), value = uiState.playbackSpeed, valueRange = 0.25f..2.0f, steps = 6, icon = Icons.Rounded.Speed, onValueChange = onSetSpeed, onDismiss = { showSpeedSheet = false }, valueFormatter = { "%.2fx".format(it) })
         }
         if (showPitchSheet) {
-            ExternalParameterSheet(title = "Playback Pitch", value = uiState.playbackPitch, valueRange = 0.5f..2.0f, steps = 5, icon = Icons.Rounded.GraphicEq, onValueChange = onSetPitch, onDismiss = { showPitchSheet = false }, valueFormatter = { "%.2f".format(it) })
+            ExternalParameterSheet(title = stringResource(R.string.playback_pitch), value = uiState.playbackPitch, valueRange = 0.5f..2.0f, steps = 5, icon = Icons.Rounded.GraphicEq, onValueChange = onSetPitch, onDismiss = { showPitchSheet = false }, valueFormatter = { "%.2f".format(it) })
         }
     }
 }
@@ -274,7 +276,7 @@ private fun ExternalControlsSection(
         IconButton(onClick = onShowPitch) {
             Icon(Icons.Rounded.GraphicEq, null, tint = if (uiState.playbackPitch != 1.0f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
         }
-        IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, null, tint = if (uiState.playbackPitch != 1.0f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+        IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, null) }
     }
 }
 
@@ -294,7 +296,7 @@ private fun ExternalParameterSheet(
             Spacer(modifier = Modifier.height(32.dp))
             Slider(value = value, onValueChange = { if (it != value) { VibrationUtils.tickVibrate(vibrator); onValueChange(it) } }, valueRange = valueRange, steps = steps)
             Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = { VibrationUtils.tickVibrate(vibrator); onValueChange(1.0f) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)) { Text("Reset to Default", fontWeight = FontWeight.Bold) }
+            Button(onClick = { VibrationUtils.tickVibrate(vibrator); onValueChange(1.0f) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)) { Text(stringResource(R.string.reset_to_default), fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -304,7 +306,7 @@ private fun ExternalParameterSheet(
 fun ExternalPlayerPreview() {
     JasmineTheme {
         ExternalPlayerContent(
-            uiState = ExternalPlayerUiState(title = "External Audio", artist = "Downloaded File", isPlaying = true, progress = 5000, duration = 180000),
+            uiState = ExternalPlayerUiState(title = stringResource(R.string.external_audio), artist = stringResource(R.string.downloaded_file), isPlaying = true, progress = 5000, duration = 180000),
             onClose = {}, onTogglePlayPause = {}, onSeek = {}, onToggleRepeat = {}, onSetSpeed = {}, onSetPitch = {}
         )
     }

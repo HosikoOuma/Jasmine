@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -63,6 +64,7 @@ class PermissionActivity : ComponentActivity() {
         val storageGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
+            @Suppress("DEPRECATION")
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         }
 
@@ -115,7 +117,9 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
             add(Manifest.permission.READ_MEDIA_AUDIO)
             add(Manifest.permission.READ_MEDIA_IMAGES)
         } else {
+            @Suppress("DEPRECATION")
             add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            @Suppress("DEPRECATION")
             add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }.toTypedArray()
@@ -134,15 +138,15 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
         }
     }
 
-    // --- Russian Stability Dialog (UNTOUCHED) ---
+    // --- Russian Stability Dialog ---
     if (showWarning) {
         AlertDialog(
             onDismissRequest = { /* Не позволяем закрыть тапом вне */ },
             icon = { Icon(Icons.Rounded.Warning, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("ПРИЛОЖЕНИЕ\nНЕСТАБИЛЬНО") },
+            title = { Text(stringResource(R.string.stability_warning_title)) },
             text = {
                 Text(
-                    "Приложение навайбкожено через Gemini и сделано для личного пользования. Оно нестабильно и нуждается в проверке, потому Jasmine может выкинуть баги, лаги и прочие невкусные приколы.\n\nО проблемах писать @NekoDosi.",
+                    stringResource(R.string.stability_warning_text),
                     textAlign = TextAlign.Center
                 )
             },
@@ -155,7 +159,10 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
                         contentColor = MaterialTheme.colorScheme.onError
                     )
                 ) {
-                    Text(if (secondsLeft > 0) "Подожди $secondsLeft..." else "Смириться")
+                    Text(
+                        if (secondsLeft > 0) stringResource(R.string.wait_seconds, secondsLeft) 
+                        else stringResource(R.string.accept_risk)
+                    )
                 }
             }
         )
@@ -195,7 +202,7 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
                     Box(contentAlignment = Alignment.Center) {
                         Image(
                             painter = painterResource(id = R.drawable.ison_vec),
-                            contentDescription = "Jasmine Logo",
+                            contentDescription = stringResource(R.string.app_name),
                             modifier = Modifier.size(100.dp),
                             contentScale = ContentScale.Fit
                         )
@@ -205,7 +212,7 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 Text(
-                    text = "Jasmine",
+                    text = stringResource(R.string.app_name),
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontWeight = FontWeight.Black,
                         letterSpacing = 2.sp
@@ -236,17 +243,17 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Text(
-                        text = "Permissions Required",
+                        text = stringResource(R.string.permissions_required),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurface // Принудительно используем цвет темы
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     Text(
-                        text = "Jasmine needs access to your music and storage to scan tracks, manage playlists, and cache album covers directly on your device.",
+                        text = stringResource(R.string.permissions_desc),
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -271,7 +278,7 @@ fun PermissionScreen(onPermissionsGranted: () -> Unit, onRequestManageStorage: (
                 )
             ) {
                 Text(
-                    text = "Grant Access",
+                    text = stringResource(R.string.grant_access),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }

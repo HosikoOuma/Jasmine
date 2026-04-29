@@ -9,12 +9,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.core.utils.VibrationUtils
 import com.nkds.hosikoouma.jasmine.datamodels.Album
 import com.nkds.hosikoouma.jasmine.datamodels.Track
@@ -49,6 +51,8 @@ fun AlbumDetailScreen(
     val currentTrack by playerViewModel.currentTrack.collectAsStateWithLifecycle()
     val isPlaying by playerViewModel.isPlaying.collectAsStateWithLifecycle()
 
+    val sourceName = if (album != null) stringResource(R.string.album_source, album.name) else ""
+
     val uiState = AlbumDetailUiState(
         album = album,
         currentTrack = currentTrack,
@@ -63,7 +67,7 @@ fun AlbumDetailScreen(
                 if (selectedTracks.isNotEmpty()) {
                     onToggleTrackSelection(it.tracks[index])
                 } else {
-                    playerViewModel.playTracks(it.tracks, index, sourceName = "Album: ${it.name}")
+                    playerViewModel.playTracks(it.tracks, index, sourceName = sourceName)
                     onNavigateToPlayer()
                 }
             }
@@ -89,7 +93,7 @@ fun AlbumDetailContent(
     Box(modifier = Modifier.fillMaxSize()) {
         if (uiState.album == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Album not found")
+                Text(stringResource(R.string.album_not_found))
             }
         } else {
             LazyColumn(
@@ -137,7 +141,7 @@ private fun AlbumHeader(album: Album) {
         Column {
             Text(text = album.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(text = album.artist, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(text = "${album.tracks.size} tracks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(text = stringResource(R.string.tracks_count, album.tracks.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

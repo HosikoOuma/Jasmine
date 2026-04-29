@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,6 +26,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 
@@ -85,6 +87,17 @@ fun JasmineBottomBar(
                         label = "bg"
                     )
 
+                    // Map screen route to resource ID for accessibility/content description
+                    val label = when (screen) {
+                        Screen.Tracks -> stringResource(R.string.nav_tracks)
+                        Screen.Library -> stringResource(R.string.nav_library)
+                        Screen.Radio -> stringResource(R.string.nav_radio)
+                        Screen.Settings -> stringResource(R.string.nav_settings)
+                        Screen.TelegramCloud -> stringResource(R.string.telegram_cloud)
+                        Screen.LibraryPlaylists -> stringResource(R.string.playlists)
+                        else -> screen.title
+                    }
+
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -113,7 +126,7 @@ fun JasmineBottomBar(
                     ) {
                         Icon(
                             imageVector = screen.icon,
-                            contentDescription = screen.title,
+                            contentDescription = label,
                             tint = contentColor,
                             modifier = Modifier.size(24.dp)
                         )

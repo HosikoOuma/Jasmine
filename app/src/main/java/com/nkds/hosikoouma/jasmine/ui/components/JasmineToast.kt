@@ -17,11 +17,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -34,7 +36,7 @@ data class ToastData(
     val track: Track? = null,
     val type: ToastType,
     val message: String? = null,
-    val timestamp: Long = System.currentTimeMillis() // Добавляем метку времени для уникальности
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 @Composable
@@ -49,9 +51,7 @@ fun AppToastContainer(
 
     LaunchedEffect(toastData) {
         if (toastData != null) {
-            // Если тост уже виден и пришли новые данные, сначала сбрасываем состояние
             if (isVisible && currentToast != toastData) {
-                // Небольшая задержка перед обновлением контента, чтобы анимация прогресса сбросилась
                 currentToast = toastData
                 offsetX.animateTo(0f, spring())
             } else {
@@ -61,10 +61,8 @@ fun AppToastContainer(
                 isVisible = true
             }
 
-            // Таймер автоскрытия. Перезапускается при каждом изменении toastData
             delay(2800)
 
-            // Если пользователь не удерживает тост (offsetX == 0), скрываем
             if (offsetX.value == 0f) {
                 isVisible = false
                 delay(450)
@@ -92,7 +90,7 @@ fun AppToastContainer(
                         translationX = offsetX.value
                         alpha = 1f - (kotlin.math.abs(offsetX.value) / 600f).coerceIn(0f, 1f)
                     }
-                    .pointerInput(currentToast) { // Перезапускаем ввод при смене тоста
+                    .pointerInput(currentToast) {
                         detectDragGestures(
                             onDragEnd = {
                                 if (kotlin.math.abs(offsetX.value) < 200f) {
@@ -165,7 +163,6 @@ private fun ToastContent(data: ToastData) {
             .fillMaxWidth()
     ) {
         Box {
-            // Передаем data в таймер, чтобы он знал, когда перезапуститься
             ToastProgressTimer(
                 data = data,
                 color = contentColor.copy(alpha = 0.12f),
@@ -206,14 +203,14 @@ private fun ToastContent(data: ToastData) {
                     }
                     Text(
                         text = data.message ?: when(data.type) {
-                            ToastType.REMOVED -> "Removed from Queue"
-                            ToastType.ADDED -> "Added to Queue"
-                            ToastType.DELETE_SUCCESS -> "Deleted from device"
-                            ToastType.DELETE_FAILED -> "Failed to delete"
-                            ToastType.PLAYLIST_ADDED -> "Added to playlist"
-                            ToastType.PLAYLIST_REMOVED -> "Removed from playlist"
-                            ToastType.RADIO_ADDED -> "Station added"
-                            ToastType.RADIO_REMOVED -> "Station deleted"
+                            ToastType.REMOVED -> stringResource(R.string.removed_from_queue)
+                            ToastType.ADDED -> stringResource(R.string.added_to_queue)
+                            ToastType.DELETE_SUCCESS -> stringResource(R.string.deleted_from_device_toast)
+                            ToastType.DELETE_FAILED -> stringResource(R.string.update_failed)
+                            ToastType.PLAYLIST_ADDED -> stringResource(R.string.add_to_playlist)
+                            ToastType.PLAYLIST_REMOVED -> stringResource(R.string.removed_from_playlist_toast, "")
+                            ToastType.RADIO_ADDED -> stringResource(R.string.station_added_toast)
+                            ToastType.RADIO_REMOVED -> stringResource(R.string.station_removed_toast)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (data.track == null) FontWeight.Bold else FontWeight.Normal,
@@ -235,9 +232,8 @@ private fun ToastProgressTimer(
 ) {
     val progress = remember { Animatable(1f) }
 
-    // Используем data как ключ: при поступлении нового тоста эффект перезапустится
     LaunchedEffect(data) {
-        progress.snapTo(1f) // Сброс в 100%
+        progress.snapTo(1f)
         progress.animateTo(0f, tween(2800, easing = LinearEasing))
     }
     
