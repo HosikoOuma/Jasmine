@@ -198,8 +198,7 @@ fun PlayerContent(
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
-    var showQueue by remember { mutableStateOf(false) }
-    var showLyrics by remember { mutableStateOf(false) }
+    val mainPagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
     var showMoreActions by remember { mutableStateOf(false) }
     var showTrackInfo by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -250,20 +249,26 @@ fun PlayerContent(
     var playerBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackingPlayer by remember { mutableStateOf(false) }
 
-    PredictiveBackHandler(enabled = isInteractionEnabled && (showQueue || showLyrics || showMoreActions || showTrackInfo || showSpeedSheet || showPitchSheet || showShareBottomSheet)) { progressFlow ->
+    val isAnySheetShown = showMoreActions || showTrackInfo || showDeleteDialog || showAddToPlaylistDialog || showSpeedSheet || showPitchSheet || showShareBottomSheet
+
+    PredictiveBackHandler(enabled = isInteractionEnabled && (mainPagerState.currentPage != 1 || isAnySheetShown)) { progressFlow ->
         try {
             progressFlow.collect { }
-            showQueue = false
-            showLyrics = false
-            showMoreActions = false
-            showTrackInfo = false
-            showSpeedSheet = false
-            showPitchSheet = false
-            showShareBottomSheet = false
+            if (isAnySheetShown) {
+                showMoreActions = false
+                showTrackInfo = false
+                showDeleteDialog = false
+                showAddToPlaylistDialog = false
+                showSpeedSheet = false
+                showPitchSheet = false
+                showShareBottomSheet = false
+            } else {
+                scope.launch { mainPagerState.animateScrollToPage(1) }
+            }
         } catch (e: Exception) { }
     }
 
-    PredictiveBackHandler(enabled = isInteractionEnabled && !showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet && !showShareBottomSheet) { progressFlow ->
+    PredictiveBackHandler(enabled = isInteractionEnabled && mainPagerState.currentPage == 1 && !isAnySheetShown) { progressFlow ->
         try {
             isBackingPlayer = true
             progressFlow.collect { backEvent -> playerBackProgress = backEvent.progress }
@@ -283,7 +288,7 @@ fun PlayerContent(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                if (!showQueue && !showLyrics && isBackingPlayer) {
+                if (mainPagerState.currentPage == 1 && isBackingPlayer) {
                     translationY = playerBackProgress * size.height
                 } else {
                     translationY = animatedOffset.value.coerceAtLeast(0f)
@@ -306,7 +311,7 @@ fun PlayerContent(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        if (!showQueue && !showLyrics && !showMoreActions && !showTrackInfo && !showSpeedSheet && !showPitchSheet && !showShareBottomSheet) {
+                        if (mainPagerState.currentPage == 1 && !isAnySheetShown) {
                             change.consume()
                             scope.launch { animatedOffset.snapTo(animatedOffset.value + dragAmount) }
                         }
@@ -316,13 +321,21 @@ fun PlayerContent(
     ) {
         PlayerBackground(albumArtUri = uiState.currentTrack?.albumArtUri)
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        HorizontalPager(
+            state = mainPagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1,
+            userScrollEnabled = !isAnySheetShown
+        ) { page ->
+            when (page) {
+                0 -> queueScreen { scope.launch { mainPagerState.animateScrollToPage(1) } }
+                1 -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.systemBars)
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
             Box(modifier = Modifier.height(72.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (uiState.currentTrack?.isManual == true) {
                     Surface(
@@ -432,20 +445,15 @@ fun PlayerContent(
 
             BottomActionsSection(
                 isFavorite = uiState.isFavorite,
-                onShowQueue = { showQueue = true },
+                onShowQueue = { scope.launch { mainPagerState.animateScrollToPage(0) } },
                 onToggleFavorite = onToggleFavorite,
-                onShowLyrics = { showLyrics = true },
+                onShowLyrics = { scope.launch { mainPagerState.animateScrollToPage(2) } },
                 onShowMore = { showMoreActions = true }
             )
         }
-
-        AnimatedVisibility(visible = showQueue, enter = slideInHorizontally(initialOffsetX = { -it }), exit = slideOutHorizontally(targetOffsetX = { -it })) {
-            queueScreen { showQueue = false }
-        }
-
-        AnimatedVisibility(visible = showLyrics, enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it })) {
-            lyricsScreen { showLyrics = false }
-        }
+        2 -> lyricsScreen { scope.launch { mainPagerState.animateScrollToPage(1) } }
+    }
+}
 
         if (showMoreActions) {
             ModalBottomSheet(
