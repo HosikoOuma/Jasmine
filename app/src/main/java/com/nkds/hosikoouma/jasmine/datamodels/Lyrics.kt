@@ -1,23 +1,25 @@
 package com.nkds.hosikoouma.jasmine.datamodels
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class Lyrics(
-    @SerializedName("id")
+    @SerialName("id")
     val id: Long = 0,
-    @SerializedName("name")
+    @SerialName("name")
     val name: String = "",
-    @SerializedName("artistName")
+    @SerialName("artistName")
     val artistName: String = "",
-    @SerializedName("albumName")
+    @SerialName("albumName")
     val albumName: String = "",
-    @SerializedName("duration")
+    @SerialName("duration")
     val duration: Double = 0.0,
-    @SerializedName("instrumental")
+    @SerialName("instrumental")
     val instrumental: Boolean = false,
-    @SerializedName("plainLyrics")
+    @SerialName("plainLyrics")
     val plainLyrics: String? = null,
-    @SerializedName("syncedLyrics")
+    @SerialName("syncedLyrics")
     val syncedLyrics: String? = null
 )
 

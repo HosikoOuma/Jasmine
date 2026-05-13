@@ -63,23 +63,18 @@ class LyricsRepository @Inject constructor(
         }
 
         try {
-            // 2. Ищем в сети (GET)
+            // 2. Ищем в сети (Ktor Service)
             val durationInSec = if (actualDuration > 0) (actualDuration / 1000).toInt() else null
-            val response = lrcLibService.getLyrics(
+            var result = lrcLibService.getLyrics(
                 trackName = track.title,
                 artistName = track.artist,
                 duration = durationInSec
             )
             
-            var result: Lyrics? = null
-            if (response.isSuccessful) {
-                result = response.body()
-            } else {
+            if (result == null) {
                 // Fallback поиск (SEARCH)
-                val searchResponse = lrcLibService.searchLyrics("${track.artist} ${track.title}")
-                if (searchResponse.isSuccessful) {
-                    result = searchResponse.body()?.firstOrNull { it.syncedLyrics != null || it.plainLyrics != null }
-                }
+                val searchResults = lrcLibService.searchLyrics("${track.artist} ${track.title}")
+                result = searchResults.firstOrNull { it.syncedLyrics != null || it.plainLyrics != null }
             }
 
             // 3. Сохраняем в кэш

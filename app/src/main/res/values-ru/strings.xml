@@ -49,9 +49,6 @@
     <string name="delete_track_message">Вы уверены, что хотите удалить \"%1$s\" с вашего устройства?</string>
     <string name="lyrics">Текст песни</string>
     <string name="queue">Очередь</string>
-    <string name="playing_queue">Очередь воспроизведения</string>
-    <string name="now_playing">Сейчас играет</string>
-    <string name="up_next">Далее</string>
     <string name="lyrics_local">Локально</string>
     <string name="lyrics_lrclib">LRCLIB</string>
 
@@ -224,9 +221,12 @@
     <string name="station_added_toast">Станция добавлена</string>
     <string name="station_removed_toast">Станция удалена</string>
 
+    <!-- Queue Screen -->
+    <string name="playing_queue">Очередь воспроизведения</string>
+    <string name="now_playing">Сейчас играет</string>
+    <string name="up_next">Далее</string>
+
     <!-- Lyrics -->
-    <string name="local">Локально</string>
-    <string name="lrclib">LRCLIB</string>
     <string name="no_lyrics_lrclib">Текст песни на LRCLIB не найден.</string>
     <string name="no_lyrics_local">Локальный текст песни не найден.</string>
 

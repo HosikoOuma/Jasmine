@@ -40,7 +40,9 @@ fun JasmineThemeWrapper(
     
     LaunchedEffect(albumArtUri, albumArtBytes, settings.useAlbumArtColor) {
         if (settings.useAlbumArtColor) {
-            val data = albumArtBytes ?: albumArtUri
+            val isPlaceholder = albumArtUri?.toString()?.contains("drawable/ison_vec") == true
+            val data = if (isPlaceholder) null else (albumArtBytes ?: albumArtUri)
+
             if (data != null) {
                 val request = ImageRequest.Builder(context)
                     .data(data)

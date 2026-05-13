@@ -26,22 +26,20 @@
 -dontwarn androidx.media3.**
 
 # --- Jasmine Specific ---
-# Модели данных храним (важно для сериализации)
 -keep class com.nkds.hosikoouma.jasmine.datamodels.** { *; }
 
 # --- Telegram / TDLib ---
-# Сохраняем нативные методы для связи с libtdjni.so
 -keepclasseswithmembernames class * {
     native <methods>;
 }
-# Саму библиотеку TDLib не трогаем (она JNI-зависима)
 -keep class org.drinkless.tdlib.** { *; }
 -dontwarn org.drinkless.tdlib.**
 
 # --- Ktor (Streaming Proxy) ---
--keep class io.ktor.** { *; }
+# Разрешаем R8 удалять неиспользуемый код Ktor, но подавляем варнинги
 -dontwarn io.ktor.**
 -dontwarn kotlinx.coroutines.debug.**
+-dontwarn com.typesafe.config.**
 
 # Jaudiotagger
 -keep class org.jaudiotagger.** { *; }
@@ -50,3 +48,12 @@
 # Coil
 -keep class coil.** { *; }
 -dontwarn coil.**
+
+# --- SLF4J ---
+-dontwarn org.slf4j.**
+
+# --- Kotlin Serialization ---
+-keepclassmembernames class * {
+    @kotlinx.serialization.Serializable *;
+}
+-keep class kotlinx.serialization.internal.** { *; }

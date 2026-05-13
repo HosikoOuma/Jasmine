@@ -174,10 +174,10 @@ fun QueuePreview() {
             playlist = emptyList(),
             currentTrack = null,
             isPlaying = false,
-            onClose = {}, 
-            onMoveTrack = { _, _ -> }, 
-            onRemoveFromQueue = {}, 
-            onAddToQueue = {}, 
+            onClose = {},
+            onMoveTrack = { _, _ -> },
+            onRemoveFromQueue = {},
+            onAddToQueue = {},
             onSkipToItem = {}
         )
     }

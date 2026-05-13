@@ -15,9 +15,14 @@ android {
         minSdk = 31
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "3.0-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Оставляем только архитектуру arm64-v8a для уменьшения веса APK (TDLib)
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -65,8 +70,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    // material3-expressive удален, так как он недоступен в стандартных репозиториях.
-    // Мы реализуем фигуры через graphics-shapes напрямую.
     implementation(libs.androidx.graphics.shapes)
     implementation(libs.androidx.material.icons)
     
@@ -81,9 +84,12 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation("sh.calvin.reorderable:reorderable:2.4.1")
     
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.client.logging)
+    implementation(libs.ktor.serialization.kotlinx.json)
+
     implementation("net.jthink:jaudiotagger:3.0.1")
 
     implementation(libs.androidx.room.runtime)

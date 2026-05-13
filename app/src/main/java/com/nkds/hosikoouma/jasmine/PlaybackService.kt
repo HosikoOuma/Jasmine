@@ -32,6 +32,9 @@ import java.nio.charset.Charset
 import androidx.media3.extractor.metadata.icy.IcyInfo
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 import javax.inject.Inject
 
@@ -60,6 +63,18 @@ class PlaybackService : MediaSessionService() {
     
     private var saveStateJob: Job? = null
     private var saveQueueJob: Job? = null
+
+    private val placeholderArtwork: ByteArray by lazy {
+        val size = 512
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val drawable = androidx.core.content.res.ResourcesCompat.getDrawable(resources, R.drawable.ison_vec, null)
+        drawable?.setBounds(0, 0, size, size)
+        drawable?.draw(canvas)
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        stream.toByteArray()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -247,6 +262,7 @@ class PlaybackService : MediaSessionService() {
     private fun mediaItemToEntity(item: MediaItem, index: Int): QueueTrackEntity {
         val meta = item.mediaMetadata
         val extras = meta.extras ?: android.os.Bundle()
+        val artworkUri = if (meta.artworkUri?.toString()?.contains("drawable/ison_vec") == true) null else meta.artworkUri?.toString()
         return QueueTrackEntity(
             trackId = try { (item.mediaId.split("_").firstOrNull() ?: "0").toLong() } catch (_: Exception) { 0L },
             title = meta.title?.toString() ?: "Unknown",
@@ -254,7 +270,7 @@ class PlaybackService : MediaSessionService() {
             album = meta.albumTitle?.toString() ?: "Unknown",
             duration = extras.getLong("duration", 0L),
             contentUri = item.localConfiguration?.uri?.toString() ?: "",
-            albumArtUri = meta.artworkUri?.toString(),
+            albumArtUri = artworkUri,
             path = extras.getString("path", ""),
             isManual = extras.getBoolean("isManual", false),
             sourceName = extras.getString("sourceName"),
@@ -270,10 +286,25 @@ class PlaybackService : MediaSessionService() {
             putBoolean("isRadio", false)
             putString("sourceName", entity.sourceName)
         }
+        
+        val metaBuilder = MediaMetadata.Builder()
+            .setTitle(entity.title)
+            .setArtist(entity.artist)
+            .setAlbumTitle(entity.album)
+            .setExtras(extras)
+
+        val artworkUri = entity.albumArtUri?.let { Uri.parse(it) }
+        if (artworkUri != null) {
+            metaBuilder.setArtworkUri(artworkUri)
+        } else {
+            // Force update for OS by providing non-null artwork data (1x1 transparent pixel)
+            metaBuilder.setArtworkData(placeholderArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+        }
+            
         return MediaItem.Builder()
             .setMediaId("${entity.trackId}_${UUID.randomUUID()}")
             .setUri(entity.contentUri)
-            .setMediaMetadata(MediaMetadata.Builder().setTitle(entity.title).setArtist(entity.artist).setAlbumTitle(entity.album).setArtworkUri(entity.albumArtUri?.let { Uri.parse(it) }).setExtras(extras).build())
+            .setMediaMetadata(metaBuilder.build())
             .build()
     }
 
@@ -287,7 +318,15 @@ class PlaybackService : MediaSessionService() {
         } else {
             meta.setTitle(title).setArtist("Radio Stream")
         }
-        if (meta.build().title != item.mediaMetadata.title) {
+        
+        // Ensure radio also has a placeholder to force notification update
+        if (meta.build().artworkUri == null && meta.build().artworkData == null) {
+            meta.setArtworkData(placeholderArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+        }
+
+        if (meta.build().title != item.mediaMetadata.title || 
+            meta.build().artworkUri != item.mediaMetadata.artworkUri ||
+            meta.build().artworkData != item.mediaMetadata.artworkData) {
             player.replaceMediaItem(player.currentMediaItemIndex, item.buildUpon().setMediaMetadata(meta.build()).build())
         }
     }

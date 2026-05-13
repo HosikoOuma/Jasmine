@@ -1,21 +1,38 @@
 package com.nkds.hosikoouma.jasmine.data
 
 import com.nkds.hosikoouma.jasmine.datamodels.Lyrics
-import retrofit2.Response
-import retrofit2.http.GET
-import retrofit2.http.Query
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
 
-interface LrcLibService {
-    @GET("get")
+class LrcLibService(private val client: HttpClient) {
     suspend fun getLyrics(
-        @Query("track_name") trackName: String,
-        @Query("artist_name") artistName: String,
-        @Query("album_name") albumName: String? = null,
-        @Query("duration") duration: Int? = null
-    ): Response<Lyrics>
+        trackName: String,
+        artistName: String,
+        albumName: String? = null,
+        duration: Int? = null
+    ): Lyrics? {
+        return try {
+            val response = client.get("get") {
+                parameter("track_name", trackName)
+                parameter("artist_name", artistName)
+                if (albumName != null) parameter("album_name", albumName)
+                if (duration != null) parameter("duration", duration)
+            }
+            if (response.status.value in 200..299) response.body() else null
+        } catch (e: Exception) {
+            null
+        }
+    }
 
-    @GET("search")
-    suspend fun searchLyrics(
-        @Query("q") query: String
-    ): Response<List<Lyrics>>
+    suspend fun searchLyrics(query: String): List<Lyrics> {
+        return try {
+            val response = client.get("search") {
+                parameter("q", query)
+            }
+            if (response.status.value in 200..299) response.body() else emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }

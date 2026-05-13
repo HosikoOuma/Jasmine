@@ -40,6 +40,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 import javax.inject.Inject
 import kotlin.math.absoluteValue
@@ -140,6 +143,18 @@ class PlayerViewModel @Inject constructor(
     private var lyricsJob: Job? = null
     private var lastLoadedTrackId: String? = null
     private var originalTrackList: List<Track> = emptyList()
+
+    private val placeholderArtwork: ByteArray by lazy {
+        val size = 512
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val drawable = androidx.core.content.res.ResourcesCompat.getDrawable(getApplication<Application>().resources, com.nkds.hosikoouma.jasmine.R.drawable.ison_vec, null)
+        drawable?.setBounds(0, 0, size, size)
+        drawable?.draw(canvas)
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        stream.toByteArray()
+    }
 
     private val volumeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -418,7 +433,17 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Default) {
             val mediaItems = allStations.map { station ->
                 val extras = Bundle().apply { putBoolean("isRadio", true) }
-                MediaItem.Builder().setMediaId("radio_${station.id}").setUri(station.url).setMediaMetadata(MediaMetadata.Builder().setTitle(station.name).setArtist("Radio Stream").setExtras(extras).build()).build()
+                MediaItem.Builder()
+                    .setMediaId("radio_${station.id}")
+                    .setUri(station.url)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(station.name)
+                            .setArtist("Radio Stream")
+                            .setArtworkData(placeholderArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                            .setExtras(extras)
+                            .build()
+                    ).build()
             }
             val startIndex = allStations.indexOfFirst { it.id == targetStation.id }.coerceAtLeast(0)
             withContext(Dispatchers.Main) {
@@ -471,18 +496,24 @@ class PlayerViewModel @Inject constructor(
             putBoolean("isRadio", false)
             sourceName?.let { putString("sourceName", it) }
         }
+        
+        val metaBuilder = MediaMetadata.Builder()
+            .setTitle(track.title)
+            .setArtist(track.artist)
+            .setAlbumTitle(track.album)
+            .setExtras(extras)
+
+        if (track.albumArtUri != null) {
+            metaBuilder.setArtworkUri(track.albumArtUri)
+        } else {
+            metaBuilder.setArtworkData(placeholderArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+        }
+
         return MediaItem.Builder()
             .setMediaId(uid)
             .setUri(playbackUri)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(track.title)
-                    .setArtist(track.artist)
-                    .setAlbumTitle(track.album)
-                    .setArtworkUri(track.albumArtUri)
-                    .setExtras(extras)
-                    .build()
-            ).build()
+            .setMediaMetadata(metaBuilder.build())
+            .build()
     }
 
     fun addToQueue(track: Track, showToast: Boolean = false) {

@@ -1,6 +1,6 @@
 package com.nkds.hosikoouma.jasmine.ui.screens
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,6 +52,7 @@ data class LyricsUiState(
 )
 
 // --- Stateful Screen ---
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun LyricsScreen(
     viewModel: PlayerViewModel,
@@ -87,17 +88,18 @@ fun LyricsScreen(
     LyricsContent(
         uiState = uiState,
         onClose = onClose,
-        onSeek = viewModel::seekTo
+        onSeek = viewModel::seekTo,
+
     )
 }
 
-// --- Stateless Content ---
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun LyricsContent(
     uiState: LyricsUiState,
     onClose: () -> Unit,
-    onSeek: (Long) -> Unit
+    onSeek: (Long) -> Unit,
+
 ) {
     var isLrcLibMode by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -118,7 +120,14 @@ fun LyricsContent(
             // Track Section
             uiState.currentTrack?.let { track ->
                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    TrackCard(track = track, isCurrent = true, isPlaying = uiState.isPlaying, onClick = {})
+                        TrackCard(
+                            track = track,
+                            isCurrent = true,
+                            isPlaying = uiState.isPlaying,
+                            onClick = {},
+
+                        )
+
                 }
             }
 
@@ -137,7 +146,7 @@ fun LyricsContent(
                 } else {
                     val currentSynced = if (isLrcLibMode) uiState.syncedRemote else uiState.syncedLocal
                     val currentPlain = if (isLrcLibMode) uiState.remotePlainLyrics else uiState.localLyrics
-                    
+
                     when {
                         currentSynced != null -> {
                             SyncedLyricsView(currentSynced, uiState.progress, haptic, onSeek)
@@ -174,7 +183,7 @@ private fun LyricsHeader(isLrcLibMode: Boolean, onModeChange: (Boolean) -> Unit)
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
         )
-        
+
         SingleChoiceSegmentedButtonRow {
             SegmentedButton(
                 selected = !isLrcLibMode,
@@ -240,8 +249,8 @@ fun LyricsLineItem(
     onSeek: (Long) -> Unit
 ) {
     val color by animateColorAsState(
-        targetValue = if (isCurrent) MaterialTheme.colorScheme.primary 
-                      else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+        targetValue = if (isCurrent) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
         animationSpec = tween(400),
         label = "color"
     )
@@ -322,24 +331,30 @@ fun PlainLyricsView(lyrics: String) {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Preview(showBackground = true)
 @Composable
 fun LyricsPreview() {
     val sampleTrack = Track(1, "Luminous", "Jasmine", "Garden", 180000, android.net.Uri.EMPTY, null)
     JasmineTheme {
-        LyricsContent(
-            uiState = LyricsUiState(
-                currentTrack = sampleTrack,
-                isPlaying = true,
-                progress = 5000,
-                syncedLocal = listOf(
-                    LyricsLine(0, "Welcome to the garden"),
-                    LyricsLine(5000, "Where the flowers bloom"),
-                    LyricsLine(10000, "In the moonlight")
+        SharedTransitionLayout {
+            AnimatedVisibility(visible = true) {
+                LyricsContent(
+                    uiState = LyricsUiState(
+                        currentTrack = sampleTrack,
+                        isPlaying = true,
+                        progress = 5000,
+                        syncedLocal = listOf(
+                            LyricsLine(0, "Welcome to the garden"),
+                            LyricsLine(5000, "Where the flowers bloom"),
+                            LyricsLine(10000, "In the moonlight")
+                        )
+                    ),
+                    onClose = {},
+                    onSeek = {},
+
                 )
-            ),
-            onClose = {},
-            onSeek = {}
-        )
+            }
+        }
     }
 }
