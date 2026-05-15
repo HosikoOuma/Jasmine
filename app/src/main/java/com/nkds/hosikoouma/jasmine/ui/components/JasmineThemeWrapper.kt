@@ -46,7 +46,7 @@ fun JasmineThemeWrapper(
             if (data != null) {
                 val request = ImageRequest.Builder(context)
                     .data(data)
-                    .size(32) // Достаточно для анализа цветов
+                    .size(256) // Достаточно для анализа цветов
                     .allowHardware(false) // Нужно для извлечения пикселей
                     .build()
                 

@@ -212,5 +212,16 @@ fun JasmineNavHost(
                 onNavigateToPlayer = onNavigateToPlayer
             )
         }
+
+        composable(
+            route = Screen.TrackTrim.route,
+            arguments = listOf(navArgument("trackId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val trackId = backStackEntry.arguments?.getLong("trackId") ?: 0L
+            TrackTrimScreen(
+                trackId = trackId,
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }

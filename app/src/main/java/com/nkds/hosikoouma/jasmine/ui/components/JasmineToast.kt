@@ -29,7 +29,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class ToastType {
-    ADDED, REMOVED, DELETE_SUCCESS, DELETE_FAILED, PLAYLIST_ADDED, PLAYLIST_REMOVED, RADIO_ADDED, RADIO_REMOVED
+    ADDED, REMOVED, DELETE_SUCCESS, DELETE_FAILED, PLAYLIST_ADDED, PLAYLIST_REMOVED, RADIO_ADDED, RADIO_REMOVED, TRIMMING_SUCCESS, TRIMMING_FAILED
 }
 
 data class ToastData(
@@ -138,17 +138,18 @@ private fun ToastContent(data: ToastData) {
     val isError = data.type == ToastType.REMOVED || 
                   data.type == ToastType.DELETE_FAILED || 
                   data.type == ToastType.PLAYLIST_REMOVED ||
-                  data.type == ToastType.RADIO_REMOVED
+                  data.type == ToastType.RADIO_REMOVED ||
+                  data.type == ToastType.TRIMMING_FAILED
     
     val bgColor = when(data.type) {
-        ToastType.REMOVED, ToastType.DELETE_FAILED, ToastType.PLAYLIST_REMOVED, ToastType.RADIO_REMOVED -> MaterialTheme.colorScheme.errorContainer
-        ToastType.DELETE_SUCCESS, ToastType.PLAYLIST_ADDED, ToastType.RADIO_ADDED -> MaterialTheme.colorScheme.primaryContainer
+        ToastType.REMOVED, ToastType.DELETE_FAILED, ToastType.PLAYLIST_REMOVED, ToastType.RADIO_REMOVED, ToastType.TRIMMING_FAILED -> MaterialTheme.colorScheme.errorContainer
+        ToastType.DELETE_SUCCESS, ToastType.PLAYLIST_ADDED, ToastType.RADIO_ADDED, ToastType.TRIMMING_SUCCESS -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.secondaryContainer
     }
         
     val contentColor = when(data.type) {
-        ToastType.REMOVED, ToastType.DELETE_FAILED, ToastType.PLAYLIST_REMOVED, ToastType.RADIO_REMOVED -> MaterialTheme.colorScheme.onErrorContainer
-        ToastType.DELETE_SUCCESS, ToastType.PLAYLIST_ADDED, ToastType.RADIO_ADDED -> MaterialTheme.colorScheme.onPrimaryContainer
+        ToastType.REMOVED, ToastType.DELETE_FAILED, ToastType.PLAYLIST_REMOVED, ToastType.RADIO_REMOVED, ToastType.TRIMMING_FAILED -> MaterialTheme.colorScheme.onErrorContainer
+        ToastType.DELETE_SUCCESS, ToastType.PLAYLIST_ADDED, ToastType.RADIO_ADDED, ToastType.TRIMMING_SUCCESS -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSecondaryContainer
     }
 
@@ -211,6 +212,8 @@ private fun ToastContent(data: ToastData) {
                             ToastType.PLAYLIST_REMOVED -> stringResource(R.string.removed_from_playlist_toast, "")
                             ToastType.RADIO_ADDED -> stringResource(R.string.station_added_toast)
                             ToastType.RADIO_REMOVED -> stringResource(R.string.station_removed_toast)
+                            ToastType.TRIMMING_SUCCESS -> stringResource(R.string.trimming_success)
+                            ToastType.TRIMMING_FAILED -> stringResource(R.string.trimming_failed)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (data.track == null) FontWeight.Bold else FontWeight.Normal,

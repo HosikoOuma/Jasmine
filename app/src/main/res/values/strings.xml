@@ -9,6 +9,14 @@
     <string name="done">Done</string>
     <string name="remove">Remove</string>
     <string name="share">Share</string>
+    <string name="trim">Trim</string>
+    <string name="trim_track">Trim Track</string>
+    <string name="export">Export</string>
+    <string name="start_time">Start: %s</string>
+    <string name="end_time">End: %s</string>
+    <string name="trimming_success">Track trimmed successfully</string>
+    <string name="trimming_failed">Failed to trim track</string>
+    <string name="loading_waveform">Loading waveform...</string>
     <string name="edit">Edit</string>
     <string name="info">Info</string>
     <string name="search">Search</string>

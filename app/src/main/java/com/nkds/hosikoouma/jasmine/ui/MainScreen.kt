@@ -336,73 +336,75 @@ private fun MainContent(
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    if (isSearching && canSearchHere) {
-                        val placeholder = when {
-                            isTracksScreen -> stringResource(R.string.search_tracks)
-                            isPlaylistDetail -> stringResource(R.string.search_in_playlist)
-                            isFolderDetail -> stringResource(R.string.search_in_folder)
-                            else -> stringResource(R.string.search_generic)
-                        }
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = onSearchQueryChange,
-                            placeholder = { Text(placeholder) },
-                            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                            colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
-                            singleLine = true
-                        )
-                        LaunchedEffect(Unit) { focusRequester.requestFocus() }
-                    } else {
-                        Text(dynamicTitle)
-                    }
-                },
-                navigationIcon = {
-                    if (selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()) {
-                        IconButton(onClick = { onClearSelection() }) { Icon(Icons.Rounded.Close, stringResource(R.string.clear)) }
-                    } else if (canPop && !isSearching) {
-                        IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
-                    }
-                },
-                actions = {
-                    MainActionsSection(
-                        currentRoute = currentRoute,
-                        selectedTracks = selectedTracks,
-                        selectedStations = selectedStations,
-                        isSearching = isSearching,
-                        isTracksScreen = isTracksScreen,
-                        isPlaylistDetail = isPlaylistDetail,
-                        isFolderDetail = isFolderDetail,
-                        shouldShowSort = shouldShowSort,
-                        isReversed = isReversed,
-                        isCollapsed = isCollapsed,
-                        canSearchHere = canSearchHere,
-                        onToggleSearch = onToggleSearch,
-                        onToggleReverse = onToggleReverse,
-                        onSetSortType = onSetSortType,
-                        onExportPlaylist = { exportLauncher.launch("Playlist.m3u") },
-                        onDeletePlaylist = { showDeletePlaylistDialog = true },
-                        onRenamePlaylist = { showRenamePlaylistDialog = true },
-                        onDeleteTracks = { showDeleteTracksDialog = true },
-                        onDeleteStations = { showDeleteStationsDialog = true },
-                        onRemoveFromPlaylist = { showRemoveFromPlaylistDialog = true },
-                        onAddToPlaylist = { showAddToPlaylistDialog = true },
-                        onBlacklistFolder = { showBlacklistFolderDialog = true },
-                        onShowTrackInfo = { showTrackInfoForSelection = it },
-                        onSelectAll = {
-                            if (isPlaylistDetail) {
-                                trackViewModel.getPlaylistTracksSync(playlistId).let { onSelectTracks(it) }
-                            } else if (isFolderDetail) {
-                                trackViewModel.getFolderTracksSync(folderPath).let { onSelectTracks(it) }
+            if (currentRoute?.startsWith("track_trim") != true) {
+                LargeTopAppBar(
+                    title = {
+                        if (isSearching && canSearchHere) {
+                            val placeholder = when {
+                                isTracksScreen -> stringResource(R.string.search_tracks)
+                                isPlaylistDetail -> stringResource(R.string.search_in_playlist)
+                                isFolderDetail -> stringResource(R.string.search_in_folder)
+                                else -> stringResource(R.string.search_generic)
                             }
-                        },
-                        playerViewModel = playerViewModel,
-                        radioViewModel = radioViewModel
-                    )
-                },
-                scrollBehavior = scrollBehavior
-            )
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                placeholder = { Text(placeholder) },
+                                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                                colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
+                                singleLine = true
+                            )
+                            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                        } else {
+                            Text(dynamicTitle)
+                        }
+                    },
+                    navigationIcon = {
+                        if (selectedTracks.isNotEmpty() || selectedStations.isNotEmpty()) {
+                            IconButton(onClick = { onClearSelection() }) { Icon(Icons.Rounded.Close, stringResource(R.string.clear)) }
+                        } else if (canPop && !isSearching) {
+                            IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
+                        }
+                    },
+                    actions = {
+                        MainActionsSection(
+                            currentRoute = currentRoute,
+                            selectedTracks = selectedTracks,
+                            selectedStations = selectedStations,
+                            isSearching = isSearching,
+                            isTracksScreen = isTracksScreen,
+                            isPlaylistDetail = isPlaylistDetail,
+                            isFolderDetail = isFolderDetail,
+                            shouldShowSort = shouldShowSort,
+                            isReversed = isReversed,
+                            isCollapsed = isCollapsed,
+                            canSearchHere = canSearchHere,
+                            onToggleSearch = onToggleSearch,
+                            onToggleReverse = onToggleReverse,
+                            onSetSortType = onSetSortType,
+                            onExportPlaylist = { exportLauncher.launch("Playlist.m3u") },
+                            onDeletePlaylist = { showDeletePlaylistDialog = true },
+                            onRenamePlaylist = { showRenamePlaylistDialog = true },
+                            onDeleteTracks = { showDeleteTracksDialog = true },
+                            onDeleteStations = { showDeleteStationsDialog = true },
+                            onRemoveFromPlaylist = { showRemoveFromPlaylistDialog = true },
+                            onAddToPlaylist = { showAddToPlaylistDialog = true },
+                            onBlacklistFolder = { showBlacklistFolderDialog = true },
+                            onShowTrackInfo = { showTrackInfoForSelection = it },
+                            onSelectAll = {
+                                if (isPlaylistDetail) {
+                                    trackViewModel.getPlaylistTracksSync(playlistId).let { onSelectTracks(it) }
+                                } else if (isFolderDetail) {
+                                    trackViewModel.getFolderTracksSync(folderPath).let { onSelectTracks(it) }
+                                }
+                            },
+                            playerViewModel = playerViewModel,
+                            radioViewModel = radioViewModel
+                        )
+                    },
+                    scrollBehavior = scrollBehavior
+                )
+            }
         },
         floatingActionButton = {
             if (selectedTracks.isEmpty() && selectedStations.isEmpty()) {

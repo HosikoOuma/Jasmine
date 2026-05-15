@@ -553,6 +553,19 @@ fun PlayerContent(
                                 }
                             )
                         }
+                        item {
+                            ActionCard(
+                                icon = Icons.Rounded.ContentCut,
+                                label = stringResource(R.string.trim),
+                                onClick = {
+                                    uiState.currentTrack?.let { track ->
+                                        navController.navigate("track_trim/${track.id}")
+                                        showMoreActions = false
+                                        onClose()
+                                    }
+                                }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
