@@ -9,16 +9,16 @@ import kotlinx.coroutines.*
 
 class CrossfadeManager(
     private val serviceScope: CoroutineScope,
-    private val playerA: ExoPlayer,
+    private val playerA: Player,
     private val processorA: CrossfadeAudioProcessor,
-    private val playerB: ExoPlayer,
+    private val playerB: Player,
     private val processorB: CrossfadeAudioProcessor,
-    private val onPlayerSwapped: (ExoPlayer) -> Unit
+    private val onPlayerSwapped: (Player) -> Unit
 ) {
-    private var currentPlayer: ExoPlayer = playerA
+    private var currentPlayer: Player = playerA
     var isCrossfading = false
         private set
-        
+
     private var fadeJob: Job? = null
     private var crossfadeCheckJob: Job? = null
 
@@ -31,16 +31,16 @@ class CrossfadeManager(
         if (!isCrossfading) return
         fadeJob?.cancel()
         fadeJob = null
-        
+
         val oldPlayer = if (currentPlayer == playerA) playerB else playerA
         val oldProcessor = if (oldPlayer == playerA) processorA else processorB
         val currentProcessor = if (currentPlayer == playerA) processorA else processorB
-        
+
         oldPlayer.pause()
         oldPlayer.stop()
         oldProcessor.setVolumeScale(1.0f)
         currentProcessor.setVolumeScale(1.0f)
-        
+
         isCrossfading = false
         scheduleCrossfade()
     }
@@ -50,7 +50,7 @@ class CrossfadeManager(
         crossfadeCheckJob?.cancel()
 
         if (!isEnabled || isCrossfading || !player.isPlaying || player.playbackState != Player.STATE_READY) return
-        
+
         val isRadio = player.currentMediaItem?.mediaMetadata?.extras?.getBoolean("isRadio") ?: false
         if (isRadio) return
 
@@ -58,9 +58,9 @@ class CrossfadeManager(
         if (duration == C.TIME_UNSET || duration <= 0) return
 
         val remaining = duration - player.currentPosition
-        
+
         // Если осталось слишком мало времени, не планируем
-        if (remaining < 200) return 
+        if (remaining < 200) return
 
         val delayMs = remaining - durationMs
 
@@ -69,13 +69,13 @@ class CrossfadeManager(
             // мы НЕ запускаем его, чтобы избежать наложения "самого на себя" или 
             // двойного срабатывания. Кроссфейд должен быть запланирован заранее.
             if (delayMs <= 0) return@launch
-            
+
             delay(delayMs)
-            
+
             if (player == currentPlayer && player.isPlaying && !isCrossfading && player.playbackState == Player.STATE_READY) {
-                val hasNext = player.nextMediaItemIndex != C.INDEX_UNSET || 
-                             player.repeatMode != Player.REPEAT_MODE_OFF
-                
+                val hasNext = player.nextMediaItemIndex != C.INDEX_UNSET ||
+                        player.repeatMode != Player.REPEAT_MODE_OFF
+
                 if (hasNext) startOverlappingCrossfade()
             }
         }
@@ -87,10 +87,10 @@ class CrossfadeManager(
         val nextPlayer = if (oldPlayer == playerA) playerB else playerA
         val nextProcessor = if (nextPlayer == playerA) processorA else processorB
         val oldProcessor = if (oldPlayer == playerA) processorA else processorB
-        
+
         val currentRepeatMode = oldPlayer.repeatMode
         val currentShuffleMode = oldPlayer.shuffleModeEnabled
-        
+
         val nextIndex = when {
             currentRepeatMode == Player.REPEAT_MODE_ONE -> oldPlayer.currentMediaItemIndex
             oldPlayer.nextMediaItemIndex != C.INDEX_UNSET -> oldPlayer.nextMediaItemIndex
@@ -104,10 +104,10 @@ class CrossfadeManager(
         }
 
         val allItems = List(oldPlayer.mediaItemCount) { oldPlayer.getMediaItemAt(it) }
-        
+
         serviceScope.launch {
             delay(150) // Стабилизация
-            
+
             if (!isActive || oldPlayer != currentPlayer || !oldPlayer.isPlaying) {
                 isCrossfading = false
                 return@launch
@@ -119,10 +119,10 @@ class CrossfadeManager(
                 nextPlayer.shuffleModeEnabled = currentShuffleMode
                 nextPlayer.repeatMode = currentRepeatMode
                 nextPlayer.prepare()
-                
+
                 currentPlayer = nextPlayer
                 onPlayerSwapped(nextPlayer)
-                
+
                 nextPlayer.play()
 
                 startFadeAnimation(oldPlayer, oldProcessor, nextProcessor)
@@ -131,13 +131,13 @@ class CrossfadeManager(
     }
 
     private fun startFadeAnimation(
-        oldPlayer: ExoPlayer,
+        oldPlayer: Player,
         oldProcessor: CrossfadeAudioProcessor,
         nextProcessor: CrossfadeAudioProcessor
     ) {
         fadeJob?.cancel()
         fadeJob = serviceScope.launch(Dispatchers.Default) {
-            val steps = 30 
+            val steps = 30
             val interval = (durationMs / steps).coerceAtLeast(16)
             for (i in 1..steps) {
                 if (!isActive) break

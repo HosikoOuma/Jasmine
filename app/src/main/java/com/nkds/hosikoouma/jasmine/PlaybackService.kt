@@ -43,10 +43,10 @@ import javax.inject.Inject
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     
-    private lateinit var playerA: ExoPlayer
+    private lateinit var playerA: Player
     private lateinit var processorA: CrossfadeAudioProcessor
     
-    private lateinit var playerB: ExoPlayer
+    private lateinit var playerB: Player
     private lateinit var processorB: CrossfadeAudioProcessor
     
     private lateinit var crossfadeManager: CrossfadeManager
@@ -123,7 +123,7 @@ class PlaybackService : MediaSessionService() {
         restoreQueueToPlayer()
     }
 
-    private fun createPlayer(processor: CrossfadeAudioProcessor, name: String): ExoPlayer {
+    private fun createPlayer(processor: CrossfadeAudioProcessor, name: String): Player {
         val renderersFactory = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: android.content.Context, enableFloat: Boolean, enableAudioTrack: Boolean): AudioSink {
                 return DefaultAudioSink.Builder(context).setAudioProcessors(arrayOf(processor)).build()
@@ -135,7 +135,9 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        player.addListener(object : Player.Listener {
+        val forwardingPlayer = ResumingForwardingPlayer(player)
+
+        forwardingPlayer.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (player == crossfadeManager.getCurrentPlayer()) {
                     val otherPlayer = if (player == playerA) playerB else playerA
@@ -202,7 +204,7 @@ class PlaybackService : MediaSessionService() {
             }
         })
         
-        return player
+        return forwardingPlayer
     }
 
     private fun restoreQueueToPlayer() {
@@ -420,6 +422,28 @@ class PlaybackService : MediaSessionService() {
         override fun onPlayerCommandRequest(s: MediaSession, c: MediaSession.ControllerInfo, cmd: Int): Int {
             if (cmd in listOf(Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_STOP, Player.COMMAND_SET_MEDIA_ITEM)) crossfadeManager.cancelActiveCrossfade()
             return super.onPlayerCommandRequest(s, c, cmd)
+        }
+    }
+
+    private inner class ResumingForwardingPlayer(player: Player) : ForwardingPlayer(player) {
+        override fun seekToNext() {
+            if (!playWhenReady) play()
+            super.seekToNext()
+        }
+
+        override fun seekToNextMediaItem() {
+            if (!playWhenReady) play()
+            super.seekToNextMediaItem()
+        }
+
+        override fun seekToPrevious() {
+            if (!playWhenReady) play()
+            super.seekToPrevious()
+        }
+
+        override fun seekToPreviousMediaItem() {
+            if (!playWhenReady) play()
+            super.seekToPreviousMediaItem()
         }
     }
 

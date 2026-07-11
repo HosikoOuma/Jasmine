@@ -91,6 +91,13 @@ fun QueueContent(
             SectionLabel(stringResource(R.string.up_next), MaterialTheme.colorScheme.secondary)
 
             val lazyListState = rememberLazyListState()
+            
+            LaunchedEffect(currentTrack?.uid) {
+                if (localUpNext.isNotEmpty()) {
+                    lazyListState.animateScrollToItem(0)
+                }
+            }
+
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
                 localUpNext = localUpNext.toMutableList().apply {
                     add(to.index, removeAt(from.index))

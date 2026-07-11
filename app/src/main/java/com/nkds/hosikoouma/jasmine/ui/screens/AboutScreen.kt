@@ -67,14 +67,14 @@ fun AboutScreen() {
                 },
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Image(
-                    painter = painterResource(id = if (showEasterEgg) R.drawable.jasmine1 else R.drawable.ison_vec),
-                    contentDescription = stringResource(R.string.app_name),
-                    modifier = Modifier.size(if (showEasterEgg) 120.dp else 80.dp),
-                    contentScale = if (showEasterEgg) ContentScale.Crop else ContentScale.Fit
-                )
-            }
+//            Box(contentAlignment = Alignment.Center) {
+//                Image(
+//                    painter = painterResource(id = if (showEasterEgg) R.drawable.jasmine1 else R.drawable.ison_vec),
+//                    contentDescription = stringResource(R.string.app_name),
+//                    modifier = Modifier.size(if (showEasterEgg) 120.dp else 80.dp),
+//                    contentScale = if (showEasterEgg) ContentScale.Crop else ContentScale.Fit
+//                )
+//            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -94,29 +94,29 @@ fun AboutScreen() {
         Spacer(modifier = Modifier.height(64.dp))
 
         // Developer Section
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.neko1),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(RoundedCornerShape(24.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Image(
-                painter = painterResource(id = R.drawable.neko2),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(RoundedCornerShape(24.dp)),
-                contentScale = ContentScale.Crop
-            )
-        }
+//        Row(
+//            modifier = Modifier.fillMaxWidth(),
+//            horizontalArrangement = Arrangement.Center,
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            Image(
+//                painter = painterResource(id = R.drawable.neko1),
+//                contentDescription = null,
+//                modifier = Modifier
+//                    .size(100.dp)
+//                    .clip(RoundedCornerShape(24.dp)),
+//                contentScale = ContentScale.Crop
+//            )
+//            Spacer(modifier = Modifier.width(16.dp))
+//            Image(
+//                painter = painterResource(id = R.drawable.neko2),
+//                contentDescription = null,
+//                modifier = Modifier
+//                    .size(100.dp)
+//                    .clip(RoundedCornerShape(24.dp)),
+//                contentScale = ContentScale.Crop
+//            )
+            //}
 
         Spacer(modifier = Modifier.height(24.dp))
 
