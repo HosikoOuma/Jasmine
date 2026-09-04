@@ -43,6 +43,7 @@ import kotlinx.coroutines.withContext
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import kotlin.math.absoluteValue
@@ -484,8 +485,14 @@ class PlayerViewModel @Inject constructor(
         if (track.contentUri.scheme == "telegram") {
             val song = telegramDao.getSongById(track.uid)
             if (song != null) {
-                val proxyUrl = telegramStreamProxy.getProxyUrl(song.fileId)
-                playbackUri = Uri.parse(proxyUrl)
+                // ПРИОРИТЕТ: Локальный файл, если он уже полностью загружен (Task 3)
+                if (song.filePath.isNotEmpty() && File(song.filePath).exists()) {
+                    playbackUri = Uri.fromFile(File(song.filePath))
+                } else {
+                    // Иначе используем прокси для стриминга в процессе загрузки
+                    val proxyUrl = telegramStreamProxy.getProxyUrl(song.fileId)
+                    playbackUri = Uri.parse(proxyUrl)
+                }
             }
         }
 

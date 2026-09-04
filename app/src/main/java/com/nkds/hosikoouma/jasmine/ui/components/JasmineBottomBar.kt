@@ -29,11 +29,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.datamodels.Screen
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun JasmineBottomBar(
     navController: NavController,
-    settingsViewModel: SettingsViewModel = viewModel()
+    settingsViewModel: SettingsViewModel = viewModel(),
+    trackViewModel: TrackViewModel = hiltViewModel()
 ) {
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -120,6 +123,8 @@ fun JasmineBottomBar(
                                         launchSingleTop = true
                                         restoreState = true
                                     }
+                                } else if (screen.route == Screen.Tracks.route) {
+                                    trackViewModel.setFavoritesMode(false)
                                 }
                             },
                         contentAlignment = Alignment.Center

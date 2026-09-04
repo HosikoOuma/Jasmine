@@ -66,6 +66,9 @@ class TrackViewModel @Inject constructor(
     private val _isReversed = MutableStateFlow(false)
     val isReversed = _isReversed.asStateFlow()
 
+    private val _isFavoritesMode = MutableStateFlow(false)
+    val isFavoritesMode = _isFavoritesMode.asStateFlow()
+
     private val _pendingDeleteIntent = MutableSharedFlow<IntentSender>()
     val pendingDeleteIntent = _pendingDeleteIntent.asSharedFlow()
 
@@ -198,6 +201,10 @@ class TrackViewModel @Inject constructor(
 
     fun toggleFavorite(track: Track) = viewModelScope.launch { 
         favoritesRepository.toggleFavorite(track.id.toString()) 
+    }
+
+    fun setFavoritesMode(enabled: Boolean) {
+        _isFavoritesMode.value = enabled
     }
     
     fun setSearchQuery(query: String) { _searchQuery.value = query }
@@ -353,8 +360,12 @@ class TrackViewModel @Inject constructor(
                     tag.deleteArtworkField()
                     tag.setField(artwork)
                     
-                    // Индивидуальный кэш Jasmine
-                    coverCacheManager.saveTrackBitmapToCache(track.id, it)
+                    // Обновление кэша Jasmine
+                    if (track.albumId != -1L) {
+                        coverCacheManager.saveAlbumBitmapToCache(track.albumId, it)
+                    } else {
+                        coverCacheManager.saveTrackBitmapToCache(track.id, it)
+                    }
                 }
                 audioFile.commit()
 

@@ -63,14 +63,18 @@ class TrackScanner @Inject constructor(
                     val contentUri = ContentUris.withAppendedId(baseAudioUri, id)
                     val dateModified = cursor.getLong(modifiedCol)
                     
-                    // ПРИНЦИПИАЛЬНОЕ ИЗМЕНЕНИЕ:
-                    // 1. Пытаемся достать индивидуальную обложку из кэша (track_ID.jpg)
-                    // 2. Если её нет - пытаемся вытащить прямо из байтов файла (embedded art)
-                    // 3. Если и там нет - у трека нет обложки (artUri = null)
-                    // Мы БОЛЬШЕ не используем системный content://media/external/audio/albumart
+                    // ОПТИМИЗАЦИЯ КЭША:
+                    // 1. Сначала пытаемся найти обложку альбома (общая для всех треков)
+                    // 2. Если нет - извлекаем из файла и сохраняем как ОБЛОЖКУ АЛЬБОМА
+                    // 3. Если albumId == -1, работаем персонально с треком
                     
-                    val artUri = coverCacheManager.getTrackCoverUri(id) 
-                        ?: coverCacheManager.extractAndCacheEmbeddedArt(id, path)
+                    val artUri = if (albumId != -1L) {
+                        coverCacheManager.getAlbumCoverUri(albumId) 
+                            ?: coverCacheManager.extractAndCacheEmbeddedArt(albumId, path, isAlbum = true)
+                    } else {
+                        coverCacheManager.getTrackCoverUri(id) 
+                            ?: coverCacheManager.extractAndCacheEmbeddedArt(id, path, isAlbum = false)
+                    }
 
                     tracks.add(Track(
                         id = id,
@@ -136,8 +140,13 @@ class TrackScanner @Inject constructor(
                     val contentUri = ContentUris.withAppendedId(baseAudioUri, id)
                     val dateModified = cursor.getLong(modifiedCol)
                     
-                    val artUri = coverCacheManager.getTrackCoverUri(id) 
-                        ?: coverCacheManager.extractAndCacheEmbeddedArt(id, path)
+                    val artUri = if (albumId != -1L) {
+                        coverCacheManager.getAlbumCoverUri(albumId) 
+                            ?: coverCacheManager.extractAndCacheEmbeddedArt(albumId, path, isAlbum = true)
+                    } else {
+                        coverCacheManager.getTrackCoverUri(id) 
+                            ?: coverCacheManager.extractAndCacheEmbeddedArt(id, path, isAlbum = false)
+                    }
 
                     tracks.add(Track(
                         id = id,

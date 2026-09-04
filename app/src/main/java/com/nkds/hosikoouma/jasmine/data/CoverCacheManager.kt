@@ -30,23 +30,37 @@ class CoverCacheManager @Inject constructor(
         return dir
     }
 
-    // Теперь работаем ТОЛЬКО с trackId
+    // Получение URI обложки по trackId или albumId
     fun getTrackCoverUri(trackId: Long): Uri? {
         val file = File(rootDir, "track_$trackId.jpg")
         return if (file.exists()) Uri.fromFile(file) else null
     }
 
-    // Сохранение обложки, выбранной пользователем
+    fun getAlbumCoverUri(albumId: Long): Uri? {
+        if (albumId == -1L) return null
+        val file = File(rootDir, "album_$albumId.jpg")
+        return if (file.exists()) Uri.fromFile(file) else null
+    }
+
+    // Сохранение обложки
     fun saveTrackBitmapToCache(trackId: Long, bitmap: Bitmap) {
         val dir = ensureRootDir()
         val file = File(dir, "track_$trackId.jpg")
         saveBitmapToFile(file, bitmap)
     }
 
-    // Метод для извлечения обложки НАПРЯМУЮ из файла (без помощи MediaStore)
-    fun extractAndCacheEmbeddedArt(trackId: Long, filePath: String): Uri? {
+    fun saveAlbumBitmapToCache(albumId: Long, bitmap: Bitmap) {
+        if (albumId == -1L) return
+        val dir = ensureRootDir()
+        val file = File(dir, "album_$albumId.jpg")
+        saveBitmapToFile(file, bitmap)
+    }
+
+    // Метод для извлечения обложки НАПРЯМУЮ из файла
+    fun extractAndCacheEmbeddedArt(id: Long, filePath: String, isAlbum: Boolean = false): Uri? {
         if (filePath.isEmpty()) return null
-        val cacheFile = File(rootDir, "track_$trackId.jpg")
+        val fileName = if (isAlbum) "album_$id.jpg" else "track_$id.jpg"
+        val cacheFile = File(rootDir, fileName)
         if (cacheFile.exists()) return Uri.fromFile(cacheFile)
 
         return try {

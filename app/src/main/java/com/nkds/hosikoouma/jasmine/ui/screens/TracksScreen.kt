@@ -21,7 +21,6 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,7 +65,7 @@ fun TracksScreen(
     selectedTracks: Set<Track>,
     onToggleTrackSelection: (Track) -> Unit
 ) {
-    var isFavoritesMode by rememberSaveable { mutableStateOf(false) }
+    val isFavoritesMode by trackViewModel.isFavoritesMode.collectAsStateWithLifecycle()
     
     val tracks by if (isFavoritesMode) {
         trackViewModel.favoriteTracks.collectAsStateWithLifecycle()
@@ -102,7 +101,7 @@ fun TracksScreen(
     TracksContent(
         uiState = uiState,
         onRefresh = trackViewModel::loadTracks,
-        onToggleFavoritesMode = { isFavoritesMode = it },
+        onToggleFavoritesMode = { trackViewModel.setFavoritesMode(it) },
         onTrackClick = { index ->
             if (selectedTracks.isNotEmpty()) {
                 onToggleTrackSelection(uiState.tracks[index])

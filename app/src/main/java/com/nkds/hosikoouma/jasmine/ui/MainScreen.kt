@@ -520,7 +520,7 @@ private fun MainContent(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
-            JasmineBottomBar(navController = navController)
+            JasmineBottomBar(navController = navController, trackViewModel = trackViewModel)
         }
     }
 

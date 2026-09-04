@@ -8,7 +8,9 @@ import com.nkds.hosikoouma.jasmine.data.TelegramSongEntity
 import com.nkds.hosikoouma.jasmine.data.TelegramTopicEntity
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.data.toTrack
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -32,6 +34,8 @@ class TelegramRepository @Inject constructor(
     private val clientManager: TelegramClientManager,
     private val dao: TelegramDao
 ) {
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private companion object {
         private const val TAG = "TelegramRepository"
         private const val AUTH_REQUEST_TIMEOUT_MS = 20_000L
@@ -71,6 +75,23 @@ class TelegramRepository @Inject constructor(
 
     fun logout() {
         clientManager.logout()
+    }
+
+    init {
+        // Слушаем обновления файлов от TDLib, чтобы актуализировать пути в БД
+        clientManager.updates
+            .filterIsInstance<TdApi.UpdateFile>()
+            .onEach { update ->
+                val file = update.file
+                if (file.local.isDownloadingCompleted) {
+                    val song = dao.getSongByFileId(file.id)
+                    if (song != null && song.filePath != file.local.path) {
+                        dao.insertSongs(listOf(song.copy(filePath = file.local.path)))
+                        Log.d(TAG, "Database updated with new path for file ${file.id}")
+                    }
+                }
+            }
+            .launchIn(repositoryScope)
     }
 
     private suspend fun runAuthRequest(

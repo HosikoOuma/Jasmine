@@ -14,7 +14,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.nkds.hosikoouma.jasmine.ui.components.AppToastContainer
 import com.nkds.hosikoouma.jasmine.ui.components.JasmineThemeWrapper
-import com.nkds.hosikoouma.jasmine.ui.screens.SplashScreen
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
@@ -44,24 +43,16 @@ fun JasmineApp() {
             .distinctUntilChanged()
     }.collectAsStateWithLifecycle(initialValue = null)
 
-    val isLoaded by trackViewModel.isLoaded.collectAsStateWithLifecycle()
-
     JasmineThemeWrapper(
         albumArtUri = albumArtUri,
         settingsViewModel = settingsViewModel
     ) {
-        var animationFinished by remember { mutableStateOf(false) }
-
         Box(modifier = Modifier.fillMaxSize()) {
-            if (!animationFinished || !isLoaded) {
-                SplashScreen(onFinished = { animationFinished = true })
-            } else {
-                MainScreen(
-                    trackViewModel = trackViewModel,
-                    playerViewModel = playerViewModel,
-                    radioViewModel = radioViewModel
-                )
-            }
+            MainScreen(
+                trackViewModel = trackViewModel,
+                playerViewModel = playerViewModel,
+                radioViewModel = radioViewModel
+            )
 
             // 2. Изоляция Toast: слушаем тосты из всех источников
             AppToastManager(playerViewModel, trackViewModel, radioViewModel)
