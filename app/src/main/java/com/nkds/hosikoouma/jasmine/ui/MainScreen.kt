@@ -57,7 +57,9 @@ import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.viewmodels.TelegramCloudViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.MaintenanceViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import android.content.Intent
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -67,7 +69,8 @@ fun MainScreen(
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     radioViewModel: RadioViewModel,
-    telegramCloudViewModel: TelegramCloudViewModel = hiltViewModel()
+    telegramCloudViewModel: TelegramCloudViewModel = hiltViewModel(),
+    maintenanceViewModel: MaintenanceViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -85,6 +88,9 @@ fun MainScreen(
     val isReversed by trackViewModel.isReversed.collectAsStateWithLifecycle()
     val isRadioMode by playerViewModel.isRadioMode.collectAsStateWithLifecycle()
     
+    val maintenanceState by maintenanceViewModel.state.collectAsStateWithLifecycle()
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -199,6 +205,17 @@ fun MainScreen(
         } 
     }
 
+    LaunchedEffect(Unit) {
+        // Проверяем обновления при запуске (можно добавить логику ограничения частоты)
+        maintenanceViewModel.checkForUpdates()
+    }
+
+    LaunchedEffect(maintenanceState.latestRelease) {
+        if (maintenanceState.latestRelease != null) {
+            showUpdateDialog = true
+        }
+    }
+
     // UI Structure
     SharedTransitionLayout {
         Box(Modifier.fillMaxSize()) {
@@ -261,6 +278,44 @@ fun MainScreen(
                         onClose = { isRadioPlayerExpanded = false }
                     ) 
                 }
+            }
+            
+            if (showUpdateDialog && maintenanceState.latestRelease != null) {
+                val release = maintenanceState.latestRelease!!
+                val context = LocalContext.current
+                AlertDialog(
+                    onDismissRequest = { showUpdateDialog = false },
+                    title = { Text(stringResource(R.string.update_available)) },
+                    text = {
+                        Column {
+                            Text(stringResource(R.string.update_available_desc, release.tagName))
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = release.body,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 5,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        val apkAsset = release.assets.find { it.name.endsWith(".apk") }
+                        TextButton(onClick = {
+                            showUpdateDialog = false
+                            val url = apkAsset?.downloadUrl ?: release.htmlUrl
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        }) {
+                            Text(stringResource(R.string.download_update))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showUpdateDialog = false }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    },
+                    shape = RoundedCornerShape(28.dp)
+                )
             }
         }
     }

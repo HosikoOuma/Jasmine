@@ -311,4 +311,15 @@
     <string name="update_failed">Update failed</string>
     <string name="deleted_from_device_toast">Deleted from device</string>
     <string name="station_deleted">Station deleted</string>
+
+    <!-- Updates -->
+    <string name="updates">Updates</string>
+    <string name="check_for_updates">Check for Updates</string>
+    <string name="checking_updates">Checking for updates...</string>
+    <string name="update_available">Update available</string>
+    <string name="update_available_desc">A new version %1$s is available. Would you like to download it?</string>
+    <string name="download_update">Download APK</string>
+    <string name="up_to_date">Jasmine is up to date</string>
+    <string name="version_info">Current version: %1$s\nLatest version: %2$s</string>
+    <string name="failed_to_check_update">Failed to check for updates. Please check your connection.</string>
 </resources>

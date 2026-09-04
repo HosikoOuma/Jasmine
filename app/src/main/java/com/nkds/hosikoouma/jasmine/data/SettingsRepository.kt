@@ -52,6 +52,11 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
         // Язык приложения
         val LANGUAGE = stringPreferencesKey("language")
+
+        // Обновления
+        val LAST_UPDATE_CHECK = longPreferencesKey("last_update_check")
+        val IGNORED_VERSION = stringPreferencesKey("ignored_version")
+        val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
     }
 
     val isCrossfadeEnabled: Flow<Boolean> = context.dataStore.data.map { it[CROSSFADE_ENABLED] ?: true }
@@ -93,6 +98,10 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
 
     // Язык приложения (по умолчанию системный - "default")
     val language: Flow<String> = context.dataStore.data.map { it[LANGUAGE] ?: "default" }
+
+    val lastUpdateCheck: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK] ?: 0L }
+    val ignoredVersion: Flow<String> = context.dataStore.data.map { it[IGNORED_VERSION] ?: "" }
+    val autoCheckUpdates: Flow<Boolean> = context.dataStore.data.map { it[AUTO_CHECK_UPDATES] ?: true }
 
     suspend fun setCrossfadeEnabled(enabled: Boolean) = context.dataStore.edit { it[CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeDuration(duration: Long) = context.dataStore.edit { it[CROSSFADE_DURATION] = duration }
@@ -138,4 +147,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     suspend fun setManageAudioFocus(enabled: Boolean) = context.dataStore.edit { it[MANAGE_AUDIO_FOCUS] = enabled }
 
     suspend fun setLanguage(language: String) = context.dataStore.edit { it[LANGUAGE] = language }
+
+    suspend fun setLastUpdateCheck(timestamp: Long) = context.dataStore.edit { it[LAST_UPDATE_CHECK] = timestamp }
+    suspend fun setIgnoredVersion(version: String) = context.dataStore.edit { it[IGNORED_VERSION] = version }
+    suspend fun setAutoCheckUpdates(enabled: Boolean) = context.dataStore.edit { it[AUTO_CHECK_UPDATES] = enabled }
 }

@@ -21,6 +21,8 @@ import com.nkds.hosikoouma.jasmine.R
 import com.nkds.hosikoouma.jasmine.ui.components.SettingsClickableItem
 import com.nkds.hosikoouma.jasmine.viewmodels.MaintenanceViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
+import android.content.Intent
+import android.net.Uri
 
 @Composable
 fun MaintenanceScreen(
@@ -51,6 +53,119 @@ fun MaintenanceScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
+        // --- Updates Section ---
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = stringResource(R.string.updates),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Rounded.Update, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = if (state.latestRelease != null) {
+                                    stringResource(R.string.update_available)
+                                } else {
+                                    stringResource(R.string.check_for_updates)
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (state.latestRelease != null) {
+                                    stringResource(R.string.version_info, state.currentVersion, state.latestRelease?.tagName ?: "")
+                                } else {
+                                    stringResource(R.string.version_template, state.currentVersion)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (state.latestRelease != null) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = state.latestRelease?.body ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 3,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    if (state.latestRelease != null) {
+                        val apkAsset = state.latestRelease?.assets?.find { it.name.endsWith(".apk") }
+                        Button(
+                            onClick = {
+                                val url = apkAsset?.downloadUrl ?: state.latestRelease?.htmlUrl
+                                url?.let {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
+                                    context.startActivity(intent)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(Icons.Rounded.Download, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.download_update))
+                        }
+                    } else {
+                        Button(
+                            onClick = { maintenanceViewModel.checkForUpdates() },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !state.isCheckingForUpdates
+                        ) {
+                            if (state.isCheckingForUpdates) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            } else {
+                                Icon(Icons.Rounded.Refresh, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.check_for_updates))
+                            }
+                        }
+                    }
+                    
+                    state.updateError?.let { error ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = if (error == "UP_TO_DATE") {
+                                stringResource(R.string.up_to_date)
+                            } else {
+                                stringResource(R.string.failed_to_check_update)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (error == "UP_TO_DATE") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+
         // --- Language Section ---
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(

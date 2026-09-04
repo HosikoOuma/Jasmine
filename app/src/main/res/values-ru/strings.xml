@@ -311,4 +311,15 @@
     <string name="update_failed">Ошибка обновления</string>
     <string name="deleted_from_device_toast">Удалено с устройства</string>
     <string name="station_deleted">Станция удалена</string>
+
+    <!-- Updates -->
+    <string name="updates">Обновления</string>
+    <string name="check_for_updates">Проверить наличие обновлений</string>
+    <string name="checking_updates">Проверка обновлений...</string>
+    <string name="update_available">Доступно обновление</string>
+    <string name="update_available_desc">Доступна новая версия %1$s. Хотите скачать её?</string>
+    <string name="download_update">Скачать APK</string>
+    <string name="up_to_date">Установлена последняя версия</string>
+    <string name="version_info">Текущая версия: %1$s\nНовая версия: %2$s</string>
+    <string name="failed_to_check_update">Не удалось проверить обновления. Проверьте подключение к сети.</string>
 </resources>
