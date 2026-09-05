@@ -378,13 +378,24 @@ class PlayerViewModel @Inject constructor(
 
     private fun mediaToTrack(mediaItem: MediaItem): Track {
         val extras = mediaItem.mediaMetadata.extras
+        val isTelegram = extras?.getBoolean("isTelegram") ?: false
+        
+        val originalUri = if (isTelegram) {
+            val parts = mediaItem.mediaId.split("_")
+            if (parts.size >= 2) {
+                Uri.parse("telegram://${parts[0]}/${parts[1]}")
+            } else Uri.EMPTY
+        } else {
+            mediaItem.localConfiguration?.uri ?: Uri.EMPTY
+        }
+
         return Track(
             id = mediaIdToLong(mediaIdToIdString(mediaId = mediaItem.mediaId)),
             title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown",
             artist = mediaItem.mediaMetadata.artist?.toString() ?: "Unknown",
             album = mediaItem.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",
             duration = extras?.getLong("duration") ?: 0L,
-            contentUri = mediaItem.localConfiguration?.uri ?: Uri.EMPTY,
+            contentUri = originalUri,
             albumArtUri = mediaItem.mediaMetadata.artworkUri,
             path = extras?.getString("path") ?: "",
             isManual = extras?.getBoolean("isManual") ?: false
@@ -482,10 +493,19 @@ class PlayerViewModel @Inject constructor(
         val uid = existingUid ?: "${track.id}_${UUID.randomUUID()}"
         var playbackUri = track.contentUri
 
+        val extras = Bundle().apply { 
+            putString("path", track.path)
+            putBoolean("isManual", isManual)
+            putLong("duration", track.duration)
+            putBoolean("isRadio", false)
+            putBoolean("isTelegram", track.contentUri.scheme == "telegram")
+            sourceName?.let { putString("sourceName", it) }
+        }
+
         if (track.contentUri.scheme == "telegram") {
             val song = telegramDao.getSongById(track.uid)
             if (song != null) {
-                // ПРИОРИТЕТ: Локальный файл, если он уже полностью загружен (Task 3)
+                // ПРИОРИТЕТ: Локальный файл, если он уже полностью загружен
                 if (song.filePath.isNotEmpty() && File(song.filePath).exists()) {
                     playbackUri = Uri.fromFile(File(song.filePath))
                 } else {
@@ -494,14 +514,6 @@ class PlayerViewModel @Inject constructor(
                     playbackUri = Uri.parse(proxyUrl)
                 }
             }
-        }
-
-        val extras = Bundle().apply { 
-            putString("path", track.path)
-            putBoolean("isManual", isManual)
-            putLong("duration", track.duration)
-            putBoolean("isRadio", false)
-            sourceName?.let { putString("sourceName", it) }
         }
         
         val metaBuilder = MediaMetadata.Builder()

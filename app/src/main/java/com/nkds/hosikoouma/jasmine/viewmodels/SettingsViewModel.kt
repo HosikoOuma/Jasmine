@@ -30,7 +30,8 @@ data class SettingsState(
     val navigationItems: List<String> = listOf("tracks", "radio", "library", "settings"),
     val playerControlsOrder: List<String> = listOf("shuffle", "previous", "play_pause", "next", "repeat"),
     val manageAudioFocus: Boolean = true,
-    val language: String = "default"
+    val language: String = "default",
+    val isLoaded: Boolean = false
 )
 
 @HiltViewModel
@@ -75,7 +76,8 @@ class SettingsViewModel @Inject constructor(
             navigationItems = (args[13] as String).split(",").filter { it.isNotBlank() },
             playerControlsOrder = (args[14] as String).split(",").filter { it.isNotBlank() },
             manageAudioFocus = args[15] as Boolean,
-            language = args[16] as String
+            language = args[16] as String,
+            isLoaded = true
         )
     }.stateIn(
         scope = viewModelScope,

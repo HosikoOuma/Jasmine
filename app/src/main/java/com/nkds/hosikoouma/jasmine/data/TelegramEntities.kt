@@ -84,6 +84,7 @@ fun TelegramSongEntity.toTrack(channelTitle: String? = null, topicName: String? 
         albumArtUri = artUri,
         path = this.filePath,
         uid = this.id,
-        isManual = false
+        isManual = false,
+        dateModified = this.dateAdded
     )
 }

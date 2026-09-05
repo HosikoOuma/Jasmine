@@ -12,9 +12,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.stringResource
+import com.nkds.hosikoouma.jasmine.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,15 +46,18 @@ fun TelegramChannelDetailScreen(
     chatId: Long,
     navController: NavController,
     playerViewModel: PlayerViewModel,
+    telegramCloudViewModel: TelegramCloudViewModel,
     onNavigateToPlayer: () -> Unit,
-    viewModel: TelegramCloudViewModel = hiltViewModel()
+    selectedTracks: Set<Track>,
+    onToggleTrackSelection: (Track) -> Unit
 ) {
+    val isInSelectionMode = selectedTracks.isNotEmpty()
+
     // ОПТИМИЗАЦИЯ: используем remember, чтобы Flow не пересоздавался на каждой рекомпозиции
-    // Это предотвращает бесконечный цикл обновлений и 100% загрузку CPU
-    val tracksFlow = remember(chatId) { viewModel.getTracksForChannel(chatId) }
+    val tracksFlow = remember(chatId) { telegramCloudViewModel.getTracksForChannel(chatId) }
     val tracks by tracksFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     
-    val channels by viewModel.channels.collectAsStateWithLifecycle()
+    val channels by telegramCloudViewModel.channels.collectAsStateWithLifecycle()
     val channel = remember(channels, chatId) { channels.find { it.chatId == chatId } }
     val channelTitle = channel?.title ?: "Telegram Channel"
     
@@ -89,16 +96,26 @@ fun TelegramChannelDetailScreen(
                 }
 
                 itemsIndexed(tracks, key = { _, track -> track.uid }) { index, track ->
+                    val isSelected = selectedTracks.contains(track)
                     SwipeableTrackCard(
                         track = track,
                         isCurrent = currentTrack?.uid == track.uid,
                         isPlaying = isPlaying,
+                        isSelected = isSelected,
                         onSwipeAction = { playerViewModel.addToQueue(track, showToast = true) },
                         onClick = {
-                            playerViewModel.playTracks(tracks, index, sourceName = "Cloud: $channelTitle")
-                            onNavigateToPlayer()
+                            if (isInSelectionMode) {
+                                onToggleTrackSelection(track)
+                                VibrationUtils.selectionVibrate(context.getSystemService(android.os.Vibrator::class.java))
+                            } else {
+                                playerViewModel.playTracks(tracks, index, sourceName = "Cloud: $channelTitle")
+                                onNavigateToPlayer()
+                            }
                         },
-                        onLongClick = { VibrationUtils.performLongPressHaptic(haptic) }
+                        onLongClick = {
+                            onToggleTrackSelection(track)
+                            VibrationUtils.performLongPressHaptic(haptic)
+                        }
                     )
                 }
             }

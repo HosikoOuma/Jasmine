@@ -157,50 +157,62 @@ fun TracksContent(
                 onRefresh = onRefresh
             )
     ) {
-        if (!uiState.isLoaded && uiState.tracks.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (uiState.tracks.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(if (uiState.searchQuery.isEmpty()) {
-                    if (uiState.isFavoritesMode) stringResource(R.string.no_favorites) else stringResource(R.string.no_tracks)
-                } else stringResource(R.string.nothing_found))
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .simpleVerticalScrollbar(listState),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 70.dp, bottom = 200.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                itemsIndexed(
-                    items = uiState.tracks,
-                    key = { _, track -> track.id },
-                    contentType = { _, _ -> "track" }
-                ) { index, track ->
-                    val isSelected = uiState.selectedTracks.contains(track)
-                    SwipeableTrackCard(
-                        track = track,
-                        isCurrent = uiState.currentTrack?.id == track.id,
-                        isPlaying = uiState.isPlaying,
-                        isSelected = isSelected,
-                        isManualMarkingEnabled = true,
-                        enabled = uiState.selectedTracks.isEmpty(),
-                        onSwipeAction = { onSwipeAction(track) },
-                        onClick = {
-                            if (uiState.selectedTracks.isNotEmpty()) {
-                                VibrationUtils.selectionVibrate(vibrator)
-                            }
-                            onTrackClick(index)
-                        },
-                        onLongClick = {
-                            VibrationUtils.selectionVibrate(vibrator)
-                            onTrackLongClick(track)
+        AnimatedContent(
+            targetState = Triple(uiState.isLoaded, uiState.tracks.isEmpty(), uiState.isFavoritesMode),
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(400, easing = LinearOutSlowInEasing)) + 
+                 scaleIn(initialScale = 0.95f, animationSpec = tween(400, easing = LinearOutSlowInEasing)))
+                    .togetherWith(fadeOut(animationSpec = tween(300, easing = FastOutLinearInEasing)))
+            },
+            label = "tracksContentTransition"
+        ) { (isLoaded, isEmpty, isFav) ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (!isLoaded && isEmpty) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (isEmpty) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(if (uiState.searchQuery.isEmpty()) {
+                            if (isFav) stringResource(R.string.no_favorites) else stringResource(R.string.no_tracks)
+                        } else stringResource(R.string.nothing_found))
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .simpleVerticalScrollbar(listState),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 70.dp, bottom = 200.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        itemsIndexed(
+                            items = uiState.tracks,
+                            key = { _, track -> track.id },
+                            contentType = { _, _ -> "track" }
+                        ) { index, track ->
+                            val isSelected = uiState.selectedTracks.contains(track)
+                            SwipeableTrackCard(
+                                track = track,
+                                isCurrent = uiState.currentTrack?.id == track.id,
+                                isPlaying = uiState.isPlaying,
+                                isSelected = isSelected,
+                                isManualMarkingEnabled = true,
+                                enabled = uiState.selectedTracks.isEmpty(),
+                                onSwipeAction = { onSwipeAction(track) },
+                                onClick = {
+                                    if (uiState.selectedTracks.isNotEmpty()) {
+                                        VibrationUtils.selectionVibrate(vibrator)
+                                    }
+                                    onTrackClick(index)
+                                },
+                                onLongClick = {
+                                    VibrationUtils.selectionVibrate(vibrator)
+                                    onTrackLongClick(track)
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }

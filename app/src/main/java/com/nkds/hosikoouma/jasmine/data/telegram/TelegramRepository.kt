@@ -233,23 +233,24 @@ class TelegramRepository @Inject constructor(
         }
 
         // Получаем актуальный список треков из Telegram
-        val currentRemoteTracks = getAudioMessagesEntities(chatId)
-        val remoteIds = currentRemoteTracks.map { it.id }.toSet()
-        
-        // Получаем то, что у нас в базе сейчас
-        val localSongs = dao.getSongsByChatId(chatId)
-        
-        // Находим те, что были удалены в Telegram
-        val songsToDelete = localSongs.filter { it.id !in remoteIds }
-        
-        // Удаляем файлы из кэша и записи из БД
-        songsToDelete.forEach { song ->
-            deleteFileFromCache(song.fileId)
-            dao.deleteSong(song.id)
+        val currentRemoteTracks = try {
+            getAudioMessagesEntities(chatId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Aborting sync for $chatId due to fetch error", e)
+            return // ПРЕРЫВАЕМ синхронизацию, чтобы не удалить локальные данные при ошибке сети
         }
 
-        // Сохраняем новые / обновляем старые
-        dao.insertSongs(currentRemoteTracks)
+        val remoteIds = currentRemoteTracks.map { it.id }.toSet()
+        val localSongs = dao.getSongsByChatId(chatId)
+        val songsToDelete = localSongs.filter { it.id !in remoteIds }
+        
+        // Удаляем файлы из кэша
+        songsToDelete.forEach { song ->
+            deleteFileFromCache(song.fileId)
+        }
+
+        // Обновляем БД ОДНОЙ ТРАНЗАКЦИЕЙ
+        dao.updateChannelSongs(chatId, currentRemoteTracks)
 
         val channel = dao.getAllChannels().first().find { it.chatId == chatId }
         if (channel != null) {
@@ -264,6 +265,7 @@ class TelegramRepository @Inject constructor(
 
     /**
      * Возвращает список сущностей напрямую для внутреннего использования при синхронизации.
+     * Выбрасывает исключение при ошибке запроса.
      */
     private suspend fun getAudioMessagesEntities(chatId: Long): List<TelegramSongEntity> {
         try {
@@ -276,42 +278,40 @@ class TelegramRepository @Inject constructor(
         var nextFromMessageId = 0L
         val batchSize = 100
 
-        try {
-            while (true) {
-                val request = TdApi.SearchChatMessages().apply {
-                    this.chatId = chatId
-                    this.query = ""
-                    this.senderId = null
-                    this.fromMessageId = nextFromMessageId
-                    this.offset = 0
-                    this.limit = batchSize
-                    this.filter = TdApi.SearchMessagesFilterAudio()
-                }
-
-                val response = clientManager.sendRequest<TdApi.FoundChatMessages>(request)
-                if (response.messages.isEmpty()) break
-
-                response.messages.mapNotNull { mapMessageToEntity(it) }.let {
-                    allEntities.addAll(it)
-                }
-
-                nextFromMessageId = response.nextFromMessageId
-                if (nextFromMessageId == 0L) break
+        while (true) {
+            val request = TdApi.SearchChatMessages().apply {
+                this.chatId = chatId
+                this.query = ""
+                this.senderId = null
+                this.fromMessageId = nextFromMessageId
+                this.offset = 0
+                this.limit = batchSize
+                this.filter = TdApi.SearchMessagesFilterAudio()
             }
-            return allEntities
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching chat history for chat $chatId", e)
-            return emptyList()
+
+            val response = clientManager.sendRequest<TdApi.FoundChatMessages>(request)
+            if (response.messages.isEmpty()) break
+
+            response.messages.mapNotNull { mapMessageToEntity(it) }.let {
+                allEntities.addAll(it)
+            }
+
+            nextFromMessageId = response.nextFromMessageId
+            if (nextFromMessageId == 0L) break
         }
+        return allEntities
     }
 
     suspend fun getAudioMessages(chatId: Long): List<Track> {
-        val entities = getAudioMessagesEntities(chatId)
+        val entities = try {
+            getAudioMessagesEntities(chatId)
+        } catch (e: Exception) {
+            emptyList()
+        }
         dao.insertSongs(entities)
         return entities.map { it.toTrack() }
     }
-
-    private fun mapMessageToEntity(message: TdApi.Message): TelegramSongEntity? {
+  private fun mapMessageToEntity(message: TdApi.Message): TelegramSongEntity? {
         val content = message.content
         if (content !is TdApi.MessageAudio) return null
         val audio = content.audio

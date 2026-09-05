@@ -20,6 +20,9 @@ interface TelegramDao {
     @Query("SELECT * FROM telegram_songs WHERE chat_id = :chatId ORDER BY date_added DESC")
     suspend fun getSongsByChatId(chatId: Long): List<TelegramSongEntity>
 
+    @Query("SELECT * FROM telegram_songs WHERE chat_id = :chatId ORDER BY date_added DESC")
+    fun getSongsByChatIdFlow(chatId: Long): Flow<List<TelegramSongEntity>>
+
     @Query("SELECT * FROM telegram_songs WHERE chat_id = :chatId AND thread_id = :threadId ORDER BY date_added DESC")
     suspend fun getSongsByTopicId(chatId: Long, threadId: Long): List<TelegramSongEntity>
 
@@ -31,6 +34,9 @@ interface TelegramDao {
 
     @Query("DELETE FROM telegram_songs WHERE id = :id")
     suspend fun deleteSong(id: String)
+
+    @Query("DELETE FROM telegram_songs WHERE id IN (:ids)")
+    suspend fun deleteSongsByIds(ids: List<String>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChannel(channel: TelegramChannelEntity)
@@ -75,4 +81,12 @@ interface TelegramDao {
 
     @Query("DELETE FROM telegram_topics WHERE id = :id")
     suspend fun deleteTopic(id: String)
+    @Transaction
+    suspend fun updateChannelSongs(chatId: Long, songs: List<TelegramSongEntity>) {
+        val existing = getSongsByChatId(chatId)
+        val newIds = songs.map { it.id }.toSet()
+        val toDelete = existing.filter { it.id !in newIds }.map { it.id }
+        if (toDelete.isNotEmpty()) deleteSongsByIds(toDelete)
+        insertSongs(songs)
+    }
 }

@@ -256,6 +256,7 @@
     <string name="tg_2step_title">Two-Step Verification</string>
     <string name="tg_2step_desc">Your account is protected by an additional password.</string>
     <string name="tg_password_label">Password</string>
+    <string name="tg_change_number">Change Number</string>
     <string name="tg_connected_title">You\'re connected!</string>
     <string name="tg_connected_desc">Telegram Cloud is ready. You can now browse and add music from your channels.</string>
     <string name="tg_find_channels">Find Channels</string>
@@ -322,4 +323,35 @@
     <string name="up_to_date">Jasmine is up to date</string>
     <string name="version_info">Current version: %1$s\nLatest version: %2$s</string>
     <string name="failed_to_check_update">Failed to check for updates. Please check your connection.</string>
+
+    <!-- Telegram Downloads -->
+    <string name="telegram_downloads_channel">Telegram Downloads</string>
+    <string name="downloading_track">Downloading %1$s</string>
+    <string name="download_complete">Download Complete</string>
+    <string name="download_success_desc">%1$s saved to Music/Jasmine/Saved</string>
+    <string name="download_failed">Download Failed</string>
+    <string name="download_error_path">Could not resolve file path</string>
+    <string name="download_error_save">Failed to save file to storage</string>
+    <string name="save_to_device">Save to Device</string>
+    <string name="download_started">Download started</string>
+    <string name="tracks_saved_toast">%1$d tracks saved</string>
+
+    <!-- Debug & Maintenance -->
+    <string name="debug_development">Debug &amp; Development</string>
+    <string name="trigger_app_crash">Trigger App Crash</string>
+    <string name="trigger_app_crash_desc">Use this to test the Crash Reporting system.</string>
+    <string name="simulate_crash">Simulate Crash</string>
+
+    <!-- Crash Activity -->
+    <string name="crash_report_not_found">Crash report not found.</string>
+    <string name="crash_log_title">Jasmine Crash Log</string>
+    <string name="log_copied_toast">Log copied to clipboard</string>
+    <string name="crash_share_text">Jasmine Crash Report\nPlease send this file to @NekoDosi</string>
+    <string name="crash_share_chooser_title">Send Log to @NekoDosi</string>
+    <string name="app_crashed_title">App Crashed</string>
+    <string name="something_went_wrong">Something went wrong</string>
+    <string name="crash_description">The app encountered an unexpected error and needs to close. You can help improve Jasmine by sending the error report below to the developer.</string>
+    <string name="error_details">Error Details</string>
+    <string name="restart_app">Restart App</string>
+    <string name="send_log">Send Log</string>
 </resources>

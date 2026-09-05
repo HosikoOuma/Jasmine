@@ -69,7 +69,7 @@ fun MainScreen(
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     radioViewModel: RadioViewModel,
-    telegramCloudViewModel: TelegramCloudViewModel = hiltViewModel(),
+    telegramCloudViewModel: TelegramCloudViewModel,
     maintenanceViewModel: MaintenanceViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
@@ -182,6 +182,7 @@ fun MainScreen(
         if (isSearching) {
             isSearching = false
             trackViewModel.setSearchQuery("")
+            telegramCloudViewModel.setSearchQuery("")
         }
     }
     
@@ -224,6 +225,7 @@ fun MainScreen(
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
                 radioViewModel = radioViewModel,
+                telegramCloudViewModel = telegramCloudViewModel,
                 scrollBehavior = scrollBehavior,
                 currentRoute = currentRoute,
                 dynamicTitle = dynamicTitle,
@@ -328,6 +330,7 @@ private fun MainContent(
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     radioViewModel: RadioViewModel,
+    telegramCloudViewModel: TelegramCloudViewModel,
     scrollBehavior: TopAppBarScrollBehavior,
     currentRoute: String?,
     dynamicTitle: String,
@@ -354,6 +357,7 @@ private fun MainContent(
     showAddRadioDialog: Boolean,
     sharedTransitionScope: SharedTransitionScope
 ) {
+    val context = LocalContext.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val playlistId = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getLong("playlistId") ?: 0L }
     val folderPath = remember(navBackStackEntry) { navBackStackEntry?.arguments?.getString("folderPath") ?: "" }
@@ -361,15 +365,17 @@ private fun MainContent(
     
     val isPlaylistDetail = remember(currentRoute) { currentRoute?.startsWith("playlist_detail") == true }
     val isFolderDetail = remember(currentRoute) { currentRoute?.startsWith("folder_detail") == true }
+    val isTelegramDetail = remember(currentRoute) { currentRoute?.startsWith("telegram_channel_detail") == true }
     val isTracksScreen = remember(currentRoute) { currentRoute == Screen.Tracks.route }
     val isRadioScreen = remember(currentRoute) { currentRoute == Screen.Radio.route }
     
-    val canSearchHere = remember(isTracksScreen, isPlaylistDetail, isFolderDetail) {
-        isTracksScreen || isPlaylistDetail || isFolderDetail
+    val canSearchHere = remember(isTracksScreen, isPlaylistDetail, isFolderDetail, isTelegramDetail) {
+        isTracksScreen || isPlaylistDetail || isFolderDetail || isTelegramDetail
     }
 
     val shouldShowSort = remember(currentRoute) { 
-        currentRoute == Screen.Tracks.route || currentRoute?.contains("library_") == true || currentRoute?.startsWith("playlist_detail") == true 
+        currentRoute == Screen.Tracks.route || currentRoute?.contains("library_") == true || 
+        currentRoute?.startsWith("playlist_detail") == true || currentRoute?.startsWith("telegram_channel_detail") == true
     }
 
     val isCollapsed by remember { derivedStateOf { scrollBehavior.state.collapsedFraction > 0.8f } }
@@ -392,6 +398,16 @@ private fun MainContent(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             if (currentRoute?.startsWith("track_trim") != true) {
+                val currentSearchQuery = if (isTelegramDetail) {
+                    val tgState by telegramCloudViewModel.state.collectAsStateWithLifecycle()
+                    tgState.searchQuery
+                } else searchQuery
+
+                val currentIsReversed = if (isTelegramDetail) {
+                    val tgState by telegramCloudViewModel.state.collectAsStateWithLifecycle()
+                    tgState.isReversed
+                } else isReversed
+
                 LargeTopAppBar(
                     title = {
                         if (isSearching && canSearchHere) {
@@ -399,11 +415,15 @@ private fun MainContent(
                                 isTracksScreen -> stringResource(R.string.search_tracks)
                                 isPlaylistDetail -> stringResource(R.string.search_in_playlist)
                                 isFolderDetail -> stringResource(R.string.search_in_folder)
+                                isTelegramDetail -> stringResource(R.string.search_generic)
                                 else -> stringResource(R.string.search_generic)
                             }
                             TextField(
-                                value = searchQuery,
-                                onValueChange = onSearchQueryChange,
+                                value = currentSearchQuery,
+                                onValueChange = {
+                                    if (isTelegramDetail) telegramCloudViewModel.setSearchQuery(it)
+                                    else onSearchQueryChange(it)
+                                },
                                 placeholder = { Text(placeholder) },
                                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                                 colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
@@ -430,13 +450,20 @@ private fun MainContent(
                             isTracksScreen = isTracksScreen,
                             isPlaylistDetail = isPlaylistDetail,
                             isFolderDetail = isFolderDetail,
+                            isTelegramDetail = isTelegramDetail,
                             shouldShowSort = shouldShowSort,
-                            isReversed = isReversed,
+                            isReversed = currentIsReversed,
                             isCollapsed = isCollapsed,
                             canSearchHere = canSearchHere,
                             onToggleSearch = onToggleSearch,
-                            onToggleReverse = onToggleReverse,
-                            onSetSortType = onSetSortType,
+                            onToggleReverse = {
+                                if (isTelegramDetail) telegramCloudViewModel.toggleReverse()
+                                else onToggleReverse()
+                            },
+                            onSetSortType = {
+                                if (isTelegramDetail) telegramCloudViewModel.setSortType(it)
+                                else onSetSortType(it)
+                            },
                             onExportPlaylist = { exportLauncher.launch("Playlist.m3u") },
                             onDeletePlaylist = { showDeletePlaylistDialog = true },
                             onRenamePlaylist = { showRenamePlaylistDialog = true },
@@ -452,6 +479,11 @@ private fun MainContent(
                                 } else if (isFolderDetail) {
                                     trackViewModel.getFolderTracksSync(folderPath).let { onSelectTracks(it) }
                                 }
+                            },
+                            onDownloadTelegramTracks = {
+                                telegramCloudViewModel.downloadTracks(selectedTracks.toList())
+                                android.widget.Toast.makeText(context, context.getString(R.string.download_started), android.widget.Toast.LENGTH_SHORT).show()
+                                onClearSelection()
                             },
                             playerViewModel = playerViewModel,
                             radioViewModel = radioViewModel
@@ -477,6 +509,7 @@ private fun MainContent(
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
                 radioViewModel = radioViewModel,
+                telegramCloudViewModel = telegramCloudViewModel,
                 onNavigateToPlayer = { /* Пусто */ },
                 onNavigateToRadioPlayer = { onToggleRadioPlayer(true) },
                 selectedTracks = selectedTracks,
@@ -495,7 +528,11 @@ private fun MainContent(
                     isRadioPlayerExpanded -> onToggleRadioPlayer(false)
                     selectedTracks.isNotEmpty() || selectedStations.isNotEmpty() -> onClearSelection()
                     isPlayerExpanded -> onTogglePlayer(false)
-                    isSearching -> { onToggleSearch(); onSearchQueryChange("") }
+                    isSearching -> { 
+                        onToggleSearch()
+                        onSearchQueryChange("")
+                        telegramCloudViewModel.setSearchQuery("")
+                    }
                 }
             }
 
@@ -565,6 +602,7 @@ private fun MainActionsSection(
     isTracksScreen: Boolean,
     isPlaylistDetail: Boolean,
     isFolderDetail: Boolean,
+    isTelegramDetail: Boolean = false,
     shouldShowSort: Boolean,
     isReversed: Boolean,
     isCollapsed: Boolean,
@@ -582,6 +620,7 @@ private fun MainActionsSection(
     onBlacklistFolder: () -> Unit,
     onShowTrackInfo: (Track) -> Unit,
     onSelectAll: () -> Unit,
+    onDownloadTelegramTracks: () -> Unit = {},
     playerViewModel: PlayerViewModel,
     radioViewModel: RadioViewModel
 ) {
@@ -597,6 +636,13 @@ private fun MainActionsSection(
 
             if (selectedTracks.isNotEmpty()) {
                 if (selectedTracks.size == 1) IconButton(onClick = { onShowTrackInfo(selectedTracks.first()) }) { Icon(Icons.Rounded.Info, null) }
+                
+                if (isTelegramDetail) {
+                    IconButton(onClick = onDownloadTelegramTracks) { 
+                        Icon(Icons.Rounded.Download, stringResource(R.string.save_to_device)) 
+                    }
+                }
+                
                 if (isPlaylistDetail) IconButton(onClick = { onRemoveFromPlaylist() }) { Icon(Icons.Rounded.PlaylistRemove, null, tint = MaterialTheme.colorScheme.error) }
                 IconButton(onClick = { playerViewModel.addTracksToQueue(selectedTracks.toList()) }) { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) }
                 IconButton(onClick = { showMoreMenu = true }) { Icon(Icons.Rounded.MoreVert, null) }

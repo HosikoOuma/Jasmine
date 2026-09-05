@@ -68,6 +68,11 @@ class TelegramViewModel @Inject constructor(
         }
     }
 
+    fun resetAuth() {
+        _authState.value = _authState.value.copy(isLoading = true, error = null)
+        repository.logout()
+    }
+
     fun logout() {
         repository.logout()
     }

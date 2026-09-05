@@ -108,4 +108,8 @@ class MaintenanceViewModel @Inject constructor(
             _state.value = _state.value.copy(isClearingTelegram = false)
         }
     }
+
+    fun triggerCrash() {
+        throw RuntimeException("Debug crash triggered by user in Maintenance")
+    }
 }

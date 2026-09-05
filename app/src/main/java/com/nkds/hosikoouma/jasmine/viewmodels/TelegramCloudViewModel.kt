@@ -2,19 +2,18 @@ package com.nkds.hosikoouma.jasmine.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nkds.hosikoouma.jasmine.core.models.SortType
 import com.nkds.hosikoouma.jasmine.data.TelegramChannelEntity
 import com.nkds.hosikoouma.jasmine.data.telegram.TelegramRepository
+import com.nkds.hosikoouma.jasmine.data.telegram.TelegramDownloadManager
 import com.nkds.hosikoouma.jasmine.data.toTrack
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.drinkless.tdlib.TdApi
 import javax.inject.Inject
 
@@ -24,12 +23,16 @@ data class TelegramCloudState(
     val searchError: String? = null,
     val syncingChannels: Set<Long> = emptySet(),
     val myChats: List<TdApi.Chat> = emptyList(),
-    val isFetchingChats: Boolean = false
+    val isFetchingChats: Boolean = false,
+    val searchQuery: String = "",
+    val sortType: SortType = SortType.BY_DATE,
+    val isReversed: Boolean = false
 )
 
 @HiltViewModel
 class TelegramCloudViewModel @Inject constructor(
     private val repository: TelegramRepository,
+    private val downloadManager: TelegramDownloadManager,
     private val telegramDao: com.nkds.hosikoouma.jasmine.data.TelegramDao
 ) : ViewModel() {
 
@@ -117,10 +120,45 @@ class TelegramCloudViewModel @Inject constructor(
             _state.value = _state.value.copy(syncingChannels = _state.value.syncingChannels - chatId)
         }
     }
+
+    fun setSearchQuery(query: String) {
+        _state.value = _state.value.copy(searchQuery = query)
+    }
+
+    fun setSortType(type: SortType) {
+        _state.value = _state.value.copy(sortType = type)
+    }
+
+    fun toggleReverse() {
+        _state.value = _state.value.copy(isReversed = !_state.value.isReversed)
+    }
+
+    fun downloadTracks(tracks: List<Track>) {
+        val songIds = tracks.map { it.uid }
+        downloadManager.downloadTracks(songIds)
+    }
     
-    fun getTracksForChannel(chatId: Long): kotlinx.coroutines.flow.Flow<List<Track>> {
-        return telegramDao.getAllTelegramSongs().map { allSongs ->
-            allSongs.filter { it.chatId == chatId }.map { it.toTrack() }
+    fun getTracksForChannel(chatId: Long): Flow<List<Track>> {
+        return combine(
+            telegramDao.getSongsByChatIdFlow(chatId),
+            _state.map { it.searchQuery }.distinctUntilChanged(),
+            _state.map { it.sortType }.distinctUntilChanged(),
+            _state.map { it.isReversed }.distinctUntilChanged()
+        ) { channelSongs, query, sort, reversed ->
+            withContext(Dispatchers.Default) {
+                channelSongs.asSequence()
+                    .map { it.toTrack() }
+                    .filter { query.isBlank() || it.title.contains(query, true) || it.artist.contains(query, true) }
+                    .let { seq ->
+                        when (sort) {
+                            SortType.BY_TITLE -> seq.sortedBy { it.title.lowercase() }
+                            SortType.BY_ARTIST -> seq.sortedBy { it.artist.lowercase() }
+                            SortType.BY_DATE -> seq.sortedByDescending { it.dateModified }
+                            SortType.BY_DURATION -> seq.sortedBy { it.duration }
+                        }
+                    }
+                    .let { if (reversed) it.toList().reversed() else it.toList() }
+            }
         }
     }
     

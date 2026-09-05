@@ -5,19 +5,22 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.nkds.hosikoouma.jasmine.R
+import com.nkds.hosikoouma.jasmine.data.ShareHelper
 import com.nkds.hosikoouma.jasmine.datamodels.Track
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.TelegramCloudViewModel
 import org.jaudiotagger.audio.AudioFileIO
 import java.io.File
 import java.util.Locale
@@ -25,16 +28,19 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackInfoBottomSheet(
-    track: Track,
+    track: Track?,
     onDismissRequest: () -> Unit,
-    trackViewModel: TrackViewModel = viewModel()
+    trackViewModel: TrackViewModel = hiltViewModel(),
+    telegramCloudViewModel: TelegramCloudViewModel = hiltViewModel()
 ) {
+    if (track == null) return
     val context = LocalContext.current
+    val isTelegram = track.isTelegram
     var showEditDialog by remember { mutableStateOf(false) }
 
     // Проверяем, локальный ли это файл и можно ли его редактировать
     val isEditable = remember(track) {
-        track.path.isNotEmpty() && File(track.path).exists() && track.contentUri.scheme != "telegram"
+        track.path.isNotEmpty() && File(track.path).exists() && !track.isTelegram
     }
 
     val trackDetails = remember(track) {
@@ -163,6 +169,39 @@ fun TrackInfoBottomSheet(
                 label = stringResource(R.string.file_location), 
                 value = track.path.ifEmpty { stringResource(R.string.system_media_store, track.contentUri.toString()) }
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { ShareHelper.shareTrack(context, track) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Rounded.Share, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.share_track))
+                }
+
+                if (isTelegram) {
+                    Button(
+                        onClick = { 
+                            telegramCloudViewModel.downloadTracks(listOf(track))
+                            android.widget.Toast.makeText(context, context.getString(R.string.download_started), android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Icon(Icons.Rounded.Download, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.save_to_device))
+                    }
+                }
+            }
         }
     }
 }

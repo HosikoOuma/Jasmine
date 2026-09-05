@@ -73,4 +73,23 @@ object ShareHelper {
             e.printStackTrace()
         }
     }
+
+    fun shareFile(context: Context, file: File, title: String = "Share File") {
+        try {
+            val contentUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "*/*"
+                putExtra(Intent.EXTRA_STREAM, contentUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, title))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

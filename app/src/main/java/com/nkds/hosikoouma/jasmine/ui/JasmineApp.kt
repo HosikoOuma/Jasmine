@@ -18,6 +18,7 @@ import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.TelegramCloudViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -35,6 +36,7 @@ fun JasmineApp() {
     val playerViewModel: PlayerViewModel = hiltViewModel(viewModelStoreOwner)
     val trackViewModel: TrackViewModel = hiltViewModel(viewModelStoreOwner)
     val radioViewModel: RadioViewModel = hiltViewModel(viewModelStoreOwner)
+    val telegramCloudViewModel: TelegramCloudViewModel = hiltViewModel(viewModelStoreOwner)
 
     // 1. Оптимизация темы: подписываемся только на URI обложки, а не на весь объект Track.
     val albumArtUri by remember(playerViewModel) {
@@ -51,7 +53,8 @@ fun JasmineApp() {
             MainScreen(
                 trackViewModel = trackViewModel,
                 playerViewModel = playerViewModel,
-                radioViewModel = radioViewModel
+                radioViewModel = radioViewModel,
+                telegramCloudViewModel = telegramCloudViewModel
             )
 
             // 2. Изоляция Toast: слушаем тосты из всех источников

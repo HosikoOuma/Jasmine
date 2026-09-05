@@ -50,14 +50,16 @@ fun TelegramAuthScreen(
                 CodeInput(
                     isLoading = authState.isLoading,
                     error = authState.error,
-                    onSend = viewModel::sendCode
+                    onSend = viewModel::sendCode,
+                    onReset = viewModel::resetAuth
                 )
             }
             is TdApi.AuthorizationStateWaitPassword -> {
                 PasswordInput(
                     isLoading = authState.isLoading,
                     error = authState.error,
-                    onSend = viewModel::sendPassword
+                    onSend = viewModel::sendPassword,
+                    onReset = viewModel::resetAuth
                 )
             }
             is TdApi.AuthorizationStateReady -> {
@@ -156,7 +158,8 @@ fun PhoneNumberInput(
 fun CodeInput(
     isLoading: Boolean,
     error: String?,
-    onSend: (String) -> Unit
+    onSend: (String) -> Unit,
+    onReset: () -> Unit
 ) {
     var code by remember { mutableStateOf("") }
 
@@ -216,6 +219,16 @@ fun CodeInput(
             }
         }
 
+        Spacer(Modifier.height(16.dp))
+
+        TextButton(
+            onClick = onReset,
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text(stringResource(R.string.tg_change_number))
+        }
+
         Spacer(Modifier.height(140.dp)) // Отступ от нижних панелей
     }
 }
@@ -224,7 +237,8 @@ fun CodeInput(
 fun PasswordInput(
     isLoading: Boolean,
     error: String?,
-    onSend: (String) -> Unit
+    onSend: (String) -> Unit,
+    onReset: () -> Unit
 ) {
     var password by remember { mutableStateOf("") }
 
@@ -283,6 +297,16 @@ fun PasswordInput(
             } else {
                 Text(stringResource(R.string.login))
             }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        TextButton(
+            onClick = onReset,
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text(stringResource(R.string.tg_change_number))
         }
 
         Spacer(Modifier.height(140.dp)) // Отступ от нижних панелей

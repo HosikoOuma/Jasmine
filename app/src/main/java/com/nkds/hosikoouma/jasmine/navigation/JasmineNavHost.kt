@@ -17,6 +17,7 @@ import com.nkds.hosikoouma.jasmine.ui.screens.*
 import com.nkds.hosikoouma.jasmine.viewmodels.PlayerViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.RadioViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.TrackViewModel
+import com.nkds.hosikoouma.jasmine.viewmodels.TelegramCloudViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.SettingsViewModel
 import com.nkds.hosikoouma.jasmine.viewmodels.MaintenanceViewModel
 import java.net.URLDecoder
@@ -28,6 +29,7 @@ fun JasmineNavHost(
     trackViewModel: TrackViewModel,
     playerViewModel: PlayerViewModel,
     radioViewModel: RadioViewModel,
+    telegramCloudViewModel: TelegramCloudViewModel,
     onNavigateToPlayer: () -> Unit,
     onNavigateToRadioPlayer: () -> Unit,
     selectedTracks: Set<Track>,
@@ -209,7 +211,10 @@ fun JasmineNavHost(
                 chatId = chatId,
                 navController = navController,
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = onNavigateToPlayer
+                telegramCloudViewModel = telegramCloudViewModel,
+                onNavigateToPlayer = onNavigateToPlayer,
+                selectedTracks = selectedTracks,
+                onToggleTrackSelection = onToggleTrackSelection
             )
         }
 

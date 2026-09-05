@@ -14,7 +14,8 @@ data class Track(
     val uid: String = id.toString(),
     val isManual: Boolean = false,
     val albumId: Long = -1L,
-    val dateModified: Long = 0L
+    val dateModified: Long = 0L,
+    val isTelegram: Boolean = contentUri.scheme == "telegram"
 )
 
 data class Album(val name: String, val artist: String, val tracks: List<Track>)

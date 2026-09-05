@@ -256,6 +256,7 @@
     <string name="tg_2step_title">Двухэтапная аутентификация</string>
     <string name="tg_2step_desc">Ваш аккаунт защищен дополнительным паролем.</string>
     <string name="tg_password_label">Пароль</string>
+    <string name="tg_change_number">Изменить номер</string>
     <string name="tg_connected_title">Вы подключены!</string>
     <string name="tg_connected_desc">Telegram Cloud готов к работе. Теперь вы можете просматривать и добавлять музыку из своих каналов.</string>
     <string name="tg_find_channels">Найти каналы</string>
@@ -322,4 +323,35 @@
     <string name="up_to_date">Установлена последняя версия</string>
     <string name="version_info">Текущая версия: %1$s\nНовая версия: %2$s</string>
     <string name="failed_to_check_update">Не удалось проверить обновления. Проверьте подключение к сети.</string>
+
+    <!-- Telegram Downloads -->
+    <string name="telegram_downloads_channel">Загрузки из Telegram</string>
+    <string name="downloading_track">Загрузка %1$s</string>
+    <string name="download_complete">Загрузка завершена</string>
+    <string name="download_success_desc">%1$s сохранено в Music/Jasmine/Saved</string>
+    <string name="download_failed">Загрузка не удалась</string>
+    <string name="download_error_path">Не удалось определить путь к файлу</string>
+    <string name="download_error_save">Не удалось сохранить файл на устройство</string>
+    <string name="save_to_device">Сохранить на устройство</string>
+    <string name="download_started">Загрузка началась</string>
+    <string name="tracks_saved_toast">Сохранено треков: %1$d</string>
+
+    <!-- Debug & Maintenance -->
+    <string name="debug_development">Отладка и разработка</string>
+    <string name="trigger_app_crash">Вызвать сбой приложения</string>
+    <string name="trigger_app_crash_desc">Используйте это для проверки системы отчетов о сбоях.</string>
+    <string name="simulate_crash">Симулировать сбой</string>
+
+    <!-- Crash Activity -->
+    <string name="crash_report_not_found">Отчет об ошибке не найден.</string>
+    <string name="crash_log_title">Лог ошибки Jasmine</string>
+    <string name="log_copied_toast">Лог скопирован в буфер обмена</string>
+    <string name="crash_share_text">Отчет об ошибке Jasmine\nПожалуйста, отправьте этот файл @NekoDosi</string>
+    <string name="crash_share_chooser_title">Отправить лог @NekoDosi</string>
+    <string name="app_crashed_title">Приложение упало</string>
+    <string name="something_went_wrong">Что-то пошло не так</string>
+    <string name="crash_description">В приложении произошла непредвиденная ошибка, и оно должно быть закрыто. Вы можете помочь улучшить Jasmine, отправив отчет об ошибке ниже разработчику.</string>
+    <string name="error_details">Детали ошибки</string>
+    <string name="restart_app">Перезапустить</string>
+    <string name="send_log">Отправить лог</string>
 </resources>
