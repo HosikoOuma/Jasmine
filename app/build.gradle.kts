@@ -14,8 +14,8 @@ android {
         applicationId = "com.nkds.hosikoouma.jasmine"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "3.0-beta1"
+        versionCode = 2
+        versionName = "3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
